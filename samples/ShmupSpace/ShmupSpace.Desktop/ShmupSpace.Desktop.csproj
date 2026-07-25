@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\..\src\PrecompiledShaders\AposShapesPrecompiled.props" />
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,9 +11,8 @@
   </PropertyGroup>
 
   <!-- Apos.Shapes is intentionally NOT pinned here. Its version flows transitively from
-       the engine, which is the single source of truth ($(AposShapesVersion) in
-       src/PrecompiledShaders/AposShapes.props). The precompiled apos-shapes.xnb shader is
-       wired up by AposShapesPrecompiled.props, imported at the top of this file. -->
+       the engine; its shader is embedded in the assembly, so it needs no content-pipeline
+       wiring. -->
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" />
     <PackageReference Include="MonoGame.Content.Builder.Task" />

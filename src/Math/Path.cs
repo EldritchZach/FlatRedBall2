@@ -319,7 +319,7 @@ public class Path : IRenderable
         sb.Shapes.FillLine(
             new XnaVec2(sA.X, sA.Y),
             new XnaVec2(sB.X, sB.Y),
-            remainderRadius, aaSize: 0.5f, c: Color);
+            remainderRadius, Color, aaSize: 0.5f);
     }
 
     private static Segment BuildArcSegment(Vector2 start, Vector2 end, float arcAngle)

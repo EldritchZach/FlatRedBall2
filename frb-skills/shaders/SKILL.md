@@ -1,28 +1,13 @@
 ---
 name: shaders
-description: "Custom shaders in FlatRedBall2. Use when adding .fx shader files, troubleshooting shader compilation errors (libmojoshader, Wine), or working with precompiled shader XNBs."
+description: "Custom shaders in FlatRedBall2. Use when adding .fx shader files or troubleshooting shader compilation errors (libmojoshader, Wine)."
 ---
 
 # Shaders in FlatRedBall2
 
-## Precompiled Shaders
+## Apos.Shapes
 
-FlatRedBall2 ships precompiled `.xnb` shaders for its built-in Apos.Shapes dependency. These live in `src/PrecompiledShaders/` with one subfolder per platform:
-
-| Platform | Subfolder | Set by |
-|----------|-----------|--------|
-| MonoGame DesktopGL | `DesktopGL/` | `MonoGamePlatform` property |
-| KNI BlazorGL | `BlazorGL/` | `KniPlatform` property |
-
-Projects import `AposShapesPrecompiled.props` to use these instead of compiling from source. Unknown platforms fall back to normal Apos.Shapes shader compilation.
-
-**These xnbs are duplicated in a second place: the dotnet templates' build folders** — `templates/frb2-desktop/build/` and `templates/frb2-multiplatform/build/` (each has a `DesktopGL/`; multiplatform also `BlazorGL/`), plus a copy of `AposShapesPrecompiled.props`. Any edit to a `src/PrecompiledShaders/<platform>/apos-shapes.xnb` must be copied byte-for-byte into the matching template folder(s). `TemplatePackageReferenceTests` fails CI on drift — run it after touching an xnb. This is invariant for *any* xnb change; the `AposShapes.props` rebuild checklist frames the sync under a version bump, but it isn't bump-specific.
-
-The package version is centralized in `$(AposShapesVersion)` (`src/PrecompiledShaders/AposShapes.props`), imported by the engine. Apos.Shapes ships only `buildTransitive` assets, so both the version and the `SkipAposShapeContent` precompiled-XNB skip flow identically whether the package is referenced directly or transitively — sample Desktop projects inherit it from the engine and don't pin it. Re-adding a per-sample pin only reintroduces the drift `NU1605` then fails the build on; bump the prop instead.
-
-### Version Guard
-
-`ShapesBatch.AposShapesVersion` (in `src/Rendering/Batches/ShapesBatch.cs`) is a C# const that can't read MSBuild, so it mirrors `$(AposShapesVersion)` by hand. In Debug builds, a mismatch against the loaded Apos.Shapes assembly throws `InvalidOperationException`. See the comment on that constant (and `AposShapes.props`) for the rebuild checklist.
+FlatRedBall2's built-in shape rendering (`ShapesBatch`) uses Apos.Shapes, whose shader is embedded directly in the package assembly (0.7.2+) — no content pipeline, no `.xnb`, no Wine dependency. The version is centralized in `$(AposShapesVersion)` in the repo's `Directory.Packages.props`; sample and template projects inherit it transitively and must not pin it themselves (see issue #495).
 
 ## Custom Shaders
 

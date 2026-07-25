@@ -22,8 +22,14 @@
     <NoWarn>$(NoWarn);NU1507</NoWarn>
   </PropertyGroup>
 
-  <!-- Single source of truth for $(AposShapesVersion); see that file before bumping it. -->
-  <Import Project="$(MSBuildThisFileDirectory)src/PrecompiledShaders/AposShapes.props" />
+  <!--
+    Apos.Shapes ships only buildTransitive assets and embeds its shader directly in the
+    assembly as of 0.7.2 — no MonoGame content pipeline, no Wine dependency. Both backend
+    packages are pinned to the same version here since they track the same upstream release.
+  -->
+  <PropertyGroup>
+    <AposShapesVersion>0.7.8</AposShapesVersion>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageVersion Include="AsepriteDotNet" Version="1.9.1" />

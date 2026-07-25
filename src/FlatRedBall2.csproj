@@ -1,10 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!--
-    $(AposShapesVersion) comes from PrecompiledShaders/AposShapes.props, imported by the repo
-    root's Directory.Packages.props (which every project in this build graph picks up
-    automatically) — see that file before bumping the version.
-  -->
-
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>

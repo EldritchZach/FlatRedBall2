@@ -218,7 +218,7 @@ public class FlatRedBallService
         _whitePixel.SetData(new[] { Color.White });
         SynchronizationContext.SetSynchronizationContext(_syncContext);
         Content.Initialize(game.Content, game.GraphicsDevice);
-        ShapesBatch.Instance.Initialize(game.GraphicsDevice, game.Content);
+        ShapesBatch.Instance.Initialize(game.GraphicsDevice);
 
         var bounds = game.Window.ClientBounds;
         ApplyCameraSettings(Camera, bounds.Width, bounds.Height);

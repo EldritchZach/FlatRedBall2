@@ -21,7 +21,6 @@ Copy the structure from an existing sample (e.g., `AnimationChainSample`). The m
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\src\PrecompiledShaders\AposShapesPrecompiled.props" />
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -43,7 +42,7 @@ Copy the structure from an existing sample (e.g., `AnimationChainSample`). The m
 
 No `Version` attribute on either `PackageReference` — the repo uses NuGet Central Package Management, so every version is pinned once in the root `Directory.Packages.props`. If restore complains a package has no version, add it there instead of on the `PackageReference`.
 
-Do **not** pin `Apos.Shapes` — version flows transitively from the engine (`$(AposShapesVersion)` in `src/PrecompiledShaders/AposShapes.props`).
+Do **not** pin `Apos.Shapes` — version flows transitively from the engine. Its shader is embedded in the assembly, so it needs no content-pipeline wiring.
 
 ### 1b. Add `YourSample.slnx` (REQUIRED — easy to forget)
 
@@ -109,7 +108,7 @@ dotnet tool restore
 
 ### 3. Add `Content/Content.mgcb` (REQUIRED — easy to forget)
 
-Without this file, `MonoGame.Content.Builder.Task` has nothing to drive the content pipeline. The build will succeed with zero errors, but `Apos.Shapes`' `buildTransitive` content (the `apos-shapes.fx` shader) won't be compiled, and the game will crash at startup with a `FileNotFoundException` for `apos-shapes.xnb`.
+`MonoGame.Content.Builder.Task` needs this file to drive the content pipeline for any textures, fonts, or audio the project loads via `ContentManager`. Without it, that content fails to build.
 
 Create `Content/Content.mgcb` in the project directory with this minimal content:
 
@@ -130,7 +129,7 @@ Create `Content/Content.mgcb` in the project directory with this minimal content
 
 ```
 
-Even if the project has no custom content (no textures, fonts, or audio), this file is still required for the `buildTransitive` shader from `Apos.Shapes` to be built.
+Even a project with no custom content yet should keep this file present — `MonoGame.Content.Builder.Task` expects it, and it's one less thing to add later.
 
 ### 4. Ask about Gum mode (REQUIRED — do not skip)
 
@@ -162,7 +161,7 @@ public Game1()
 #else
     _graphics.GraphicsProfile = GraphicsProfile.HiDef;
 #endif
-    Content.RootDirectory = "Content";  // REQUIRED — Apos.Shapes loads its shader from here
+    Content.RootDirectory = "Content";  // REQUIRED for ContentManager.Load of textures/fonts/audio
     IsMouseVisible = true;              // set to false only for keyboard/gamepad-only games
     FlatRedBall2.FlatRedBallService.Default.PrepareWindow<YourScreen>(_graphics);
 }
@@ -196,6 +195,6 @@ dotnet build samples/YourSample/YourSample.csproj
 
 ## Why the Tools File Is Needed
 
-`MonoGame.Content.Builder.Task` invokes `mgcb` as a local dotnet tool to build any MonoGame content (including content from `Apos.Shapes` via `buildTransitive`). Local tools require a manifest file (`.config/dotnet-tools.json`) to locate the tool. Existing samples work because their manifests are already present and `dotnet tool restore` was run when the repo was first set up.
+`MonoGame.Content.Builder.Task` invokes `mgcb` as a local dotnet tool to build any MonoGame content. Local tools require a manifest file (`.config/dotnet-tools.json`) to locate the tool. Existing samples work because their manifests are already present and `dotnet tool restore` was run when the repo was first set up.
 
 A new project directory has no manifest, so the content build fails. The fix is to add the manifest (identical to all other samples) and run `dotnet tool restore` once.
