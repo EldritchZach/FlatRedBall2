@@ -9,8 +9,13 @@
     Unknown platforms fall back to normal compilation (Apos.Shapes' own MSBuild targets handle
     it): a non-DesktopGL MonoGame target (e.g. WindowsDX) matches neither platform section below.
 
-    The Apos.Shapes PACKAGE version is centralized in AposShapes.props (sibling file) as
-    $(AposShapesVersion) — see that file for the rule on rebuilding these XNBs after a bump.
+    Transitional: Apos.Shapes 0.7.2+ embeds its shader in the assembly and needs none of
+    this, but this template resolves FlatRedBall2.MonoGame/FlatRedBall2.Kni as floating
+    "*-*" PackageVersions from nuget.org (see ../Directory.Packages.props), not from this
+    repo's source. Until releases that depend on Apos.Shapes >=0.7.2 are published, `dotnet new`
+    still pulls the old Apos.Shapes (Wine-dependent) transitively — keep this workaround until
+    then. Delete this file, its DesktopGL/BlazorGL apos-shapes.xnb, and the <Import> in the
+    template .csproj files once those releases ship (see design/TODOS.md).
 
     ALLOWLIST: Only platforms with a verified precompiled XNB in this directory are listed.
     To add a new platform:

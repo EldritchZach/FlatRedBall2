@@ -137,7 +137,7 @@ cd YourGameName/YourGameName.BlazorGL
 dotnet run
 ```
 
-This launches a local dev server (default `https://localhost:5001`) — open the URL and the game runs in the browser canvas. Apos.Shapes' precompiled shader XNB ships in `wwwroot/Content/` so neither Wine nor a shader compiler is needed on macOS/Linux.
+This launches a local dev server (default `https://localhost:5001`) — open the URL and the game runs in the browser canvas. Apos.Shapes' shader is embedded directly in the package assembly, so neither Wine nor a shader compiler is needed on macOS/Linux.
 
 `Game1.cs` uses `#if KNI` to pick `GraphicsProfile.FL10_0` on the web target (`GraphicsProfile.HiDef` on desktop). Keep that pattern if you add any code that diverges between backends. Save data and other `System.IO.File`-based code should be gated behind `#if !KNI` since browsers have no filesystem.
 

@@ -12,8 +12,9 @@
   </PropertyGroup>
 
   <!-- Apos.Shapes is intentionally NOT pinned here. Its version flows transitively from
-       FlatRedBall2.MonoGame (see $(AposShapesVersion) in the engine's AposShapes.props).
-       Precompiled apos-shapes.xnb is wired by templates/build/AposShapesPrecompiled.props. -->
+       FlatRedBall2.MonoGame's published NuGet dependency (not this repo's source), which
+       still depends on a pre-0.7.2 Apos.Shapes that needs the content-pipeline workaround
+       below. See the comment atop build/AposShapesPrecompiled.props. -->
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" />
     <PackageReference Include="MonoGame.Content.Builder.Task" />

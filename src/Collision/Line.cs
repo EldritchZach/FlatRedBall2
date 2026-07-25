@@ -90,8 +90,8 @@ public class Line : IAttachable, IRenderable, ICollidable
             new XnaVec2(screen2.X, screen2.Y),
             // line radius:
             remainderRadius,
-            aaSize:aa,
-            c:Color);
+            Color,
+            aaSize: aa);
     }
 
     /// <summary>

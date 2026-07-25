@@ -1,8 +1,5 @@
 using System;
-using System.Diagnostics;
-using System.Reflection;
 using Apos.Shapes;
-using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall2.Rendering.Batches;
@@ -14,62 +11,17 @@ namespace FlatRedBall2.Rendering.Batches;
 /// </summary>
 public class ShapesBatch : IRenderBatch
 {
-    // ── Precompiled shader version guard ──────────────────────────────────
-    //
-    // FlatRedBall2 ships precompiled apos-shapes.xnb files so that macOS/Linux
-    // users don't need Wine for shader compilation. This constant must match the
-    // version of Apos.Shapes whose shader was used to produce those XNBs.
-    //
-    // The PACKAGE version lives in MSBuild as $(AposShapesVersion)
-    // (src/PrecompiledShaders/AposShapes.props) — the single source of truth that
-    // drives every csproj. A C# const can't read MSBuild, so this mirrors it by
-    // hand; keep the two equal. See AposShapes.props for the full rebuild procedure.
-    //
-    // ONLY UPDATE THIS AFTER:
-    //   1. Bumping $(AposShapesVersion) in src/PrecompiledShaders/AposShapes.props
-    //   2. Rebuilding a sample on each platform (DesktopGL, BlazorGL) so the
-    //      content pipeline compiles fresh apos-shapes.xnb files
-    //   3. Copying the new XNBs into src/PrecompiledShaders/<platform>/
-    //   4. Verifying each sample runs correctly with the new shaders
-    //
-    internal const string AposShapesVersion = "0.6.10-alpha";
-
     /// <summary>The shared singleton instance.</summary>
     public static readonly ShapesBatch Instance = new();
 
     private ShapeBatch? _shapeBatch;
 
     // Called by FlatRedBallService.Initialize so the shader effect is loaded
-    // before any shape Draw() call can occur.
-    internal void Initialize(GraphicsDevice graphicsDevice, ContentManager content)
+    // before any shape Draw() call can occur. Apos.Shapes' shader is embedded in its
+    // assembly (0.7.2+), so no ContentManager / content pipeline is involved.
+    internal void Initialize(GraphicsDevice graphicsDevice)
     {
-        ValidateAposShapesVersion();
-        _shapeBatch = new ShapeBatch(graphicsDevice, content);
-    }
-
-    [Conditional("DEBUG")]
-    private static void ValidateAposShapesVersion()
-    {
-        var aposVersion = typeof(ShapeBatch).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion;
-
-        // InformationalVersion may include "+commitHash" suffix — compare only the version prefix
-        if (aposVersion != null)
-        {
-            var plusIndex = aposVersion.IndexOf('+');
-            if (plusIndex >= 0)
-                aposVersion = aposVersion[..plusIndex];
-        }
-
-        if (aposVersion != null && aposVersion != AposShapesVersion)
-        {
-            throw new InvalidOperationException(
-                $"Apos.Shapes version mismatch: engine expects {AposShapesVersion} " +
-                $"(precompiled shader version) but found {aposVersion}. " +
-                $"The precompiled XNBs in src/PrecompiledShaders/ must be rebuilt. " +
-                $"See the comment on ShapesBatch.AposShapesVersion for instructions.");
-        }
+        _shapeBatch = new ShapeBatch(graphicsDevice);
     }
 
     // Exposed so shape Draw() methods can issue primitives directly.

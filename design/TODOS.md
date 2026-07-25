@@ -4,6 +4,12 @@
 
 Open work only. When an item ships, delete it — don't leave a "landed" breadcrumb. Design decisions and historical context that outlive a TODO belong in skill files, XML docs, or commit messages, not here.
 
+## Remove templates' precompiled Apos.Shapes shader workaround
+
+`templates/frb2-desktop` and `templates/frb2-multiplatform` still import `build/AposShapesPrecompiled.props` and ship precompiled `apos-shapes.xnb` files, even though the engine itself dropped this workaround once Apos.Shapes 0.7.2+ started embedding its shader in the assembly. The templates can't drop it yet because they resolve `FlatRedBall2.MonoGame`/`FlatRedBall2.Kni` as a floating NuGet package from nuget.org (not this repo's source), and the latest published release still depends on a pre-0.7.2 Apos.Shapes.
+
+Once a `FlatRedBall2.MonoGame`/`FlatRedBall2.Kni` release depending on Apos.Shapes >=0.7.2 is published (via `.github/workflows/publish.yml`), delete: the `<Import Project="..\build\AposShapesPrecompiled.props" />` line in each template `.csproj`, the `build/AposShapesPrecompiled.props` and `build/*/apos-shapes.xnb` files in both template folders, and the corresponding `InlineData` rows in `tests/FlatRedBall2.Tests/Packaging/PrecompiledShaderCompatibilityTests.cs` and `TemplatePackageReferenceTests.cs`.
+
 ## Font rendering quality on web at non-native resolutions
 
 Gum renders text from pre-baked bitmap font (`.fnt`) atlases sized for a fixed design resolution. On the BlazorGL/KNI WASM target the browser viewport changes constantly — user resizes, devicePixelRatio differences, mobile rotations — so the atlas gets sampled at fractional scales and text turns blurry / aliased. Solitaire is the obvious repro: at most browser sizes the card-rank/suit labels and any HUD text look noticeably worse than on desktop.

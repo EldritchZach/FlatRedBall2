@@ -31,34 +31,21 @@ public class TemplatePackageReferenceTests
                 "BlazorGL templates must not pin Apos.Shapes.KNI; version flows transitively from FlatRedBall2.Kni.");
     }
 
+    // Templates resolve FlatRedBall2.MonoGame/FlatRedBall2.Kni as a floating "*-*" PackageVersion
+    // from nuget.org, not from this repo's source (see templates/*/Directory.Packages.props). The
+    // latest published release still depends on a pre-0.7.2 Apos.Shapes that compiles its .fx via
+    // the content pipeline (Wine on macOS/Linux), so every template project needs the precompiled
+    // shader workaround until a release depending on Apos.Shapes >=0.7.2 ships. Dropping this
+    // import without also dropping the workaround file is what broke CI in PR #783.
     [Theory]
-    [InlineData("templates/frb2-desktop/build")]
-    [InlineData("templates/frb2-multiplatform/build")]
-    public void TemplateBuildFolder_MatchesEnginePrecompiledShaders(string relativeBuildDir)
+    [InlineData("templates/frb2-desktop/MyGame.Desktop/MyGame.Desktop.csproj")]
+    [InlineData("templates/frb2-multiplatform/MyGame.Desktop/MyGame.Desktop.csproj")]
+    [InlineData("templates/frb2-multiplatform/MyGame.BlazorGL/MyGame.BlazorGL.csproj")]
+    public void Template_ImportsPrecompiledAposShapesWorkaround(string relativeCsprojPath)
     {
-        var engineDir = Path.Combine(RepoRoot, "src/PrecompiledShaders");
-        var templateDir = Path.Combine(RepoRoot, relativeBuildDir);
+        var csproj = File.ReadAllText(Path.Combine(RepoRoot, relativeCsprojPath));
 
-        File.ReadAllText(Path.Combine(templateDir, "AposShapesPrecompiled.props"))
-            .ShouldBe(File.ReadAllText(Path.Combine(engineDir, "AposShapesPrecompiled.props")));
-
-        CompareFiles(
-            Path.Combine(engineDir, "DesktopGL/apos-shapes.xnb"),
-            Path.Combine(templateDir, "DesktopGL/apos-shapes.xnb"));
-    }
-
-    [Fact]
-    public void MultiplatformTemplateBuildFolder_IncludesBlazorGLXnb()
-    {
-        CompareFiles(
-            Path.Combine(RepoRoot, "src/PrecompiledShaders/BlazorGL/apos-shapes.xnb"),
-            Path.Combine(RepoRoot, "templates/frb2-multiplatform/build/BlazorGL/apos-shapes.xnb"));
-    }
-
-    private static void CompareFiles(string expectedPath, string actualPath)
-    {
-        File.Exists(actualPath).ShouldBeTrue($"Missing template file: {actualPath}");
-        File.ReadAllBytes(expectedPath).ShouldBe(File.ReadAllBytes(actualPath));
+        csproj.ShouldContain("AposShapesPrecompiled.props");
     }
 
     private static string RepoRoot => RepoRootForTests;

@@ -12,8 +12,6 @@
     <BlazorEnableTimeZoneSupport>false</BlazorEnableTimeZoneSupport>
   </PropertyGroup>
 
-  <Import Project="..\..\..\src\PrecompiledShaders\AposShapesPrecompiled.props" />
-
   <ItemGroup>
     <Compile Include="Program.cs" />
   </ItemGroup>

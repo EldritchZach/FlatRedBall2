@@ -54,7 +54,7 @@ XNA framework packages must be conditioned per TFM — the engine's transitive f
 
 No `Version` attribute — the repo uses NuGet Central Package Management, so versions are pinned once in `Directory.Packages.props`, not per `PackageReference`.
 
-Common must NOT add `MonoGame.Content.Builder.Task` or `Apos.Shapes` — those belong on the heads that drive content compilation.
+Common must NOT add `MonoGame.Content.Builder.Task` — that belongs on the heads that drive content compilation. `Apos.Shapes` needs no content-pipeline wiring at all — its shader is embedded in the assembly.
 
 ## Backend-conditional code
 
@@ -142,7 +142,7 @@ Keep `Content/` in `Common`. Both heads consume it without duplication.
          CopyToOutputDirectory="PreserveNewest" />
 ```
 
-`MonoGameContentReference` is project-local; Desktop needs its own minimal `Content/Content.mgcb` (see `sample-project-setup`). Apos.Shapes' shader is built via `buildTransitive` on the head, not from Common.
+`MonoGameContentReference` is project-local; Desktop needs its own minimal `Content/Content.mgcb` (see `sample-project-setup`).
 
 **BlazorGL** is the trap. `<Content Link="wwwroot\…">` copies to `bin/.../wwwroot/` but the file is **not** registered as a static web asset, so the dev server returns 404. Files must land in the project's **physical** `wwwroot/Content/` directory before the static-web-asset manifest is gathered. Use a `<Copy>` target:
 
@@ -181,7 +181,7 @@ Reference: `AutoEvalKniBlazorSample.BlazorGL`. Each sample's `.BlazorGL` head ow
 ## Verification
 
 1. `dotnet build GameName.Desktop/` clean.
-2. `dotnet build GameName.BlazorGL/` clean (one upstream Apos.Shapes shader warning is expected; not your code).
+2. `dotnet build GameName.BlazorGL/` clean.
 3. `dotnet run --project GameName.Desktop/` plays the original game unchanged.
 4. `dotnet run --project GameName.BlazorGL/` serves the dev URL; canvas fills viewport; resizing the window keeps rendering correct (proves `AllowUserResizing` is set).
 
