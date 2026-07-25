@@ -59,11 +59,16 @@ public class Player : Entity, IPlatformerEntity
         Add(_body);
 
         var keyboard = Engine.Input.Keyboard;
+        var gamepad = Engine.Input.GetGamepad(0);
+        // Polling gamepad 0 is safe even with nothing plugged in — IGamepad returns
+        // zeroed/unpressed state until a controller connects, so no "is connected" gate needed.
         _platformer.MovementInput =
             new KeyboardInput2D(keyboard, Keys.Left, Keys.Right, Keys.Up, Keys.Down)
-            .Or(new KeyboardInput2D(keyboard, Keys.A, Keys.D, Keys.W, Keys.S));
+            .Or(new KeyboardInput2D(keyboard, Keys.A, Keys.D, Keys.W, Keys.S))
+            .Or(new GamepadInput2D(gamepad, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY));
         _platformer.JumpInput =
-            new KeyboardPressableInput(keyboard, Keys.Space);
+            new KeyboardPressableInput(keyboard, Keys.Space)
+            .Or(new GamepadPressableInput(gamepad, Buttons.A));
 
         _normalConfig = PlatformerConfig.FromJson("Content/player.platformer.json");
         _waterConfig = PlatformerConfig.FromJson("Content/player.water.platformer.json");
