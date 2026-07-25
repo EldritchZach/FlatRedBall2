@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FlatRedBall2.Input;
 using Microsoft.Xna.Framework.Input;
 using Shouldly;
@@ -208,6 +209,55 @@ public class GamepadPressableInputTests
         var input = new GamepadPressableInput(fake, Buttons.A);
 
         input.WasJustReleased.ShouldBeTrue();
+    }
+}
+
+// --- GamepadDPadInput2D ---
+
+file sealed class FakeDPadGamepad : IGamepad
+{
+    private readonly HashSet<Buttons> _down = new();
+
+    public void Hold(Buttons button) => _down.Add(button);
+
+    public bool IsButtonDown(Buttons button) => _down.Contains(button);
+    public bool WasButtonJustPressed(Buttons button) => false;
+    public bool WasButtonJustReleased(Buttons button) => false;
+    public float GetAxis(GamepadAxis axis) => 0f;
+}
+
+public class GamepadDPadInput2DTests
+{
+    [Fact]
+    public void X_DPadLeftHeld_ReturnsNegativeOne()
+    {
+        var fake = new FakeDPadGamepad();
+        fake.Hold(Buttons.DPadLeft);
+        var input = new GamepadDPadInput2D(fake);
+
+        input.X.ShouldBe(-1f);
+    }
+
+    [Fact]
+    public void X_DPadRightHeld_ReturnsPositiveOne()
+    {
+        var fake = new FakeDPadGamepad();
+        fake.Hold(Buttons.DPadRight);
+        var input = new GamepadDPadInput2D(fake);
+
+        input.X.ShouldBe(1f);
+    }
+
+    [Fact]
+    public void Y_DPadUpHeld_ReturnsPositiveOne()
+    {
+        // Y+ is up by convention (matches world-space coordinates) — the most likely source of
+        // a sign-flip bug if this adapter were ever rewritten.
+        var fake = new FakeDPadGamepad();
+        fake.Hold(Buttons.DPadUp);
+        var input = new GamepadDPadInput2D(fake);
+
+        input.Y.ShouldBe(1f);
     }
 }
 

@@ -209,6 +209,39 @@ public class PlatformerBehaviorAirJumpTests
         entity.VelocityY.ShouldBe(airJumpVelocity);
     }
 
+    // ── Context swap mid-air (e.g. entering water) ──────────────────────────
+
+    [Fact]
+    public void AirJump_AfterDoubleJump_WhenAfterDoubleJumpSlotIsClearedMidAir_FallSpeedClampUsesAirMovement()
+    {
+        // Reproduces #784: after a double jump, AfterDoubleJump becomes the active slot. If a
+        // context swap (e.g. entering water) then clears AfterDoubleJump — same pattern as
+        // PlatformerConfig.ApplyTo when the new context's JSON has no afterDoubleJump block —
+        // the fall-speed clamp must fall back to AirMovement's (now water's) MaxFallSpeed
+        // instead of clinging to the stale, now-orphaned AfterDoubleJump values.
+        var afterDoubleJump = new PlatformerValues { MaxSpeedX = 120f, Gravity = 700f, MaxFallSpeed = 800f, JumpVelocity = 0f };
+        var jump = new PressableInput();
+        var platformer = MakePlatformer(jump, airJumpVelocity: 300f, afterDoubleJump: afterDoubleJump);
+        var (entity, _) = MakeAirborneEntity();
+
+        platformer.Update(entity, Frame()); // airborne, no jump
+
+        jump.Press();
+        platformer.Update(entity, Frame()); // double jump fires, _activeAirValues = afterDoubleJump
+
+        // Simulate falling back down, then swapping to a context (water) whose config has no
+        // afterDoubleJump slot — PlatformerConfig.ApplyTo sets AfterDoubleJump = null and lowers
+        // AirMovement.MaxFallSpeed, exactly like the water JSON in the PlatformKing sample.
+        jump.Release();
+        entity.VelocityY = -2000f; // far below any config's max fall speed
+        platformer.AfterDoubleJump = null;
+        platformer.AirMovement.MaxFallSpeed = 50f;
+
+        platformer.Update(entity, Frame());
+
+        entity.VelocityY.ShouldBe(-50f);
+    }
+
     // ── Fell off ground ──────────────────────────────────────────────────────
 
     [Fact]
