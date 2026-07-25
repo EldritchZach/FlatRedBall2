@@ -19,7 +19,7 @@ The only relevant question is "is this the right design?" — never "will this b
 
 ## Key Files
 
-- Main project: `src/FlatRedBall2.csproj` (MonoGame.Framework.DesktopGL 3.8.*)
+- Main project: `src/FlatRedBall2.csproj` (MonoGame.Framework.DesktopGL, version pinned in the root `Directory.Packages.props`)
 - Code style: `.claude/code-style.md`
 - Deferred items: `design/TODOS.md`
 - Test project: `tests/FlatRedBall2.Tests/FlatRedBall2.Tests.csproj`

@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Single source of truth for $(AposShapesVersion); see that file before bumping it. -->
-  <Import Project="PrecompiledShaders/AposShapes.props" />
+  <!--
+    $(AposShapesVersion) comes from PrecompiledShaders/AposShapes.props, imported by the repo
+    root's Directory.Packages.props (which every project in this build graph picks up
+    automatically) — see that file before bumping the version.
+  -->
 
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
@@ -55,8 +58,8 @@
 
   <!-- Backend-agnostic packages -->
   <ItemGroup>
-    <PackageReference Include="AsepriteDotNet" Version="1.9.1" />
-    <PackageReference Include="FlatRedBall.InterpolationCore" Version="2025.4.22.1" />
+    <PackageReference Include="AsepriteDotNet" />
+    <PackageReference Include="FlatRedBall.InterpolationCore" />
   </ItemGroup>
 
   <!--
@@ -71,30 +74,30 @@
 
   <!-- MonoGame backend -->
   <ItemGroup Condition="'$(Backend)' == 'MonoGame'">
-    <PackageReference Include="Apos.Shapes" Version="$(AposShapesVersion)" />
-    <PackageReference Include="Gum.MonoGame" Version="2026.7.9.1-preview.1" />
-    <PackageReference Include="Gum.Shapes.MonoGame" Version="2026.7.9.1-preview.1" />
-    <PackageReference Include="KernSmith.MonoGameGum" Version="0.16.*" />
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*">
+    <PackageReference Include="Apos.Shapes" />
+    <PackageReference Include="Gum.MonoGame" />
+    <PackageReference Include="Gum.Shapes.MonoGame" />
+    <PackageReference Include="KernSmith.MonoGameGum" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="MonoGame.Extended" Version="6.0.0" />
+    <PackageReference Include="MonoGame.Extended" />
   </ItemGroup>
 
   <!-- KNI backend (Blazor WebAssembly + future mobile targets) -->
   <ItemGroup Condition="'$(Backend)' == 'Kni'">
-    <PackageReference Include="Apos.Shapes.KNI" Version="$(AposShapesVersion)" />
-    <PackageReference Include="Gum.KNI" Version="2026.7.9.1-preview.1" />
-    <PackageReference Include="Gum.Shapes.KNI" Version="2026.7.9.1-preview.1" />
-    <PackageReference Include="KernSmith.KniGum" Version="0.16.*" />
-    <PackageReference Include="KNI.Extended" Version="6.0.0" />
-    <PackageReference Include="nkast.Xna.Framework" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Content" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Graphics" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Audio" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Media" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Input" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Game" Version="4.2.9001" />
+    <PackageReference Include="Apos.Shapes.KNI" />
+    <PackageReference Include="Gum.KNI" />
+    <PackageReference Include="Gum.Shapes.KNI" />
+    <PackageReference Include="KernSmith.KniGum" />
+    <PackageReference Include="KNI.Extended" />
+    <PackageReference Include="nkast.Xna.Framework" />
+    <PackageReference Include="nkast.Xna.Framework.Content" />
+    <PackageReference Include="nkast.Xna.Framework.Graphics" />
+    <PackageReference Include="nkast.Xna.Framework.Audio" />
+    <PackageReference Include="nkast.Xna.Framework.Media" />
+    <PackageReference Include="nkast.Xna.Framework.Input" />
+    <PackageReference Include="nkast.Xna.Framework.Game" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,8 +15,8 @@
        FlatRedBall2.MonoGame (see $(AposShapesVersion) in the engine's AposShapes.props).
        Precompiled apos-shapes.xnb is wired by templates/build/AposShapesPrecompiled.props. -->
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
 
   <Import Project="..\build\AposShapesPrecompiled.props" />
