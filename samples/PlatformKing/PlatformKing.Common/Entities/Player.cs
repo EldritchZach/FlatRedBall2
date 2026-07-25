@@ -65,7 +65,8 @@ public class Player : Entity, IPlatformerEntity
         _platformer.MovementInput =
             new KeyboardInput2D(keyboard, Keys.Left, Keys.Right, Keys.Up, Keys.Down)
             .Or(new KeyboardInput2D(keyboard, Keys.A, Keys.D, Keys.W, Keys.S))
-            .Or(new GamepadInput2D(gamepad, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY));
+            .Or(new GamepadInput2D(gamepad, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY))
+            .Or(new GamepadDPadInput2D(gamepad));
         _platformer.JumpInput =
             new KeyboardPressableInput(keyboard, Keys.Space)
             .Or(new GamepadPressableInput(gamepad, Buttons.A));

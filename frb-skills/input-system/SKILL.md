@@ -1,6 +1,6 @@
 ---
 name: input-system
-description: "Input System in FlatRedBall2. Use when working with keyboard, mouse, cursor, gamepad, touch input, key bindings, or input handling. Covers IKeyboard, ICursor, IGamepad, KeyboardInput2D, KeyboardPressableInput, GamepadInput2D, GamepadPressableInput, and I2DInput/IPressableInput interfaces."
+description: "Input System in FlatRedBall2. Use when working with keyboard, mouse, cursor, gamepad, touch input, key bindings, or input handling. Covers IKeyboard, ICursor, IGamepad, KeyboardInput2D, KeyboardPressableInput, GamepadInput2D, GamepadDPadInput2D, GamepadPressableInput, and I2DInput/IPressableInput interfaces."
 ---
 
 # Input System in FlatRedBall2
@@ -139,7 +139,12 @@ _movement = new GamepadInput2D(pad0, GamepadAxis.LeftStickX, GamepadAxis.LeftSti
     .Or(new GamepadInput2D(pad1, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY));
 ```
 
-The d-pad is exposed as four buttons (`Buttons.DPadLeft/Right/Up/Down`), not as axes — there is no `GamepadAxis.DPadX/Y`. To drive a `GamepadInput2D` from the d-pad, wrap the four buttons in your own `I2DInput` implementation.
+The d-pad is exposed as four buttons (`Buttons.DPadLeft/Right/Up/Down`), not as axes — there is no `GamepadAxis.DPadX/Y`. Use `GamepadDPadInput2D` for d-pad movement, and `.Or()` it with `GamepadInput2D` so the analog stick and d-pad both work:
+
+```csharp
+_movement = new GamepadInput2D(pad, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY)
+    .Or(new GamepadDPadInput2D(pad));
+```
 
 The same applies to `IPressableInput` via `.Or(other)` — any two pressable inputs merge into one.
 
