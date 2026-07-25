@@ -449,7 +449,7 @@ public class Sprite : IRenderable, IAttachable
             if (entry != null)
                 ApplyShapeEntry(name, entry);
             else
-                HideShapeIfPresent(name);
+                DisableCollisionIfPresent(name);
         }
     }
 
@@ -535,7 +535,7 @@ public class Sprite : IRenderable, IAttachable
 
     // Only disables collision — visibility is never the animation system's business once a shape
     // exists. A shape's IsVisible is entirely game code's to control (see issue #775).
-    private void HideShapeIfPresent(string name)
+    private void DisableCollisionIfPresent(string name)
     {
         var existing = Parent!.FindShapeByName(name);
         if (existing == null) return;
