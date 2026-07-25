@@ -53,6 +53,7 @@ Known categories:
 - **`CS0108` / `CS0114` — generated Gum control classes hide inherited members** (`MenuItem.MenuItemCategoryState`, `PasswordBox.Placeholder`, others). These come out of Gum's codegen; fix is upstream in Gum (emit `new` / `override` keyword) or a codegen-template tweak the consumer can apply. Track separately from engine work.
 - **Nullability warnings inside `tests/`.** The two `EntityVector2TweenTests`/`EntityColorTweenTests` `CS8600`/`CS8625` patterns in test code that aren't covered by `Nullable=enable`. Easy mechanical fix.
 - **Gum source warnings** (when project-referenced, not packaged). Out of scope here — they only appear during in-place Gum debugging and aren't shipped.
+- **`CS0618` — obsolete `MonoGameGum.GueDeriving.*` / `TryGetFrameworkElementByName` usage in Solitaire's `*.Generated.cs` files** (added by the Gum 2026.7.22.1 bump, which deprecated those in favor of `Gum.GueDeriving.*` / `FindFormsControl<T>`). These come out of Gum's own codegen template, same as the `CS0108`/`CS0114` item above — fix upstream in Gum's codegen (or regenerate once it's updated), not by hand-editing generated files.
 
 Do this as a sweep, not piecemeal: a single PR that drives the engine and sample warning count to zero, then promotes warnings to errors in CI so regressions are caught.
 
