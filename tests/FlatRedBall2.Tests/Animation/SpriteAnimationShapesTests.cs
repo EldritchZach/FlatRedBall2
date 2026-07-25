@@ -51,7 +51,7 @@ public class SpriteAnimationShapesTests
     }
 
     [Fact]
-    public void ApplyCurrentFrame_HitboxOnFrame_EnabledOnEntity()
+    public void ApplyCurrentFrame_HitboxOnFrame_ValuesAppliedVisibilityPreserved()
     {
         var entity = new Entity();
         var sword = new AARect { Name = "Sword", IsVisible = false };
@@ -68,7 +68,8 @@ public class SpriteAnimationShapesTests
         sprite.AnimationChains = list;
         sprite.PlayAnimation("Attack");
 
-        sword.IsVisible.ShouldBeTrue();
+        // Visibility is game code's to control — animation only touches geometry/collision.
+        sword.IsVisible.ShouldBeFalse();
         sword.Width.ShouldBe(30f);
         sword.Height.ShouldBe(10f);
         sword.X.ShouldBe(15f);
@@ -76,7 +77,7 @@ public class SpriteAnimationShapesTests
     }
 
     [Fact]
-    public void ApplyCurrentFrame_HitboxAbsentFromFrame_HiddenAndCollisionDisabled()
+    public void ApplyCurrentFrame_HitboxAbsentFromFrame_CollisionDisabledVisibilityUnchanged()
     {
         var entity = new Entity();
         var sprite = new Sprite();
@@ -98,15 +99,43 @@ public class SpriteAnimationShapesTests
         sword.ShouldNotBeNull();
         sword!.IsVisible.ShouldBeTrue();
 
-        // Advance to frame 1 — no Sword listed, must be hidden
+        // Advance to frame 1 — no Sword listed, collision disabled but visibility untouched
         sprite.AnimateSelf(0.15);
 
-        sword.IsVisible.ShouldBeFalse();
+        sword.IsVisible.ShouldBeTrue();
         entity.CollidesWith(new AARect { X = 0f, Y = 0f, Width = 100f, Height = 100f }).ShouldBeFalse();
     }
 
     [Fact]
-    public void ApplyCurrentFrame_CrossChainSwitchWithinChainList_HidesShapeNotInNewChain()
+    public void ApplyCurrentFrame_PreExistingShapeMarkedInvisible_VisibilityPreservedAcrossFrames()
+    {
+        // Regression guard for #775: a shape the game code created (not auto-created by the
+        // animation system) and explicitly hid must stay hidden through both frame states —
+        // present-in-frame (values applied) and absent-from-frame (collision disabled).
+        var entity = new Entity();
+        var sword = new AARect { Name = "Sword", IsVisible = false };
+        entity.Add(sword);
+
+        var sprite = new Sprite();
+        entity.Add(sprite);
+
+        var chain = ChainWithFrames("Attack",
+            Frame(0.1f, new AnimationAARectFrame { Name = "Sword", Width = 30f, Height = 10f }),
+            Frame(0.1f)); // second frame doesn't list Sword
+        var list = new AnimationChainList();
+        list.Add(chain);
+        sprite.AnimationChains = list;
+        sprite.PlayAnimation("Attack");
+
+        sword.IsVisible.ShouldBeFalse();
+
+        sprite.AnimateSelf(0.15);
+
+        sword.IsVisible.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ApplyCurrentFrame_CrossChainSwitchWithinChainList_DisablesCollisionNotInNewChain()
     {
         var entity = new Entity();
         var sprite = new Sprite();
@@ -131,8 +160,10 @@ public class SpriteAnimationShapesTests
 
         sprite.PlayAnimation("Idle");
 
-        // Sword is owned by the chainlist (Attack mentions it), Idle does not list it → hidden.
-        sword.IsVisible.ShouldBeFalse();
+        // Sword is owned by the chainlist (Attack mentions it), Idle does not list it → collision
+        // disabled, but visibility is never the animation system's business.
+        sword.IsVisible.ShouldBeTrue();
+        entity.CollidesWith(new AARect { X = 0f, Y = 0f, Width = 100f, Height = 100f }).ShouldBeFalse();
     }
 
     [Fact]

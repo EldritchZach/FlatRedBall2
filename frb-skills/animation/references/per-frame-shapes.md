@@ -8,8 +8,10 @@ A shape **name** is *owned* by an `AnimationChainList` iff that name appears in 
 
 Each frame, the engine reconciles the chainlist's owned set:
 
-- Listed in this frame → shape is enabled (`IsVisible = true`, registered for default collision) and values are applied.
-- In the owned set but **not** listed in this frame → shape is hidden (`IsVisible = false`, removed from default collision). The instance persists for reuse; it isn't destroyed.
+- Listed in this frame → geometry values are applied and the shape is registered for default collision. `IsVisible` is untouched.
+- In the owned set but **not** listed in this frame → removed from default collision. The instance persists for reuse; it isn't destroyed. `IsVisible` is untouched.
+
+`IsVisible` is only ever set by the animation system once, at auto-creation time (see `AutoCreateShapes` below) — from then on it's entirely game code's to control. A shape you create and hide yourself stays hidden through animation playback; this is how you build collision-only hitboxes that never render.
 
 Shapes whose names are not in *any* chainlist's owned set are **never touched**. Body colliders are safe by absence — adding animation to an existing entity does not silently strip the body, no flag required.
 
@@ -21,7 +23,7 @@ Shapes whose names are not in *any* chainlist's owned set are **never touched**.
 
 ## AutoCreateShapes
 
-Default `true` on `AnimationChainList`. When a frame names a shape that doesn't yet exist on the entity, the engine instantiates it and attaches it. This is the ergonomic code path — no need to pre-declare every hitbox in `CustomInitialize`.
+Default `true` on `AnimationChainList`. When a frame names a shape that doesn't yet exist on the entity, the engine instantiates it, sets `IsVisible = true`, and attaches it. This is the ergonomic code path — no need to pre-declare every hitbox in `CustomInitialize`. If you want a collision-only shape that never renders, pre-declare it yourself with `IsVisible = false` instead of relying on auto-creation.
 
 Set `chainList.AutoCreateShapes = false` to make missing shapes a runtime error instead. Useful when you want typo detection.
 

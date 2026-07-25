@@ -467,6 +467,7 @@ public class Sprite : IRenderable, IAttachable
                             $"Animation frame references shape '{name}' which is not on the entity, and AutoCreateShapes is false.");
                     var r = new AARect { Name = name };
                     ApplyRectangle(r, rect);
+                    r.IsVisible = true;
                     Parent.Add(r);
                 }
                 else if (existing is AARect r)
@@ -490,6 +491,7 @@ public class Sprite : IRenderable, IAttachable
                             $"Animation frame references shape '{name}' which is not on the entity, and AutoCreateShapes is false.");
                     var c = new Circle { Name = name };
                     ApplyCircle(c, circle);
+                    c.IsVisible = true;
                     Parent.Add(c);
                 }
                 else if (existing is Circle c)
@@ -513,6 +515,7 @@ public class Sprite : IRenderable, IAttachable
                             $"Animation frame references shape '{name}' which is not on the entity, and AutoCreateShapes is false.");
                     var p = new Polygon { Name = name };
                     ApplyPolygon(p, poly);
+                    p.IsVisible = true;
                     Parent.Add(p);
                 }
                 else if (existing is Polygon p)
@@ -530,6 +533,8 @@ public class Sprite : IRenderable, IAttachable
         }
     }
 
+    // Only disables collision — visibility is never the animation system's business once a shape
+    // exists. A shape's IsVisible is entirely game code's to control (see issue #775).
     private void HideShapeIfPresent(string name)
     {
         var existing = Parent!.FindShapeByName(name);
@@ -537,27 +542,24 @@ public class Sprite : IRenderable, IAttachable
         switch (existing)
         {
             case AARect r:
-                r.IsVisible = false;
                 Parent.SetDefaultCollision(r, false);
                 break;
             case Circle c:
-                c.IsVisible = false;
                 Parent.SetDefaultCollision(c, false);
                 break;
             case Polygon p:
-                p.IsVisible = false;
                 Parent.SetDefaultCollision(p, false);
                 break;
         }
     }
 
+    // Geometry-only — callers that just created the shape set IsVisible = true themselves.
     private static void ApplyRectangle(AARect r, AnimationAARectFrame entry)
     {
         r.Width = entry.Width;
         r.Height = entry.Height;
         r.X = entry.RelativeX;
         r.Y = entry.RelativeY;
-        r.IsVisible = true;
     }
 
     private static void ApplyCircle(Circle c, AnimationCircleFrame entry)
@@ -565,7 +567,6 @@ public class Sprite : IRenderable, IAttachable
         c.Radius = entry.Radius;
         c.X = entry.RelativeX;
         c.Y = entry.RelativeY;
-        c.IsVisible = true;
     }
 
     private static void ApplyPolygon(Polygon p, AnimationPolygonFrame entry)
@@ -573,7 +574,6 @@ public class Sprite : IRenderable, IAttachable
         p.SetPoints(entry.Points);
         p.X = entry.RelativeX;
         p.Y = entry.RelativeY;
-        p.IsVisible = true;
     }
 
     // Rotation (radians) handed to SpriteBatch.Draw. SpriteBatch rotates corner offsets with the
