@@ -128,9 +128,12 @@ public class PlatformerBehavior
     /// </summary>
     public PlatformerValues? AfterDoubleJump { get; set; }
 
-    // Tracks which air slot is currently active. Null = using AirMovement. Set to AfterDoubleJump
-    // after the first air jump (when AfterDoubleJump != null). Reset to null on landing.
-    private PlatformerValues? _activeAirValues;
+    // Tracks whether the first air jump has fired since the last landing. Resolved against
+    // AfterDoubleJump fresh every frame (falling back to AirMovement) rather than caching the
+    // PlatformerValues reference directly — a context swap (e.g. entering water) can null out
+    // AfterDoubleJump via PlatformerConfig.ApplyTo, and a cached reference would keep pointing at
+    // the orphaned pre-swap values instead of picking up the new context's AirMovement.
+    private bool _usedAirJumpSlot;
 
     /// <summary>True while climbing a snapping ladder (X-locked). False for fence climbs and when not climbing.</summary>
     public bool IsOnLadder => IsClimbing && _lockedLadderX.HasValue;
@@ -403,7 +406,7 @@ public class PlatformerBehavior
 
         var current = IsClimbing
             ? ClimbingMovement!
-            : (IsOnGround ? (GroundMovement ?? AirMovement) : (_activeAirValues ?? AirMovement));
+            : (IsOnGround ? (GroundMovement ?? AirMovement) : (_usedAirJumpSlot ? (AfterDoubleJump ?? AirMovement) : AirMovement));
 
         if (!IsOnGround || IsClimbing) CurrentSlope = 0f;
         float effectiveMaxSpeedX = ComputeSlopeAdjustedMaxSpeed(current, inputX);
@@ -500,7 +503,7 @@ public class PlatformerBehavior
         }
         else
         {
-            if (IsOnGround) _activeAirValues = null;
+            if (IsOnGround) _usedAirJumpSlot = false;
 
             // C. Apply gravity
             entity.AccelerationY = -current.Gravity;
@@ -565,15 +568,14 @@ public class PlatformerBehavior
             if (!groundJumpFiredThisFrame && !dropThroughTriggered
                 && justPressed && !IsOnGround && !IsApplyingJump)
             {
-                var airValues = _activeAirValues ?? AirMovement;
+                var airValues = _usedAirJumpSlot ? (AfterDoubleJump ?? AirMovement) : AirMovement;
                 if (airValues.JumpVelocity > 0f)
                 {
                     entity.VelocityY = airValues.JumpVelocity;
                     _jumpStartTime = time.SinceGameStart;
                     _jumpValues = airValues;
                     IsApplyingJump = airValues.JumpApplyLength > TimeSpan.Zero;
-                    if (_activeAirValues == null && AfterDoubleJump != null)
-                        _activeAirValues = AfterDoubleJump;
+                    _usedAirJumpSlot = true;
                     airJumpFired = true;
                 }
             }
