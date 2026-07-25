@@ -48,7 +48,7 @@ Binaries are unsigned. Windows SmartScreen will warn on first run ("More info" â
 
 ## Quick Start
 
-Requires the **.NET 10 SDK** ([install guide](docs/setup.md#prerequisites)).
+Requires the **.NET 10 SDK** ([install guide](https://docs.flatredball.com/flatredball2/setup#prerequisites)).
 
 ```
 dotnet new install FlatRedBall2.Templates
@@ -60,7 +60,7 @@ dotnet run
 
 A window opens showing "Hello from FlatRedBall 2" â€” if you see that, everything works.
 
-See the **[full setup guide](docs/setup.md)** for prerequisites, multi-platform (desktop + web) projects, manually wiring FlatRedBall2 into an existing project, and troubleshooting.
+See the **[full setup guide](https://docs.flatredball.com/flatredball2/setup)** for prerequisites, multi-platform (desktop + web) projects, manually wiring FlatRedBall2 into an existing project, and troubleshooting.
 
 ## Working with AI Assistants
 
