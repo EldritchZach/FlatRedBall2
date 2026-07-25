@@ -33,14 +33,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia.Browser" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.1" />
-    <PackageReference Include="SkiaSharp" Version="3.119.3-preview.1.1" />
+    <PackageReference Include="Avalonia.Browser" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="SkiaSharp" />
     <!-- Phase 7 (#644) spike: confirm Svg.Controls.Skia.Avalonia's SVG rendering survives a
          net10.0-browser WASM publish before committing to the full icon rollout. See
          docs/BROWSER_ICON_SYSTEM_DECISION.md. -->
-    <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.7" />
+    <PackageReference Include="Svg.Controls.Skia.Avalonia" />
   </ItemGroup>
 
   <ItemGroup>

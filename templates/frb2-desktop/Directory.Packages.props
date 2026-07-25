@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    Self-contained CPM file for this template — do NOT reference the repo root's
+    Directory.Packages.props. `dotnet new` scaffolds this template's content/ folder into a
+    brand-new standalone repo, so every version this template needs must live here.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- FlatRedBall2.MonoGame is pinned to "*-*" (any prerelease) — CPM blocks floating
+         PackageVersion entries by default. -->
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
+    <!-- NU1507 recommends NuGet package source mapping whenever CPM is combined with more
+         than one configured package source. Suppress the advisory rather than take on
+         source mapping here. -->
+    <NoWarn>$(NoWarn);NU1507</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="FlatRedBall2.MonoGame" Version="*-*" />
+    <PackageVersion Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageVersion Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+  </ItemGroup>
+</Project>

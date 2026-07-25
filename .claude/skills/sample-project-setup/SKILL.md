@@ -32,14 +32,16 @@ Copy the structure from an existing sample (e.g., `AnimationChainSample`). The m
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FlatRedBall2.csproj" />
   </ItemGroup>
 </Project>
 ```
+
+No `Version` attribute on either `PackageReference` — the repo uses NuGet Central Package Management, so every version is pinned once in the root `Directory.Packages.props`. If restore complains a package has no version, add it there instead of on the `PackageReference`.
 
 Do **not** pin `Apos.Shapes` — version flows transitively from the engine (`$(AposShapesVersion)` in `src/PrecompiledShaders/AposShapes.props`).
 

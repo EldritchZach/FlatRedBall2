@@ -10,11 +10,11 @@
     pull them in directly here for type resolution (e.g. Texture2D in AnimationFrame).
   -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="nkast.Xna.Framework" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Graphics" Version="4.2.9001" />
-    <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="nkast.Xna.Framework" />
+    <PackageReference Include="nkast.Xna.Framework.Graphics" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

@@ -45,12 +45,14 @@ XNA framework packages must be conditioned per TFM — the engine's transitive f
 
 ```xml
 <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-  <PackageReference Include="nkast.Xna.Framework.Game" Version="4.2.9001" />
+  <PackageReference Include="nkast.Xna.Framework.Game" />
 </ItemGroup>
 <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-  <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+  <PackageReference Include="MonoGame.Framework.DesktopGL" />
 </ItemGroup>
 ```
+
+No `Version` attribute — the repo uses NuGet Central Package Management, so versions are pinned once in `Directory.Packages.props`, not per `PackageReference`.
 
 Common must NOT add `MonoGame.Content.Builder.Task` or `Apos.Shapes` — those belong on the heads that drive content compilation.
 

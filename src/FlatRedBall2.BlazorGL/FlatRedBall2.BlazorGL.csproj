@@ -21,10 +21,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.17" />
-    <PackageReference Include="nkast.Xna.Framework.Game" Version="4.2.9001" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="nkast.Xna.Framework.Game" />
     <!-- Brings in the nkast.Wasm.* JS shim packages whose static assets frb-host.js loads -->
-    <PackageReference Include="nkast.Kni.Platform.Blazor.GL" Version="4.2.9001.1" />
+    <PackageReference Include="nkast.Kni.Platform.Blazor.GL" />
   </ItemGroup>
 
   <ItemGroup>

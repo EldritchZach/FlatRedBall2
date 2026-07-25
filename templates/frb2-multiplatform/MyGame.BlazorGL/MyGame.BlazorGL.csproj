@@ -17,24 +17,24 @@
   <!-- KNI XNA + Blazor host packages. The version pin must match the JS shim version
        in wwwroot/frb-host.js (`v = '8.0.11'`). -->
   <ItemGroup>
-    <PackageReference Include="nkast.Xna.Framework" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Content" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Graphics" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Audio" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Media" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Input" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Game" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Devices" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.Storage" Version="4.2.9001" />
-    <PackageReference Include="nkast.Xna.Framework.XR" Version="4.2.9001" />
-    <PackageReference Include="nkast.Kni.Platform.Blazor.GL" Version="4.2.9001.1" />
+    <PackageReference Include="nkast.Xna.Framework" />
+    <PackageReference Include="nkast.Xna.Framework.Content" />
+    <PackageReference Include="nkast.Xna.Framework.Graphics" />
+    <PackageReference Include="nkast.Xna.Framework.Audio" />
+    <PackageReference Include="nkast.Xna.Framework.Media" />
+    <PackageReference Include="nkast.Xna.Framework.Input" />
+    <PackageReference Include="nkast.Xna.Framework.Game" />
+    <PackageReference Include="nkast.Xna.Framework.Devices" />
+    <PackageReference Include="nkast.Xna.Framework.Storage" />
+    <PackageReference Include="nkast.Xna.Framework.XR" />
+    <PackageReference Include="nkast.Kni.Platform.Blazor.GL" />
     <!-- Required to compile KniContentReference items into XNB. -->
-    <PackageReference Include="nkast.Xna.Framework.Content.Pipeline.Builder" Version="4.2.9001" />
+    <PackageReference Include="nkast.Xna.Framework.Content.Pipeline.Builder" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.17" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.17" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

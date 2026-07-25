@@ -16,8 +16,8 @@
        src/PrecompiledShaders/AposShapes.props). The precompiled apos-shapes.xnb shader is
        wired up by AposShapesPrecompiled.props, imported at the top of this file. -->
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
 
   <ItemGroup>

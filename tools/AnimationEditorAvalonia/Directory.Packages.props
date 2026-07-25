@@ -1,0 +1,39 @@
+<Project>
+  <!--
+    Self-contained CPM file for the Animation Editor tool — isolated from the repo root's
+    Directory.Packages.props on purpose. This tool has its own unrelated dependency graph
+    (Avalonia/SkiaSharp) and is not part of the main src/tests/samples build.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Microsoft.Extensions.* and NJsonSchema are pinned with a floating range (e.g. 9.*) —
+         CPM blocks floating PackageVersion entries by default. -->
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
+    <!-- NU1507 recommends NuGet package source mapping whenever CPM is combined with more
+         than one configured package source. This project's Directory.Build.props promotes
+         all warnings to errors, so this advisory would otherwise fail the build. Suppress it
+         rather than take on source mapping here. -->
+    <NoWarn>$(NoWarn);NU1507</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Avalonia" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Browser" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.0.1" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.1" />
+    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.1" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.*" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="NJsonSchema" Version="11.*" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.3-preview.1.1" />
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.7" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+  </ItemGroup>
+</Project>
