@@ -23,7 +23,13 @@ public static class SpriteBatchExtensions
     /// <param name="spriteBatch">Must be between <see cref="SpriteBatch.Begin"/> and <see cref="SpriteBatch.End"/>.</param>
     /// <param name="player">The player whose <see cref="AnimationPlayer.CurrentFrame"/> will be drawn.</param>
     /// <param name="position">Top-left draw position in screen pixels (before per-frame offset).</param>
-    /// <param name="color">Tint color. Use <see cref="Color.White"/> for no tint.</param>
+    /// <param name="color">
+    /// Base tint color. Use <see cref="Color.White"/> for no tint. The frame's authored
+    /// <see cref="AnimationFrame.Red"/>/<see cref="AnimationFrame.Green"/>/<see cref="AnimationFrame.Blue"/>
+    /// are multiplied into this when <see cref="AnimationFrame.ColorOperation"/> is
+    /// <see cref="ColorOperation.Multiply"/>, and <see cref="AnimationFrame.Alpha"/> is always
+    /// multiplied into this color's alpha when set. See <see cref="AnimationFrameColor.Apply"/>.
+    /// </param>
     /// <param name="origin">
     /// Pivot point within the source rectangle, in pixels. Defaults to <see cref="Vector2.Zero"/>
     /// (top-left). Pass <c>new Vector2(width/2, height/2)</c> for center-origin drawing.
@@ -54,7 +60,7 @@ public static class SpriteBatchExtensions
             frame.Texture,
             drawPos,
             frame.SourceRectangle,
-            color,
+            AnimationFrameColor.Apply(frame, color),
             0f,
             origin,
             scale,

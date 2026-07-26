@@ -200,8 +200,20 @@ public class AnimationChainListSave
         {
             var chain = new AnimationChain { Name = chainSave.Name };
 
+            // Sticky color resolution: a frame that omits a channel inherits the most recent
+            // explicitly-set value from an earlier frame in this chain, rather than resetting to
+            // null. Mirrors the Animation Editor's EffectiveFrameColor.ResolveAll.
+            int? stickyRed = null, stickyGreen = null, stickyBlue = null, stickyAlpha = null;
+            ColorOperation? stickyOperation = null;
+
             foreach (var frameSave in chainSave.Frames)
             {
+                stickyRed       = frameSave.Red           ?? stickyRed;
+                stickyGreen     = frameSave.Green         ?? stickyGreen;
+                stickyBlue      = frameSave.Blue          ?? stickyBlue;
+                stickyAlpha     = frameSave.Alpha         ?? stickyAlpha;
+                stickyOperation = frameSave.ColorOperation ?? stickyOperation;
+
                 var frame = new AnimationFrame
                 {
                     TextureName = frameSave.TextureName,
@@ -211,11 +223,11 @@ public class AnimationChainListSave
                     FlipDiagonal = frameSave.FlipDiagonal,
                     RelativeX = frameSave.RelativeX,
                     RelativeY = frameSave.RelativeY,
-                    Red = frameSave.Red,
-                    Green = frameSave.Green,
-                    Blue = frameSave.Blue,
-                    Alpha = frameSave.Alpha,
-                    ColorOperation = frameSave.ColorOperation,
+                    Red = stickyRed,
+                    Green = stickyGreen,
+                    Blue = stickyBlue,
+                    Alpha = stickyAlpha,
+                    ColorOperation = stickyOperation,
                 };
 
                 frame.Texture = loadTexture(frameSave);
