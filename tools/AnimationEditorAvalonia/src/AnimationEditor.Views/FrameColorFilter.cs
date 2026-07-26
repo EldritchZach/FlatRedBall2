@@ -20,8 +20,10 @@ public static class FrameColorFilter
         switch (operation)
         {
             case ColorOperation.Multiply:
+                // Channels feed an SKColor byte, so a negative value must clamp to 0 here — an
+                // unclamped negative int->byte cast wraps (-10 becomes 246) instead of darkening.
                 return SKColorFilter.CreateBlendMode(
-                    new SKColor((byte)(r ?? 255), (byte)(g ?? 255), (byte)(b ?? 255), 255),
+                    new SKColor((byte)Math.Clamp(r ?? 255, 0, 255), (byte)Math.Clamp(g ?? 255, 0, 255), (byte)Math.Clamp(b ?? 255, 0, 255), 255),
                     SKBlendMode.Modulate);
             case ColorOperation.Add:
                 // A Plus blend can't do this: it blends in premultiplied space, so an alpha-0 color adds
