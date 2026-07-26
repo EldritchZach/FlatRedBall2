@@ -48,37 +48,33 @@ public class AnimationFrame
     public float RelativeY;
 
     /// <summary>
-    /// Per-frame red color channel (0-255). <c>null</c> means unset/not authored. Not applied
-    /// automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/> — available for game
-    /// code to use.
+    /// Per-frame red color channel (0-255), already resolved for the "sticky" .achx semantic (an
+    /// omitted channel inherits the last frame that set it — see <see cref="AchxLoader"/>).
+    /// <c>null</c> means no frame in this chain ever set it. Applied automatically by
+    /// <see cref="SpriteBatchExtensions.DrawAnimation"/> when <see cref="ColorOperation"/> is
+    /// <see cref="FlatRedBall.AnimationChain.ColorOperation.Multiply"/> — see <see cref="AnimationFrameColor.Apply"/>.
     /// </summary>
     public int? Red;
 
-    /// <summary>
-    /// Per-frame green color channel (0-255). <c>null</c> means unset/not authored. Not applied
-    /// automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/> — available for game
-    /// code to use.
-    /// </summary>
+    /// <summary>Per-frame green color channel (0-255), sticky-resolved. See <see cref="Red"/>.</summary>
     public int? Green;
 
-    /// <summary>
-    /// Per-frame blue color channel (0-255). <c>null</c> means unset/not authored. Not applied
-    /// automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/> — available for game
-    /// code to use.
-    /// </summary>
+    /// <summary>Per-frame blue color channel (0-255), sticky-resolved. See <see cref="Red"/>.</summary>
     public int? Blue;
 
     /// <summary>
-    /// Per-frame alpha/transparency channel (0-255). <c>null</c> means unset/not authored. Not
-    /// applied automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/> — available for
-    /// game code to use.
+    /// Per-frame alpha/transparency channel (0-255), sticky-resolved. <c>null</c> means no frame in
+    /// this chain ever set it. Independent of <see cref="ColorOperation"/> — always applied by
+    /// <see cref="SpriteBatchExtensions.DrawAnimation"/> when set. See <see cref="Red"/>.
     /// </summary>
     public int? Alpha;
 
     /// <summary>
-    /// How the color channels combine with the texture. <c>null</c> means none. Not applied
-    /// automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/> — available for game
-    /// code to use.
+    /// How <see cref="Red"/>/<see cref="Green"/>/<see cref="Blue"/> combine with the texture,
+    /// sticky-resolved. <c>null</c> means none. <see cref="FlatRedBall.AnimationChain.ColorOperation.Multiply"/>
+    /// is applied automatically by <see cref="SpriteBatchExtensions.DrawAnimation"/>;
+    /// <see cref="FlatRedBall.AnimationChain.ColorOperation.Add"/> is authored data only for now — it needs a
+    /// custom shader, since <see cref="Microsoft.Xna.Framework.Graphics.SpriteBatch"/> can only multiply texture color, not offset it.
     /// </summary>
     public ColorOperation? ColorOperation;
 

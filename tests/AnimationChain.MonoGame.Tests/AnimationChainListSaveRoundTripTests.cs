@@ -130,4 +130,71 @@ public class AnimationChainListSaveRoundTripTests
         Assert.Equal(255, frame.Alpha);
         Assert.Equal(ColorOperation.Add, frame.ColorOperation);
     }
+
+    // #793: an omitted channel on a later frame is "sticky" - it holds whatever an earlier frame
+    // in the same chain last set, rather than resetting to null/none.
+    [Fact]
+    public void ToAnimationChainList_LaterFrameOmitsChannel_InheritsEarlierFramesValue()
+    {
+        const string achx = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <AnimationChainArraySave>
+              <FileRelativeTextures>false</FileRelativeTextures>
+              <TimeMeasurementUnit>Second</TimeMeasurementUnit>
+              <CoordinateType>UV</CoordinateType>
+              <AnimationChain>
+                <Name>Flash</Name>
+                <Frame>
+                  <TextureName>t.png</TextureName>
+                  <FrameLength>0.1</FrameLength>
+                  <LeftCoordinate>0</LeftCoordinate><RightCoordinate>1</RightCoordinate>
+                  <TopCoordinate>0</TopCoordinate><BottomCoordinate>1</BottomCoordinate>
+                  <Red>200</Red>
+                  <ColorOperation>Multiply</ColorOperation>
+                </Frame>
+                <Frame>
+                  <TextureName>t.png</TextureName>
+                  <FrameLength>0.1</FrameLength>
+                  <LeftCoordinate>0</LeftCoordinate><RightCoordinate>1</RightCoordinate>
+                  <TopCoordinate>0</TopCoordinate><BottomCoordinate>1</BottomCoordinate>
+                  <Green>100</Green>
+                </Frame>
+              </AnimationChain>
+            </AnimationChainArraySave>
+            """;
+        var save = AnimationChainListSave.FromFile("f.achx", XmlStream(achx));
+        var list = save.ToAnimationChainList(_ => null);
+        var secondFrame = list["Flash"]![1];
+
+        Assert.Equal(200, secondFrame.Red);
+        Assert.Equal(100, secondFrame.Green);
+        Assert.Equal(ColorOperation.Multiply, secondFrame.ColorOperation);
+    }
+
+    [Fact]
+    public void ToAnimationChainList_ChannelNeverAuthored_StaysNull()
+    {
+        var save = AnimationChainListSave.FromFile("f.achx", XmlStream("""
+            <?xml version="1.0" encoding="utf-8"?>
+            <AnimationChainArraySave>
+              <FileRelativeTextures>false</FileRelativeTextures>
+              <TimeMeasurementUnit>Second</TimeMeasurementUnit>
+              <CoordinateType>UV</CoordinateType>
+              <AnimationChain>
+                <Name>Idle</Name>
+                <Frame>
+                  <TextureName>t.png</TextureName>
+                  <FrameLength>0.1</FrameLength>
+                  <LeftCoordinate>0</LeftCoordinate><RightCoordinate>1</RightCoordinate>
+                  <TopCoordinate>0</TopCoordinate><BottomCoordinate>1</BottomCoordinate>
+                </Frame>
+              </AnimationChain>
+            </AnimationChainArraySave>
+            """));
+        var list = save.ToAnimationChainList(_ => null);
+        var frame = list["Idle"]![0];
+
+        Assert.Null(frame.Red);
+        Assert.Null(frame.ColorOperation);
+    }
 }

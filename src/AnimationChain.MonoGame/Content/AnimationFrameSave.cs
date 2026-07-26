@@ -38,19 +38,23 @@ public class AnimationFrameSave
     /// <summary>Per-frame Y offset.</summary>
     public float RelativeY;
 
-    /// <summary>Per-frame red color channel (0-255). <c>null</c> means unset/not authored.</summary>
+    /// <summary>
+    /// Per-frame red color channel (0-255) as authored on this specific frame. <c>null</c> means
+    /// this frame didn't set it — <see cref="AnimationChainListSave.ToAnimationChainList"/> resolves
+    /// the "sticky" runtime value (inherited from an earlier frame) onto <c>AnimationFrame.Red</c>.
+    /// </summary>
     public int? Red;
 
-    /// <summary>Per-frame green color channel (0-255). <c>null</c> means unset/not authored.</summary>
+    /// <summary>Per-frame green color channel (0-255) as authored on this specific frame. See <see cref="Red"/>.</summary>
     public int? Green;
 
-    /// <summary>Per-frame blue color channel (0-255). <c>null</c> means unset/not authored.</summary>
+    /// <summary>Per-frame blue color channel (0-255) as authored on this specific frame. See <see cref="Red"/>.</summary>
     public int? Blue;
 
-    /// <summary>Per-frame alpha/transparency channel (0-255). <c>null</c> means unset/not authored.</summary>
+    /// <summary>Per-frame alpha/transparency channel (0-255) as authored on this specific frame. See <see cref="Red"/>.</summary>
     public int? Alpha;
 
-    /// <summary>How the color channels combine with the texture. <c>null</c> means none.</summary>
+    /// <summary>How the color channels combine with the texture, as authored on this specific frame. See <see cref="Red"/>.</summary>
     public ColorOperation? ColorOperation;
 
     /// <summary>Per-frame shape definitions. <c>null</c> when no shapes are defined.</summary>
