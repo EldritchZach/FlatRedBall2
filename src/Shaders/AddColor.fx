@@ -28,7 +28,11 @@ float3 ColorOffset;
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
     float4 tex = tex2D(SpriteTextureSampler, input.TextureCoordinates);
-    tex.rgb = saturate(tex.rgb + ColorOffset);
+    // MonoGame's default texture pipeline premultiplies alpha into RGB, so a fully transparent
+    // texel already has rgb == 0 - scale the offset by tex.a too, or it would leak a flat color
+    // into transparent pixels regardless of alpha (SpriteBatch's premultiplied blend state adds
+    // this rgb directly, unscaled by alpha, unlike the vertex-color multiply below).
+    tex.rgb = saturate(tex.rgb + ColorOffset * tex.a);
     return tex * input.Color;
 }
 
