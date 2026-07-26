@@ -22,6 +22,10 @@ For writing tests against the editor — headless Avalonia, service wiring, the 
 - **A field the editor exposes does not obligate any runtime to apply it.** Store the data in the format; whether a given runtime renders it is that runtime's choice. Do not gate adding a frame field on FRB2 (or any single runtime) implementing it — e.g. per-frame `Red`/`Green`/`Blue` are authored and stored for game code to consume, while FRB2's `SpriteBatch` path never applies them itself.
 - **The preview is a reference rendering, not a per-runtime contract.** The bottom panel renders with SkiaSharp (`PreviewControl`, `SKCanvas`/`SKColorFilter` in `DrawFrameCore`), so it will diverge from what a MonoGame/FNA/FRB1 runtime produces for the same file. That divergence is inherent to a general-purpose tool and is not a bug — pick a sensible canonical interpretation. "The preview might not match a runtime" is never a reason to withhold an authoring feature.
 
+## Negative R/G/B is allowed — Multiply clamps it, Add uses it as subtract
+
+`Red`/`Green`/`Blue` are plain `int?` (`Animation.Content/AnimationFrameSave.cs`) with no engine-side range check, and the FRB2 runtime never applies these fields at all (see above), so the only place a range matters is the preview. The inspector's `PropRed`/`PropGreen`/`PropBlue` `NumericUpDown`s (`MainWindow.axaml`) allow -255..255; `PropAlpha` stays 0..255 since alpha is a separate straight-opacity value, not part of a `ColorOperation`. In `FrameColorFilter.Create` (`AnimationEditor.Views/FrameColorFilter.cs`), **Add**'s Skia color-matrix offset is signed, so a negative value subtracts and clamps at the final pixel for free. **Multiply** packs the channel into a `byte` for `SKColor`, so it explicitly `Math.Clamp`s to 0 first — an unclamped negative `int`→`byte` cast wraps (`-10` becomes `246`) instead of darkening. Keep that clamp if you touch this method.
+
 ## Project layout
 
 ```

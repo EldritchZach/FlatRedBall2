@@ -945,19 +945,19 @@
                                                         <TextBlock Text="R" VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource Accent}" FontSize="11" FontWeight="SemiBold" />
                                                         <NumericUpDown x:Name="PropRed" Grid.Column="1" MinWidth="66"
-                                                                       Minimum="0" Maximum="255" Increment="1" FormatString="0" />
+                                                                       Minimum="-255" Maximum="255" Increment="1" FormatString="0" />
                                                     </Grid>
                                                     <Grid ColumnDefinitions="14,*" MinWidth="86" Margin="0,0,8,4">
                                                         <TextBlock Text="G" VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource Ok}" FontSize="11" FontWeight="SemiBold" />
                                                         <NumericUpDown x:Name="PropGreen" Grid.Column="1" MinWidth="66"
-                                                                       Minimum="0" Maximum="255" Increment="1" FormatString="0" />
+                                                                       Minimum="-255" Maximum="255" Increment="1" FormatString="0" />
                                                     </Grid>
                                                     <Grid ColumnDefinitions="14,*" MinWidth="86" Margin="0,0,8,4">
                                                         <TextBlock Text="B" VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource AccentCool}" FontSize="11" FontWeight="SemiBold" />
                                                         <NumericUpDown x:Name="PropBlue" Grid.Column="1" MinWidth="66"
-                                                                       Minimum="0" Maximum="255" Increment="1" FormatString="0" />
+                                                                       Minimum="-255" Maximum="255" Increment="1" FormatString="0" />
                                                     </Grid>
                                                     <Grid ColumnDefinitions="14,*" MinWidth="86" Margin="0,0,8,4">
                                                         <TextBlock Text="A" VerticalAlignment="Center"

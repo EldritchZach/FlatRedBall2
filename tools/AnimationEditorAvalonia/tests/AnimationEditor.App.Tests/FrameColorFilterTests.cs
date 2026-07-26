@@ -84,4 +84,26 @@ public class FrameColorFilterTests
 
         AssertNear(128, result.Alpha);
     }
+
+    [Fact]
+    public void Create_Add_NegativeValueDarkensAndClampsAtZero()
+    {
+        // Add's color-matrix offset is signed math, so a negative value should subtract.
+        using var filter = FrameColorFilter.Create(ColorOperation.Add, -60, -200, 0);
+        var result = Apply(filter, new SKColor(100, 100, 100, 255));
+
+        AssertNear(40, result.Red);   // 100 - 60
+        AssertNear(0, result.Green);  // 100 - 200 clamps to 0
+        AssertNear(100, result.Blue); // +0
+    }
+
+    [Fact]
+    public void Create_Multiply_NegativeValueClampsToZeroInsteadOfWrapping()
+    {
+        // The channel feeds an SKColor byte; an unclamped negative int would wrap (e.g. -10 -> 246).
+        using var filter = FrameColorFilter.Create(ColorOperation.Multiply, -10, null, null);
+        var result = Apply(filter, new SKColor(200, 200, 200, 255));
+
+        AssertNear(0, result.Red);
+    }
 }
