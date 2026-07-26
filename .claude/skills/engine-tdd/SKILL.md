@@ -11,6 +11,10 @@ No "the cause is obvious, I'll skip the test" exception — that reasoning is ho
 
 Exceptions: XML docs, style-only edits, pure renames, dead-code removal.
 
+## Shaders, Graphics, Color Values — Manual Test Is Never Skippable
+
+Any change touching a shader, blend state, render target, or pixel color math requires either a pixel-verification test or the user manually checking rendered output — never "manual test: not needed." Passing unit tests on surrounding math (offset clamping, parameter selection) does not cover this.
+
 ## API Design — Flag Before Implementing
 
 Before adding any new `public` or `virtual` member to an engine base class (`Screen`, `Entity`, `FlatRedBallService`, etc.), stop and flag it as an API design decision. Ask before writing code. New public/virtual surface is a footgun risk — it implies intent to users, shows up in IntelliSense, and is hard to remove once shipped.

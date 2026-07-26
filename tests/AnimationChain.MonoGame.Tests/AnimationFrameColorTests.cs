@@ -79,7 +79,7 @@ public class AnimationFrameColorTests
     [Fact]
     public void Apply_AddOperation_DoesNotChangeRgb()
     {
-        // Add is not yet implemented at runtime (requires a custom shader) - RGB passes through.
+        // Add is applied via a pixel shader (see GetAddOffset), not the vertex color - RGB passes through here.
         var frame = new AnimationFrame
         {
             ColorOperation = ColorOperation.Add,
@@ -89,5 +89,27 @@ public class AnimationFrameColorTests
         var result = AnimationFrameColor.Apply(frame, Color.White);
 
         Assert.Equal(Color.White.R, result.R);
+    }
+
+    [Fact]
+    public void GetAddOffset_UnsetChannels_DefaultToZero()
+    {
+        var frame = new AnimationFrame { ColorOperation = ColorOperation.Add, Red = 128 };
+
+        var offset = AnimationFrameColor.GetAddOffset(frame);
+
+        Assert.Equal(128 / 255f, offset.X);
+        Assert.Equal(0f, offset.Y);
+        Assert.Equal(0f, offset.Z);
+    }
+
+    [Fact]
+    public void GetAddOffset_NegativeChannel_ClampsToAuthoredRangeInsteadOfWrapping()
+    {
+        var frame = new AnimationFrame { ColorOperation = ColorOperation.Add, Red = -500 };
+
+        var offset = AnimationFrameColor.GetAddOffset(frame);
+
+        Assert.Equal(-1f, offset.X);
     }
 }

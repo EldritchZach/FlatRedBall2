@@ -55,30 +55,31 @@ public class AnimationFrame
     public float RelativeY;
 
     /// <summary>
-    /// Optional per-frame red channel, 0–255, or <c>null</c> when unset. <b>Not</b> applied by the
-    /// engine: read it via <see cref="FlatRedBall2.Rendering.Sprite.CurrentFrame"/> and apply it in
-    /// game code (tint, flash, etc.). See <see cref="Green"/>, <see cref="Blue"/>.
+    /// Optional per-frame red channel, -255..255, or <c>null</c> when unset. Applied automatically
+    /// by <see cref="FlatRedBall2.Rendering.Sprite.Draw"/> per <see cref="ColorOperation"/> — see
+    /// <see cref="FlatRedBall2.Rendering.SpriteFrameColor.Apply"/>. See <see cref="Green"/>, <see cref="Blue"/>.
     /// </summary>
     public int? Red;
 
-    /// <summary>Optional per-frame green channel, 0–255, or <c>null</c> when unset. See <see cref="Red"/>.</summary>
+    /// <summary>Optional per-frame green channel, -255..255, or <c>null</c> when unset. See <see cref="Red"/>.</summary>
     public int? Green;
 
-    /// <summary>Optional per-frame blue channel, 0–255, or <c>null</c> when unset. See <see cref="Red"/>.</summary>
+    /// <summary>Optional per-frame blue channel, -255..255, or <c>null</c> when unset. See <see cref="Red"/>.</summary>
     public int? Blue;
 
     /// <summary>
     /// Optional per-frame alpha (transparency) channel, 0–255, or <c>null</c> when unset. Straight
-    /// transparency, independent of <see cref="ColorOperation"/>. Like the color channels it is <b>not</b>
-    /// applied by the engine: read it via <see cref="FlatRedBall2.Rendering.Sprite.CurrentFrame"/> and apply
-    /// it in game code (fade, dissolve, etc.).
+    /// transparency, independent of <see cref="ColorOperation"/>. Applied automatically by
+    /// <see cref="FlatRedBall2.Rendering.Sprite.Draw"/>, multiplied into <see cref="FlatRedBall2.Rendering.Sprite.Alpha"/>.
     /// </summary>
     public int? Alpha;
 
     /// <summary>
     /// Optional per-frame color operation for how <see cref="Red"/>/<see cref="Green"/>/<see cref="Blue"/>
-    /// combine with the texture, or <c>null</c> for none. Not applied by the engine — read it (with the
-    /// channels) via <see cref="FlatRedBall2.Rendering.Sprite.CurrentFrame"/> and apply it in game code.
+    /// combine with the texture, or <c>null</c> for none. Applied automatically by
+    /// <see cref="FlatRedBall2.Rendering.Sprite.Draw"/> — <see cref="FlatRedBall2.Animation.ColorOperation.Multiply"/>
+    /// scales the draw color, <see cref="FlatRedBall2.Animation.ColorOperation.Add"/> offsets the texture via
+    /// a pixel shader (see <see cref="FlatRedBall2.Rendering.Batches.WorldSpaceAddColorBatch"/>).
     /// </summary>
     public ColorOperation? ColorOperation;
 

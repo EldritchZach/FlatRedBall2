@@ -254,6 +254,46 @@
     </Frame>
   </AnimationChain>
   <AnimationChain>
+    <Name>Multiply Demo</Name>
+    <Frame>
+      <TextureName>AnimatedSpritesheet.png</TextureName>
+      <FrameLength>1</FrameLength>
+      <LeftCoordinate>0</LeftCoordinate>
+      <RightCoordinate>16</RightCoordinate>
+      <TopCoordinate>0</TopCoordinate>
+      <BottomCoordinate>32</BottomCoordinate>
+      <Red>255</Red>
+      <Green>60</Green>
+      <Blue>60</Blue>
+      <ColorOperation>Multiply</ColorOperation>
+      <ShapeCollectionSave>
+        <Shapes />
+        <AxisAlignedCubeSaves />
+        <SphereSaves />
+      </ShapeCollectionSave>
+    </Frame>
+  </AnimationChain>
+  <AnimationChain>
+    <Name>Add Demo</Name>
+    <Frame>
+      <TextureName>AnimatedSpritesheet.png</TextureName>
+      <FrameLength>1</FrameLength>
+      <LeftCoordinate>0</LeftCoordinate>
+      <RightCoordinate>16</RightCoordinate>
+      <TopCoordinate>0</TopCoordinate>
+      <BottomCoordinate>32</BottomCoordinate>
+      <Red>150</Red>
+      <Green>150</Green>
+      <Blue>0</Blue>
+      <ColorOperation>Add</ColorOperation>
+      <ShapeCollectionSave>
+        <Shapes />
+        <AxisAlignedCubeSaves />
+        <SphereSaves />
+      </ShapeCollectionSave>
+    </Frame>
+  </AnimationChain>
+  <AnimationChain>
     <Name>Slide</Name>
     <Frame>
       <TextureName>AnimatedSpritesheet.png</TextureName>

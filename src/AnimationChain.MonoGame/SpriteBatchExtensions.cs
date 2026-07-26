@@ -29,6 +29,7 @@ public static class SpriteBatchExtensions
     /// are multiplied into this when <see cref="AnimationFrame.ColorOperation"/> is
     /// <see cref="ColorOperation.Multiply"/>, and <see cref="AnimationFrame.Alpha"/> is always
     /// multiplied into this color's alpha when set. See <see cref="AnimationFrameColor.Apply"/>.
+    /// <see cref="ColorOperation.Add"/> is applied via a pixel shader instead — see the remarks below.
     /// </param>
     /// <param name="origin">
     /// Pivot point within the source rectangle, in pixels. Defaults to <see cref="Vector2.Zero"/>
@@ -36,6 +37,16 @@ public static class SpriteBatchExtensions
     /// </param>
     /// <param name="scale">Uniform scale factor. 1.0 = original size.</param>
     /// <param name="layerDepth">Depth value for layered sprites (0 = front, 1 = back).</param>
+    /// <remarks>
+    /// <b>Add frames break the batch.</b> <see cref="ColorOperation.Add"/> needs a custom
+    /// <see cref="Effect"/> (<see cref="SpriteBatch"/> can only multiply, not offset, texture color),
+    /// and an effect can only be set at <c>SpriteBatch.Begin</c> time. So for an
+    /// <c>Add</c> frame this method ends whatever batch is currently open, draws this one sprite in
+    /// its own effect-scoped batch, then resumes with a plain <c>spriteBatch.Begin()</c> — losing any
+    /// custom transform/sampler/blend state the caller's original <c>Begin</c> set. If you rely on a
+    /// custom transform (e.g. a camera matrix) and play <c>Add</c> frames, re-<c>Begin</c> with your
+    /// own settings immediately after this call returns.
+    /// </remarks>
     public static void DrawAnimation(
         this SpriteBatch spriteBatch,
         AnimationPlayer player,
@@ -56,11 +67,26 @@ public static class SpriteBatchExtensions
             position.X + frame.RelativeX * scale,
             position.Y + frame.RelativeY * scale);
 
+        var drawColor = AnimationFrameColor.Apply(frame, color);
+
+        if (frame.ColorOperation == ColorOperation.Add)
+        {
+            var effect = AddColorEffect.Get(spriteBatch.GraphicsDevice);
+            effect.Parameters["ColorOffset"].SetValue(AnimationFrameColor.GetAddOffset(frame));
+
+            spriteBatch.End();
+            spriteBatch.Begin(effect: effect);
+            spriteBatch.Draw(frame.Texture, drawPos, frame.SourceRectangle, drawColor, 0f, origin, scale, effects, layerDepth);
+            spriteBatch.End();
+            spriteBatch.Begin();
+            return;
+        }
+
         spriteBatch.Draw(
             frame.Texture,
             drawPos,
             frame.SourceRectangle,
-            AnimationFrameColor.Apply(frame, color),
+            drawColor,
             0f,
             origin,
             scale,

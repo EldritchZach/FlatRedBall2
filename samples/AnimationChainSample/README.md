@@ -10,7 +10,7 @@ dotnet run --project samples/AnimationChainSample/AnimationChainSample.csproj
 
 ## Controls
 
-- **Space**: cycle animation chain
+- **Space**: cycle animation chain (includes "Multiply Demo" and "Add Demo", showing the two `ColorOperation`s side by side on the same frame)
 - **R**: reload `Content/hero.achx`
 - **Escape**: exit
 

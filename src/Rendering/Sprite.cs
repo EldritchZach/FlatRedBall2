@@ -90,11 +90,34 @@ public class Sprite : IRenderable, IAttachable
     /// <inheritdoc/>
     public Layer? Layer { get; set; }
 
+    private IRenderBatch _batch = WorldSpaceBatch.Instance;
+
     /// <summary>
     /// The batch this sprite renders through. Defaults to <see cref="WorldSpaceBatch.Instance"/>
     /// (camera-transformed, Y-flip). Reassign for screen-space rendering or custom blend states.
+    /// <para>
+    /// <b>Add-color frames:</b> while <see cref="CurrentFrame"/>'s <see cref="Animation.ColorOperation"/>
+    /// is <see cref="Animation.ColorOperation.Add"/>, the getter transparently swaps
+    /// <see cref="WorldSpaceBatch.Instance"/>/<see cref="ScreenSpaceBatch.Instance"/> for their
+    /// <see cref="WorldSpaceAddColorBatch"/>/<see cref="ScreenSpaceAddColorBatch"/> counterparts —
+    /// the value you assigned here is preserved and returned as-is once the frame changes. A
+    /// custom (non-default) batch is returned unchanged; Add frames render without the shader
+    /// in that case.
+    /// </para>
     /// </summary>
-    public IRenderBatch Batch { get; set; } = WorldSpaceBatch.Instance;
+    public IRenderBatch Batch
+    {
+        get
+        {
+            if (CurrentFrame?.ColorOperation == Animation.ColorOperation.Add)
+            {
+                if (ReferenceEquals(_batch, WorldSpaceBatch.Instance)) return WorldSpaceAddColorBatch.Instance;
+                if (ReferenceEquals(_batch, ScreenSpaceBatch.Instance)) return ScreenSpaceAddColorBatch.Instance;
+            }
+            return _batch;
+        }
+        set => _batch = value;
+    }
 
     /// <inheritdoc/>
     public string? Name { get; set; }
@@ -283,9 +306,10 @@ public class Sprite : IRenderable, IAttachable
 
     /// <summary>
     /// The <see cref="AnimationFrame"/> currently displayed, or <c>null</c> when no animation is playing.
-    /// Use this to read per-frame data the engine does not auto-apply — e.g.
-    /// <see cref="AnimationFrame.Red"/>/<see cref="AnimationFrame.Green"/>/<see cref="AnimationFrame.Blue"/> —
-    /// and apply it in game code.
+    /// <see cref="AnimationFrame.ColorOperation"/> (Multiply/Add) and <see cref="AnimationFrame.Alpha"/>
+    /// are applied automatically at draw time — see <see cref="SpriteFrameColor.Apply"/> and
+    /// <see cref="Draw"/>. <see cref="AnimationFrame.RelativeX"/>/<see cref="AnimationFrame.RelativeY"/>
+    /// are likewise applied automatically (see <see cref="X"/>/<see cref="Y"/>).
     /// </summary>
     public AnimationFrame? CurrentFrame { get; private set; }
 
@@ -635,10 +659,17 @@ public class Sprite : IRenderable, IAttachable
         float srcW = SourceRectangle?.Width  ?? Texture.Width;
         float srcH = SourceRectangle?.Height ?? Texture.Height;
 
-        var color    = Color * Alpha;
+        var frame    = CurrentFrame;
+        var color    = (frame != null ? SpriteFrameColor.Apply(frame, Color) : Color) * Alpha;
         var origin   = new Vector2(srcW / 2f, srcH / 2f);
         var scale    = new Vector2(Width / srcW, Height / srcH);
         var position = new Vector2(AbsoluteX, AbsoluteY);
+
+        if (frame?.ColorOperation == Animation.ColorOperation.Add)
+        {
+            AddColorEffect.Get(spriteBatch.GraphicsDevice)
+                .Parameters["ColorOffset"].SetValue(SpriteFrameColor.GetAddOffset(frame));
+        }
 
         spriteBatch.Draw(
             Texture,
