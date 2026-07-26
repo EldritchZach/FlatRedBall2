@@ -99,4 +99,14 @@
       <_Parameter1>FlatRedBall2.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+  <!--
+    Precompiled ColorOperation.Add pixel shader (see src/Shaders/AddColor.fx for HLSL source).
+    Compiled once via ShadowDusk.Compiler (Target=OpenGL, Mgfx v10 container - see the
+    `shadowdusk` skill) since this library has no content pipeline of its own; the same bytes
+    load on both the MonoGame and KNI backends via `new Effect(graphicsDevice, bytes)`.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rendering/Shaders/AddColor.mgfx" LogicalName="FlatRedBall2.Rendering.Shaders.AddColor.mgfx" />
+  </ItemGroup>
 </Project>

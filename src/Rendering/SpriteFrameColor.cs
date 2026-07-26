@@ -1,24 +1,23 @@
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using FlatRedBall2.Animation;
 
-namespace FlatRedBall.AnimationChain;
+namespace FlatRedBall2.Rendering;
 
 /// <summary>
 /// Applies an <see cref="AnimationFrame"/>'s authored color channels to a base draw
-/// <see cref="Color"/>. Used by <see cref="SpriteBatchExtensions.DrawAnimation"/>.
+/// <see cref="Color"/>. Used by <see cref="Sprite.Draw"/>.
 /// </summary>
-public static class AnimationFrameColor
+public static class SpriteFrameColor
 {
     /// <summary>
     /// Combines <paramref name="frame"/>'s color channels with <paramref name="baseColor"/> and
-    /// returns the resulting <see cref="Color"/> to pass to <see cref="SpriteBatch"/>'s draw call.
+    /// returns the resulting <see cref="Color"/> to pass to <see cref="Microsoft.Xna.Framework.Graphics.SpriteBatch"/>.
     /// <para>
     /// <see cref="ColorOperation.Multiply"/> scales R/G/B by <see cref="AnimationFrame.Red"/>/
     /// <see cref="AnimationFrame.Green"/>/<see cref="AnimationFrame.Blue"/> (unset channels default
     /// to 255, the identity). <see cref="ColorOperation.Add"/> leaves RGB unchanged here — it is
-    /// applied by a pixel shader instead, since <see cref="SpriteBatch"/> can only multiply, not
-    /// offset, texture color. See <see cref="GetAddOffset"/> and
-    /// <see cref="SpriteBatchExtensions.DrawAnimation"/>.
+    /// applied by the pixel shader in <see cref="Batches.WorldSpaceAddColorBatch"/>/
+    /// <see cref="Batches.ScreenSpaceAddColorBatch"/> instead; see <see cref="GetAddOffset"/>.
     /// </para>
     /// <para>
     /// <see cref="AnimationFrame.Alpha"/> is independent of <see cref="AnimationFrame.ColorOperation"/>
@@ -49,10 +48,11 @@ public static class AnimationFrameColor
     }
 
     /// <summary>
-    /// Computes the per-channel offset (range -1..1) that <see cref="SpriteBatchExtensions.DrawAnimation"/>
-    /// passes to the add-color pixel shader for a frame whose <see cref="AnimationFrame.ColorOperation"/>
-    /// is <see cref="ColorOperation.Add"/>. Unset channels default to 0 (the identity for Add). Values
-    /// are clamped to the Animation Editor's authored range (-255..255) before scaling.
+    /// Computes the per-channel offset (range -1..1) that <see cref="Batches.WorldSpaceAddColorBatch"/>/
+    /// <see cref="Batches.ScreenSpaceAddColorBatch"/> pass to the add-color pixel shader for a frame
+    /// whose <see cref="AnimationFrame.ColorOperation"/> is <see cref="ColorOperation.Add"/>. Unset
+    /// channels default to 0 (the identity for Add). Values are clamped to the Animation Editor's
+    /// authored range (-255..255) before scaling.
     /// </summary>
     public static Vector3 GetAddOffset(AnimationFrame frame)
     {

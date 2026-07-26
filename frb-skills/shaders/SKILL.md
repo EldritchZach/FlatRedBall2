@@ -37,6 +37,8 @@ The MonoGame content pipeline uses Windows-only tools for shader compilation. **
 Follow the MonoGame setup guide:
 https://docs.monogame.net/articles/tutorials/building_2d_games/02_getting_started/index.html?tabs=macos#setup-wine-for-effect-compilation-macos-and-linux-only
 
+For OpenGL/WebGL/DirectX targets, **`ShadowDusk`** compiles cross-platform without Wine — see the `shadowdusk` skill. Metal still requires the Wine path above.
+
 ### KNI Backend
 
 Shader compilation is not supported on macOS or Linux with the KNI backend. KNI projects must have their shaders compiled on Windows.

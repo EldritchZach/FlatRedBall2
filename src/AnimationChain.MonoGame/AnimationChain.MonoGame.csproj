@@ -35,4 +35,13 @@
       <_Parameter1>AnimationChain.MonoGame.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+  <!--
+    Precompiled ColorOperation.Add pixel shader (source: src/Shaders/AddColor.fx at the repo root).
+    Compiled via ShadowDusk.Compiler (Target=OpenGL, Mgfx v10 container) since this package has no
+    content pipeline of its own; the same bytes load on MonoGame and KNI via new Effect(device, bytes).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders/AddColor.mgfx" LogicalName="FlatRedBall.AnimationChain.Shaders.AddColor.mgfx" />
+  </ItemGroup>
 </Project>

@@ -3,3 +3,6 @@
 # checkout for every platform so byte-snapshot/round-trip tests (which compare Save output
 # against the checked-in file) pass on Linux CI as well as Windows.
 *.achx text eol=crlf
+
+# Precompiled shader bytecode (ShadowDusk.Compiler output) - must never be line-ending-normalized.
+*.mgfx binary
