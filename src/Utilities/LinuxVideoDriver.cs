@@ -46,7 +46,15 @@ public static class LinuxVideoDriver
 
         if (toSet != null)
         {
-            Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", toSet);
+            // Environment.SetEnvironmentVariable only updates .NET's own private
+            // environment-variable table, not the process's real C environment. SDL2 is a
+            // native library that reads SDL_VIDEODRIVER via libc getenv(), so it would never
+            // observe a value set through Environment.SetEnvironmentVariable. Call libc's
+            // setenv() directly so the value is visible to native code in this process.
+            setenv("SDL_VIDEODRIVER", toSet, overwrite: 1);
         }
     }
+
+    [DllImport("libc", EntryPoint = "setenv", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int setenv(string name, string value, int overwrite);
 }
