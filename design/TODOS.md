@@ -4,6 +4,12 @@
 
 Open work only. When an item ships, delete it — don't leave a "landed" breadcrumb. Design decisions and historical context that outlive a TODO belong in skill files, XML docs, or commit messages, not here.
 
+## Wire templates' Program.cs to LinuxVideoDriver.ApplyWaylandFallback()
+
+`FlatRedBall2.Utilities.LinuxVideoDriver.ApplyWaylandFallback()` (added in `src/Utilities/LinuxVideoDriver.cs`) sets `SDL_VIDEODRIVER=wayland,x11` on Linux so games run on native Wayland with an automatic X11 fallback, instead of always going through XWayland. The templates' `MyGame.Desktop/Program.cs` (`frb2-desktop` and `frb2-multiplatform`) should call it as the first line before `new MyGame.Game1()`, but can't yet: the templates resolve `FlatRedBall2.MonoGame`/`FlatRedBall2.Kni` as a floating NuGet package from nuget.org, and the latest published release predates this API. Once a release containing `LinuxVideoDriver` is published, add the call to both templates' `Program.cs`.
+
+Known caveats to flag in that follow-up, not solved by the helper itself: SDL2 on Wayland needs `libdecor` for window borders/titlebar, or the window comes up borderless (the `wayland,x11` fallback won't catch this since Wayland itself still succeeds); and fractional-scaling compositors can rescale the window, since MonoGame/SDL2 HiDPI support on Wayland is imperfect.
+
 ## Remove templates' precompiled Apos.Shapes shader workaround
 
 `templates/frb2-desktop` and `templates/frb2-multiplatform` still import `build/AposShapesPrecompiled.props` and ship precompiled `apos-shapes.xnb` files, even though the engine itself dropped this workaround once Apos.Shapes 0.7.2+ started embedding its shader in the assembly. The templates can't drop it yet because they resolve `FlatRedBall2.MonoGame`/`FlatRedBall2.Kni` as a floating NuGet package from nuget.org (not this repo's source), and the latest published release still depends on a pre-0.7.2 Apos.Shapes.
