@@ -17,7 +17,11 @@ namespace MusicPitchWebSpike;
 // audible at different pitches if DynamicSoundEffectInstance.Pitch works on this backend.
 public class Game1 : Game
 {
-    private const int SampleRate = 44100;
+    // KNI's BlazorGL backend throws if this doesn't match the browser's AudioContext sample
+    // rate (48000 on this machine/Chrome) — unlike desktop OpenAL, which resamples freely from
+    // any source rate. The real #799 feature will need to read the actual AudioContext rate at
+    // runtime rather than hardcode one value; there's no single rate guaranteed across browsers.
+    private const int SampleRate = 48000;
     private const int ChunkSamples = 4096;
     private const double ToneFrequencyHz = 440.0;
     private const double NoteSeconds = 0.6;

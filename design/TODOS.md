@@ -4,6 +4,12 @@
 
 Open work only. When an item ships, delete it — don't leave a "landed" breadcrumb. Design decisions and historical context that outlive a TODO belong in skill files, XML docs, or commit messages, not here.
 
+## Kni Blazor.GL Pitch support unreleased — blocks #799 web-side verification
+
+Kni merged `Pitch` support for `SoundEffectInstance` on Blazor.GL in [kniEngine/kni#2614](https://github.com/kniEngine/kni/pull/2614) (2026-07-26) and for `DynamicSoundEffectInstance` in [#2615](https://github.com/kniEngine/kni/pull/2615) (2026-07-28), but neither is in a published NuGet release yet — latest `nkast.Kni.Platform.Blazor.GL` (4.2.9001.2) is pinned to a commit from 2025-11-16. Until Kni publishes a release containing both PRs, Pitch does not work on Kni's web backend for any sound type, one-shot or streaming — confirmed via `diagnostics/MusicPitchWebSpike` throwing `DynamicSoundEffectInstance does not support Pitch` at runtime.
+
+Once a release lands, bump `nkast.Kni.Platform.Blazor.GL` (and matching `nkast.Xna.Framework.*`) in `Directory.Packages.props` and re-run `MusicPitchWebSpike` to confirm Pitch is audible before resuming the #799 `IMusicBackend` design work on the web side.
+
 ## Wire templates' Program.cs to LinuxVideoDriver.ApplyWaylandFallback()
 
 `FlatRedBall2.Utilities.LinuxVideoDriver.ApplyWaylandFallback()` (added in `src/Utilities/LinuxVideoDriver.cs`) sets `SDL_VIDEODRIVER=wayland,x11` on Linux so games run on native Wayland with an automatic X11 fallback, instead of always going through XWayland. The templates' `MyGame.Desktop/Program.cs` (`frb2-desktop` and `frb2-multiplatform`) should call it as the first line before `new MyGame.Game1()`, but can't yet: the templates resolve `FlatRedBall2.MonoGame`/`FlatRedBall2.Kni` as a floating NuGet package from nuget.org, and the latest published release predates this API. Once a release containing `LinuxVideoDriver` is published, add the call to both templates' `Program.cs`.
