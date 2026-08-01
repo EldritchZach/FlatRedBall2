@@ -22,7 +22,25 @@ The only relevant question is "is this the right design?" — never "will this b
 - Main project: `src/FlatRedBall2.csproj` (MonoGame.Framework.DesktopGL, version pinned in the root `Directory.Packages.props`)
 - Code style: `.claude/code-style.md`
 - Deferred items: `design/TODOS.md`
+- Multi-phase plans: `plan/plan.md` (index) — see below
 - Test project: `tests/FlatRedBall2.Tests/FlatRedBall2.Tests.csproj`
+
+## Multi-Phase Plans (`plan/`)
+
+Work too large for a single PR gets a **plan** rather than a long-running branch or a TODO entry.
+
+- **`plan/plan.md` is the table of contents.** One row per phase, linking to that phase's document,
+  with a status. It never holds phase content itself. Read it first when picking up large work.
+- **Phase documents live in `plan/<issue#>-<initiative-slug>/phase-NN-<slug>.md`.** Each is
+  self-contained: the issue restated, the high-level proposed resolution, features/stories, and
+  every step as a checkbox. A reader should not need the GitHub issue open to work the phase.
+- **Write the next phase doc when the previous phase is stable**, not all up front — plans written
+  before any code exists are wrong by the time they are read.
+- **Check boxes off as work lands**, and update the status row in `plan/plan.md`. Add discovered
+  work as new checkboxes rather than silently widening an existing one.
+
+Do not put small actionable items here — those go in `design/TODOS.md`. Do not put single-subsystem
+design write-ups here — those go in `design/*.md`. Game design documents stay in `.claude/designs/`.
 
 ## Build & Test
 
