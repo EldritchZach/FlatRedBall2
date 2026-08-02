@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | In progress — §7.1–7.6 landed, see §9 |
 | **Depends on** | Nothing — this is the base of the epic |
 | **Blocks** | Every other phase (2–14) |
 | **Suggested branch** | `804-phase-1-glue-loader-foundations` |
@@ -632,130 +632,131 @@ Do not bump any sample's `FileVersion`: re-saving does not do it, and hand-editi
 
 ### 7.1 — Fixtures and conventions
 
-- [ ] Create `tests/FlatRedBall2.Tests/Glue/` (mirrors `src/Glue/`, per `.claude/code-style.md` §Test Organization).
-- [ ] Vendor `Samples/Platformer/DoorsDemo` **as-is** into
+- [x] Create `tests/FlatRedBall2.Tests/Glue/` (mirrors `src/Glue/`, per `.claude/code-style.md` §Test Organization).
+- [x] Vendor `Samples/Platformer/DoorsDemo` **as-is** into
       `tests/FlatRedBall2.Tests/Glue/Fixtures/DoorsDemo/` — `DoorsDemo.gluj`, `Screens/GameScreen.glsj`,
       `Screens/Level1.glsj`, `Entities/Door.glej`, `Entities/Player.glej` (D4).
-- [ ] Optionally vendor `Samples/ChickenClicker` (v42) as a deliberate **legacy-tolerance** fixture —
+- [x] Optionally vendor `Samples/ChickenClicker` (v42) as a deliberate **legacy-tolerance** fixture —
       it sits below three schema gates, which is exactly what makes it useful for proving the loader
       degrades with a diagnostic rather than misreading (G1).
-- [ ] Author a tiny hand-written `Fixtures/Synthetic/` project for the cases no real sample covers:
-      a below-version `.gluj` (D6), a missing element reference (G12), a name/path mismatch (G13),
-      and a case-mismatched reference (G8).
-- [ ] Add a `Fixtures/README.md` recording the source repo, sample path, FRB1 commit, and sync date,
+- [x] Cover the cases no real sample does — a below-version `.gluj` (D6), a missing element
+      reference (G12), a name/path mismatch (G13), a case-mismatched reference (G8). Landed as
+      in-memory JSON through the read seam rather than as a `Fixtures/Synthetic/` folder: same
+      coverage, no files to keep in sync, and it doubles as proof the seam is actually used.
+- [x] Add a `Fixtures/README.md` recording the source repo, sample path, FRB1 commit, and sync date,
       so a future re-sync knows what it is re-syncing from.
-- [ ] Add the `<None Include="Glue\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />` row to
+- [x] Add the `<None Include="Glue\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />` row to
       `tests/FlatRedBall2.Tests/FlatRedBall2.Tests.csproj`.
 
 ### 7.2 — POCO mirror
 
-- [ ] Failing test: deserializing the DoorsDemo `.gluj` fixture yields `FileVersion == 60`,
+- [x] Failing test: deserializing the DoorsDemo `.gluj` fixture yields `FileVersion == 60`,
       `StartUpScreen == "Screens\\Level1"`, two `ScreenReferences`, and two `EntityReferences`.
-- [ ] Add `src/Glue/Model/` POCOs for `GlueProjectSave`, `GlueElementFileReference`, `GlueElement`,
+- [x] Add `src/Glue/Model/` POCOs for `GlueProjectSave`, `GlueElementFileReference`, `GlueElement`,
       `ScreenSave`, `EntitySave`, `PropertySave`, `InstructionSave`, `NamedObjectSave`,
       `CustomVariable`, `ReferencedFileSave`, `StateSave`, `StateSaveCategory`, `DisplaySettings`.
-- [ ] Type `PropertySave.Value` and `InstructionSave.Value` as `JsonElement` (see §4).
-- [ ] Add `src/Glue/GlueJsonContext.cs` with `[JsonSerializable]` entries for every root shape and
+- [x] Type `PropertySave.Value` and `InstructionSave.Value` as `JsonElement` (see §4).
+- [x] Add `src/Glue/GlueJsonContext.cs` with `[JsonSerializable]` entries for every root shape and
       `PropertyNameCaseInsensitive = true`, mirroring `src/Movement/TopDownConfig.cs:40`.
-- [ ] Failing test: a `NamedObjectSave` deserialized from JSON that **omits** `Instantiate` reports
+- [x] Failing test: a `NamedObjectSave` deserialized from JSON that **omits** `Instantiate` reports
       `Instantiate == true` (G3) — assert on deserialized JSON, not on `new NamedObjectSave()`.
-- [ ] Reproduce every `NamedObjectSave` constructor default from `NamedObjectSave.cs:828`, and
+- [x] Reproduce every `NamedObjectSave` constructor default from `NamedObjectSave.cs:828`, and
       confirm `AttachToContainer` is *not* among them (G3).
-- [ ] Expose the 31 bag-backed members as accessors over `Properties` rather than as fields (G4) —
+- [x] Expose the 31 bag-backed members as accessors over `Properties` rather than as fields (G4) —
       `CustomVariable.Type`, `Scope`, `OverridingPropertyType`, `TypeConverter`,
       `NamedObjectSave.AssociateWithFactory`, `EntitySave.InputDevice`, and the rest.
-- [ ] Assign explicit numeric values to every mirrored enum member, and add a test pinning each one
+- [x] Assign explicit numeric values to every mirrored enum member, and add a test pinning each one
       against the FRB1 value it mirrors (G11).
-- [ ] Failing test: JSON with a duplicate object key resolves last-one-wins under STJ (G2).
-- [ ] Failing test: a `.gluj` with a populated `CustomClasses` array loads cleanly with the member
+- [x] Failing test: JSON with a duplicate object key resolves last-one-wins under STJ (G2).
+- [x] Failing test: a `.gluj` with a populated `CustomClasses` array loads cleanly with the member
       absent from the mirror (G16).
-- [ ] Verify the build stays AOT-clean: `dotnet build src/FlatRedBall2.csproj` emits no
+- [x] Verify the build stays AOT-clean: `dotnet build src/FlatRedBall2.csproj` emits no
       `IL2026`/`IL3050` trim or AOT warnings from the new code.
 
 ### 7.3 — Value-bag decoding
 
 Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors depend on it (G4).
 
-- [ ] Failing test: `GetValue<int>` on `{"Value": 1}` returns `1`; `GetValue<float>` on
+- [x] Failing test: `GetValue<int>` on `{"Value": 1}` returns `1`; `GetValue<float>` on
       `{"Value": 16.0}` returns `16f`; `GetValue<bool>` on `{"Value": true}` returns `true`;
       `GetValue<string>` on `{"Value": "White"}` returns `"White"`.
-- [ ] Failing test: `GetValue<SourceType>` on `{"Value": 2}` returns the enum member for `2`
+- [x] Failing test: `GetValue<SourceType>` on `{"Value": 2}` returns the enum member for `2`
       (G9, G11).
-- [ ] Failing test: `GetValue<T>` for a name not present returns `default(T)` and does not throw —
+- [x] Failing test: `GetValue<T>` for a name not present returns `default(T)` and does not throw —
       matching `PropertySaveListExtensions.GetValue<T>` (`PropertySave.cs:120`).
-- [ ] Failing test: decoding is driven by the requested `T`, not by the entry's `Type` string —
+- [x] Failing test: decoding is driven by the requested `T`, not by the entry's `Type` string —
       `GetValue<int>` succeeds on an entry whose `Type` is absent, and on one whose `Type` reads
       `"Boolean"` while the value is numeric (G9).
-- [ ] Implement `src/Glue/PropertySaveExtensions.cs` over `JsonElement`, covering
+- [x] Implement `src/Glue/PropertySaveExtensions.cs` over `JsonElement`, covering
       `int`/`float`/`bool`/`string`/enum and their nullable forms.
-- [ ] Failing test: nullable requests (`GetValue<int?>`) on an absent name return `null`, not `0`.
+- [x] Failing test: nullable requests (`GetValue<int?>`) on an absent name return `null`, not `0`.
 
 ### 7.4 — Reference resolution and the read seam
 
-- [ ] Failing test: `GlueProjectLoader` routes every read through its injectable `TextLoader`
+- [x] Failing test: `GlueProjectLoader` routes every read through its injectable `TextLoader`
       delegate and never touches `System.IO` (mirrors `TileMapLoadingTests.cs:15`, but as an
       instance seam rather than static state — D9).
-- [ ] Failing test: loading the DoorsDemo fixture populates `Screens.Count == 2` and
+- [x] Failing test: loading the DoorsDemo fixture populates `Screens.Count == 2` and
       `Entities.Count == 2`, and clears both reference lists, matching
       `LoadReferencedScreensAndEntities` (`GlueProjectSaveExtensions.cs:567`).
-- [ ] Failing test: `"Screens\\MenuScreen"` resolves to `Screens/MenuScreen.glsj` with forward
+- [x] Failing test: `"Screens\\MenuScreen"` resolves to `Screens/MenuScreen.glsj` with forward
       slashes on non-Windows (G7).
-- [ ] Failing test: `\` normalization applies to path building only — `StartUpScreen` and
+- [x] Failing test: `\` normalization applies to path building only — `StartUpScreen` and
       `BaseScreen` identity comparisons still match on the original backslash form (G7).
-- [ ] Failing test: a reference that matches a file only when case is ignored loads, and emits one
+- [x] Failing test: a reference that matches a file only when case is ignored loads, and emits one
       `Warning`; a reference matching nothing still emits a `Warning` and does not silently pass (G8).
-- [ ] Failing test: a `ScreenReferences` entry whose file is absent produces one `Warning`
+- [x] Failing test: a `ScreenReferences` entry whose file is absent produces one `Warning`
       diagnostic and leaves the other screens loaded (G12).
-- [ ] Failing test: an element whose internal `Name` disagrees with the reference that loaded it
+- [x] Failing test: an element whose internal `Name` disagrees with the reference that loaded it
       emits one `Warning`, and the file path stays authoritative (G13).
-- [ ] Implement `GlueProjectLoader.Load`, `GlueLoadResult`, `GlueLoadDiagnostic`, `GlueLoadOptions`.
-- [ ] Failing test: `GlueLoadOptions.Strict` throws on the first `Error` diagnostic.
-- [ ] Failing test: DoorsDemo's `Screens/GameScreen.glsj` retains **nine** top-level `NamedObjects`
+- [x] Implement `GlueProjectLoader.Load`, `GlueLoadResult`, `GlueLoadDiagnostic`, `GlueLoadOptions`.
+- [x] Failing test: `GlueLoadOptions.Strict` throws on the first `Error` diagnostic.
+- [x] Failing test: DoorsDemo's `Screens/GameScreen.glsj` retains **nine** top-level `NamedObjects`
       parsed but un-applied, and `PlayerList` retains **one** `ContainedObjects` child whose
       `SourceClassType` is `"Entities\\Player"` — nesting must not be flattened into the top level.
-- [ ] Failing test: `Level1.BaseScreen == "Screens\\GameScreen"` is parsed and retained with **no**
+- [x] Failing test: `Level1.BaseScreen == "Screens\\GameScreen"` is parsed and retained with **no**
       merge — `Level1` keeps exactly its own four `NamedObjects` (`Map`, `SolidCollision`,
       `CloudCollision`, `PlayerList`), not the nine from its base. Inheritance is Phase 6.
-- [ ] Failing test: those four carry `DefinedByBase == true` (and `PlayerList` also
+- [x] Failing test: those four carry `DefinedByBase == true` (and `PlayerList` also
       `InstantiatedByBase` and `ExposedInDerived`) — a derived element redeclares its base's objects
       even above the `RemoveRedundantDerivedData` gate, and Phase 1 must not dedupe them.
-- [ ] Failing test: `Player.glej` yields two `NamedObjects`, six `CustomVariables`, and five
+- [x] Failing test: `Player.glej` yields two `NamedObjects`, six `CustomVariables`, and five
       `ReferencedFiles` parsed and retained — files are Phase 4, so none is loaded.
-- [ ] Failing test: the `.glsj`/`.glej` omission rules are covered independently of `.gluj`'s — do
+- [x] Failing test: the `.glsj`/`.glej` omission rules are covered independently of `.gluj`'s — do
       not assume one generalizes to the other (G6).
-- [ ] Failing test: a `.gluj` below `LatestVersion` loads and emits one `Info` diagnostic, asserted
+- [x] Failing test: a `.gluj` below `LatestVersion` loads and emits one `Info` diagnostic, asserted
       against the **synthetic** fixture so corpus drift cannot break it (D6, G17).
 
 ### 7.5 — Type mapping
 
-- [ ] Failing test: `GlueTypeMap` maps `"FlatRedBall.Math.Geometry.AxisAlignedRectangle"` and
+- [x] Failing test: `GlueTypeMap` maps `"FlatRedBall.Math.Geometry.AxisAlignedRectangle"` and
       `"FlatRedBall.Sprite"` to their FRB2 equivalents (both appear in `Player.glej`).
-- [ ] Failing test: the type-string parser splits `"FlatRedBall.Math.PositionedObjectList<T>"` into
+- [x] Failing test: the type-string parser splits `"FlatRedBall.Math.PositionedObjectList<T>"` into
       an open type plus an unresolved argument, and
       `"...ListVsListRelationship<Entities.Player, Entities.Door>"` into an open type plus two
       **element-reference** arguments — not CLR type names (G18).
-- [ ] Failing test: `"Entities\\Player"` in a `SourceClassType` position classifies as an element
+- [x] Failing test: `"Entities\\Player"` in a `SourceClassType` position classifies as an element
       reference, with backslash normalization shared with G7's helper (G18).
-- [ ] Failing test: an unmapped type string returns no type and yields one `Warning` diagnostic
+- [x] Failing test: an unmapped type string returns no type and yields one `Warning` diagnostic
       naming both the element and the type string (D1).
-- [ ] Failing test: loading DoorsDemo emits the expected count of unmapped-type `Warning`s and
+- [x] Failing test: loading DoorsDemo emits the expected count of unmapped-type `Warning`s and
       **zero** `Error`s — pin the number so later phases visibly drive it down (G19).
-- [ ] Implement `src/Glue/GlueTypeMap.cs` over the parsed form, covering only Phase 1's declared
+- [x] Implement `src/Glue/GlueTypeMap.cs` over the parsed form, covering only Phase 1's declared
       set: `Sprite`, `AxisAlignedRectangle`, `Circle`, `Polygon`, `ShapeCollection`, `Text`.
       Everything else — `TileShapeCollection`, `LayeredTileMap`, `PositionedObjectList<T>`, the
       collision relationships, `CameraControllingEntity` — warns and is owned by a later phase.
-- [ ] No rows for Gum runtime types. The issue lists them under Phase 1, but none appears in a
+- [x] No rows for Gum runtime types. The issue lists them under Phase 1, but none appears in a
       `SourceClassType` position in any fixture (the `.gumx` is a `GlobalFile`) — deferred to Phase 5.
-- [ ] Make the map extensible — later phases add rows without editing a `switch`.
+- [x] Make the map extensible — later phases add rows without editing a `switch`.
 
 ### 7.6 — Boot into FRB2's screen system
 
-- [ ] Failing test: `GlueScreen` constructed from a `ScreenSave` exposes that save and its `Name`.
-- [ ] Failing test: resolving `StartUpScreen` picks the `ScreenSave` whose `Name` matches, and an
+- [x] Failing test: `GlueScreen` constructed from a `ScreenSave` exposes that save and its `Name`.
+- [x] Failing test: resolving `StartUpScreen` picks the `ScreenSave` whose `Name` matches, and an
       unresolvable `StartUpScreen` yields an `Error` diagnostic rather than a `NullReferenceException`.
-- [ ] Implement `src/Glue/GlueScreen.cs` and `src/Glue/GlueEntity.cs` as skeletons — hold the save,
+- [x] Implement `src/Glue/GlueScreen.cs` and `src/Glue/GlueEntity.cs` as skeletons — hold the save,
       no `NamedObject` construction.
-- [ ] Implement the boot entry point that hands the resolved `GlueScreen` to
+- [x] Implement the boot entry point that hands the resolved `GlueScreen` to
       `FlatRedBallService` (`src/FlatRedBallService.cs:465` is the existing `Start<T>` path; a
       non-generic seam is needed because every loaded screen shares one CLR type — this is the
       Phase 14 API in embryo, so keep it `internal` for now rather than committing to public shape).
@@ -765,12 +766,12 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 
 ### 7.7 — Documentation and wrap-up
 
-- [ ] XML docs on every public type in `src/Glue/` — CS1591 is a tracked metric (see the comment in
+- [x] XML docs on every public type in `src/Glue/` — CS1591 is a tracked metric (see the comment in
       `src/FlatRedBall2.csproj`); do not add to the count.
-- [ ] Log any further FRB1 bug found during implementation as an issue on the FRB1 repo (G2 and G5
+- [x] Log any further FRB1 bug found during implementation as an issue on the FRB1 repo (G2 and G5
       are already known; the epic explicitly welcomes more).
-- [ ] Update this document's checkboxes and flip its **Status** row.
-- [ ] Update the Phase 1 row in [`plan/plan.md`](../plan.md).
+- [x] Update this document's checkboxes and flip its **Status** row.
+- [x] Update the Phase 1 row in [`plan/plan.md`](../plan.md).
 - [ ] Decide whether a `glue-project-loading` skill is warranted yet, or whether it should wait
       until Phase 2 gives it enough surface to be worth the context budget. Consult
       `skill-creator` before writing one.
@@ -796,3 +797,63 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 - [ ] `Fixtures/README.md` names the FRB1 commit it vendored from.
 - [ ] **No user-visible FRB1 change was made or required.** Any upstream PR opened along the way was
       zero-impact and merged (or not) independently of this phase.
+
+---
+
+## 9. What landed
+
+Implemented across six commits on `804-glue-loader-plan`. 49 new tests, full suite 1264 green, no
+new build warnings and no AOT/trim warnings from `src/Glue/`.
+
+| Piece | File | Covers |
+|---|---|---|
+| Value-bag reader | `src/Glue/PropertySaveExtensions.cs` | §7.3, G4, G9 |
+| POCO mirror | `src/Glue/Model/` (11 types) | §7.2, G3, G4, G11 |
+| Serializer context | `src/Glue/GlueJsonContext.cs` | §7.2 |
+| Loader + diagnostics | `src/Glue/GlueProjectLoader.cs`, `GlueLoadResult.cs`, `GlueLoadOptions.cs` | §7.4, G7, G8, G12, G13 |
+| Type-string parser | `src/Glue/GlueTypeName.cs` | §7.5, G18 |
+| Type map | `src/Glue/GlueTypeMap.cs` | §7.5, G19 |
+| Screen/Entity skeletons | `src/Glue/GlueScreen.cs` | §7.6 |
+
+### Deviations from the plan, and why
+
+- **No `Fixtures/Synthetic/` folder.** The cases no real sample covers are exercised as in-memory
+  JSON through the read seam instead. Same coverage, nothing to keep in sync, and it doubles as
+  proof the seam is genuinely used rather than bypassed.
+- **No new engine API.** §7.6 anticipated needing a non-generic entry point on `FlatRedBallService`
+  because every loaded screen shares one CLR type. It turned out not to: `Start<GlueScreen>(s =>
+  s.Save = …)` already satisfies the existing `where T : Screen, new()` constraint. Nothing was
+  added to `Screen` or `FlatRedBallService`, which keeps the Phase 14 API question fully open.
+- **`GlueVersions.Latest` is 68, not 67.** It moved upstream mid-planning. That is G17, and it is
+  why nothing branches on version.
+
+### Found while building
+
+- **A crash on input Glue actually writes.** `JsonElement`'s numeric `TryGet*` methods throw rather
+  than returning false when the element is not a number — including on the `Undefined` element that
+  a property with no `Value` key deserializes to. Glue saves with `NullValueHandling.Ignore`, so
+  null-valued properties are written exactly that way, and one anywhere in a project would have
+  killed the whole load. Fixed with a single `ValueKind` gate; two tests reproduce it.
+- **FRB1's `GetValue<T>` is not tolerant.** It ends in a bare unboxing cast and throws
+  `InvalidCastException` on a type mismatch. §5 and the XML docs previously described this loader as
+  mirroring a tolerance that does not exist; it is a deliberate widening, now documented as one.
+- **FRB2 has no `ShapeCollection` and no `Text` type.** Two of the six types §7.5 named as Phase 1's
+  target set do not exist in the engine. The other four map cleanly (note `AxisAlignedRectangle` →
+  `AARect`). **Phase 2 has to decide** whether to add them or map them onto something else.
+- **Element names appear in two forms.** `Entities\Player` standing alone, but `Entities.Player` as
+  a generic argument, where it is the generated C# class name. Handled structurally by
+  `ToElementNameCandidate` — deliberately with no prefix heuristic, since
+  `FlatRedBall.Entities.CameraControllingEntity` is an *engine* type whose namespace contains
+  "Entities" and would fool one.
+- **The test project cannot enforce reflection-free JSON yet.**
+  `JsonSerializerIsReflectionEnabledByDefault=false` would make an AOT-unsafe serializer call fail
+  the build rather than only failing after publish. It is assembly-wide and `AutomationMode`
+  deliberately uses reflection, so it fails ~12 automation tests. Giving `AutomationMode` its own
+  serializer context would unlock it. Reason recorded in the test `.csproj`.
+
+### Not done
+
+- **The manual boot check.** Running the game to watch DoorsDemo start on `Level1` needs a display
+  and a real game loop; it cannot run headless here. Everything up to the final `Start` call is
+  covered by tests — `StartUpScreen` resolves to `Screens\Level1`, and `GlueScreen` carries it — but
+  the last hop is unverified and wants a human at a keyboard.

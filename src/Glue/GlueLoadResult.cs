@@ -38,14 +38,24 @@ public sealed record GlueLoadDiagnostic(
 /// </summary>
 public sealed class GlueLoadResult
 {
-    internal GlueLoadResult(GlueProjectSave project, IReadOnlyList<GlueLoadDiagnostic> diagnostics)
+    internal GlueLoadResult(
+        GlueProjectSave project,
+        IReadOnlyList<GlueLoadDiagnostic> diagnostics,
+        ScreenSave? startUpScreen = null)
     {
         Project = project;
         Diagnostics = diagnostics;
+        StartUpScreen = startUpScreen;
     }
 
     /// <summary>The project. Never null — an unreadable file yields an empty project and an error.</summary>
     public GlueProjectSave Project { get; }
+
+    /// <summary>
+    /// The screen named by the project's <c>StartUpScreen</c>, already resolved. Null when the
+    /// project names none, or names one that could not be found — the latter also raises an error.
+    /// </summary>
+    public ScreenSave? StartUpScreen { get; }
 
     /// <summary>Everything the loader noticed, in the order it noticed it.</summary>
     public IReadOnlyList<GlueLoadDiagnostic> Diagnostics { get; }

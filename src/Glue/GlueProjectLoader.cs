@@ -66,7 +66,7 @@ public static class GlueProjectLoader
 
         ReportUnbuildableTypes(project, diagnostics, options);
 
-        return new GlueLoadResult(project, diagnostics);
+        return new GlueLoadResult(project, diagnostics, ResolveStartUpScreen(project, diagnostics, options));
     }
 
     /// <summary>
@@ -147,6 +147,32 @@ public static class GlueProjectLoader
                 severity, $"Could not read '{resolvedPath}': {exception.Message}", elementName));
             return default;
         }
+    }
+
+    /// <summary>
+    /// Finds the screen the project starts on. Compares against the element name verbatim — the
+    /// backslash form is an identity here, not a path.
+    /// </summary>
+    private static ScreenSave? ResolveStartUpScreen(
+        GlueProjectSave project, List<GlueLoadDiagnostic> diagnostics, GlueLoadOptions options)
+    {
+        if (string.IsNullOrEmpty(project.StartUpScreen))
+            return null;
+
+        foreach (var screen in project.Screens)
+        {
+            if (string.Equals(screen.Name, project.StartUpScreen, StringComparison.OrdinalIgnoreCase))
+                return screen;
+        }
+
+        // An error rather than a warning: the project named a starting point and it is not there, so
+        // there is nothing sensible to boot into.
+        Report(diagnostics, options, new GlueLoadDiagnostic(
+            GlueDiagnosticSeverity.Error,
+            $"StartUpScreen is '{project.StartUpScreen}', but no screen with that name was loaded.",
+            project.StartUpScreen));
+
+        return null;
     }
 
     /// <summary>

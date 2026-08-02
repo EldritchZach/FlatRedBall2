@@ -55,7 +55,7 @@ via reflection. No codegen step.
 
 | Phase | Document | Status |
 |---|---|---|
-| 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | Not started |
+| 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | In progress |
 | 2 | NamedObjects | Not written |
 | 3 | CustomVariables | Not written |
 | 4 | Referenced files / assets | Not written |
