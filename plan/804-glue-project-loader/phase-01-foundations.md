@@ -42,18 +42,14 @@ is the whole bar.
   package — consistent with Gum/Tiled integration.
 - **Test fixtures are vendored.** Commit a snapshot of representative FRB1 sample files into this
   repo rather than reading live from the sibling `FlatRedBall` checkout.
-- **FRB1 changes: zero-impact only.** Both repos are ours, but FRB1 has real users and this epic
-  must not spend their goodwill. Sort any candidate FRB1 change into one of two buckets:
-  - **Zero-impact — land it freely.** Comments, docs, new issues, and fixes that are already
-    semantically no-ops for every consumer (G2's duplicate JSON key is the model case: last-one-wins
-    means removing the stale line changes nothing anyone observes).
-  - **User-visible — do not land it as part of this epic.** Anything that changes behavior,
-    regenerates sample code, bumps a sample's `FileVersion`, or alters what Glue writes to disk.
-    Report it, and let the FRB1 maintainer schedule it independently on FRB1's own cadence.
+- **FRB1 changes: zero-impact only, and none are required.** Both repos are ours, but FRB1 has real
+  users. **Zero-impact** changes — comments, docs, issues, and fixes that are already semantically
+  no-ops (G2's duplicate key: last-one-wins means deleting the stale line changes nothing anyone
+  observes) — land freely as standalone PRs. **User-visible** changes — behavior, regenerated
+  samples, `FileVersion` bumps, anything altering what Glue writes — get reported, not landed here.
 
-  **This epic requires no FRB1 change to proceed.** Every problem in §5 is either fixable FRB2-side
-  or resolvable by choosing different fixtures — verified, not assumed. Nothing in §7 blocks on an
-  upstream merge. Glue also keeps targeting FRB1 `.csproj` projects throughout; this epic never
+  Every problem in §5 is fixable FRB2-side or resolvable by fixture choice, so nothing in §7 blocks
+  on an upstream merge. Glue also keeps targeting FRB1 `.csproj` projects throughout; this epic never
   changes what Glue *generates*.
 
 ### Where FRB1 lives
@@ -62,13 +58,12 @@ is the whole bar.
 
 | What | Path (relative to the FRB1 repo) |
 |---|---|
-| Project save shape | `FRBDK/Glue/GlueCommon/SaveClasses/GlueProjectSave.cs` |
-| Element base | `FRBDK/Glue/GlueCommon/SaveClasses/GlueElement.cs` |
-| Screen / Entity | `FRBDK/Glue/GlueCommon/SaveClasses/ScreenSave.cs`, `EntitySave.cs` |
-| Object model | `FRBDK/Glue/GlueCommon/SaveClasses/NamedObjectSave.cs` |
-| Value bag | `FRBDK/Glue/GlueCommon/SaveClasses/PropertySave.cs` |
+| Every save class being mirrored | `FRBDK/Glue/GlueCommon/SaveClasses/` — `GlueProjectSave`, `GlueElement`, `ScreenSave`, `EntitySave`, `NamedObjectSave`, `PropertySave`, `CustomVariable`, … |
 | **The load path to mirror** | `FRBDK/Glue/Glue/Extensions/GlueProjectSaveExtensions.cs:514` (`Load`) and `:567` (`LoadReferencedScreensAndEntities`) |
 | Version enum / skill | `FRBDK/Glue/.claude/skills/gluj-versions/SKILL.md` |
+
+Line numbers throughout this document were verified at FRB1 commit `7346ae1cd`. The checkout moved
+once mid-planning (that is G17) — spot-check before trusting any of them cold.
 
 ---
 
@@ -98,35 +93,13 @@ is the whole bar.
 
 ## 3. Features and stories
 
-### F1 — Load a Glue project from disk (or from anywhere)
-
-> As an engine developer, I point `GlueProjectLoader` at a `.gluj` path and get back a fully
-> populated object graph with every referenced Screen and Entity resolved, so that later phases
-> have something to walk.
-
-> As a web/WASM consumer, the loader never calls `System.IO.File` directly, so the same code runs
-> in the browser where there is no filesystem.
-
-### F2 — Read values out of the Glue value bag without guessing
-
-> As an engine developer, I call one helper to pull a typed value out of a `Properties` list and
-> get the right CLR type back, so that I am not writing `is long ? (int)` casts at every call site.
-
-### F3 — Know what failed, and keep going
-
-> As an engine developer working through a 14-phase epic, an unmapped type or a missing element
-> file gives me a diagnostic on the load result rather than an exception that hides the other
-> ninety percent of the project that loaded fine.
-
-### F4 — Boot the start-up Screen
-
-> As a game developer, I call one method with a `.gluj` path and the game starts on the Screen that
-> Glue's `StartUpScreen` names, so that "does the loader work?" is answerable by running the game.
-
-### F5 — A repeatable fixture convention
-
-> As a future contributor starting Phase 2, there is already a vendored sample project under
-> `tests/` and an established folder convention, so I add a fixture rather than inventing a scheme.
+| | Feature | The story it serves | Built in |
+|---|---|---|---|
+| F1 | Load a project from a path | Point the loader at a `.gluj` and get the whole element graph resolved, so later phases have something to walk. Never touches `System.IO` directly, so it runs in the browser too. | §7.4 |
+| F2 | Read the value bag without guessing | One helper returns the right CLR type, so no call site writes `is long ? (int)` casts. | §7.3 |
+| F3 | Know what failed, and keep going | An unmapped type reports a diagnostic instead of an exception that hides the 90% that loaded fine — the difference between a usable loader and an unusable one during a 14-phase build. | §7.4 |
+| F4 | Boot the start-up Screen | One call with a `.gluj` path starts the game on the right Screen, so "does the loader work?" is answerable by running it. | §7.6 |
+| F5 | A repeatable fixture convention | Phase 2 adds a fixture instead of inventing a scheme. | §7.1 |
 
 ---
 
@@ -151,8 +124,7 @@ FRB2 has no Newtonsoft dependency and already uses STJ with source-generated con
 copy. Source generation is not optional: `src/FlatRedBall2.csproj` sets `IsAotCompatible=true`, and
 reflection-based STJ would break that.
 
-Two of the epic's stated landmines soften under STJ, and the doc should say so rather than carry
-Newtonsoft-shaped worry forward:
+Two of the epic's stated landmines soften under STJ:
 
 - **Boxed `long`/`double`.** Newtonsoft boxes `object`-typed values as `long`/`double` even for
   int/float fields, which is why FRB1 needs the cast ladder in
@@ -197,14 +169,10 @@ comment at `tests/FlatRedBall2.Tests/Tiled/TileMapLoadingTests.cs:9`). `GlueProj
 same seam: a `Func<string, string> TextLoader` defaulting to `File.ReadAllText`, plus a
 `Func<string, bool> FileExists`.
 
-**But do not copy its shape uncritically.** `TmxLoader` is declared
-`internal static Func<...> { get; set; }` — mutable static state, which CLAUDE.md's architecture
-rules forbid ("No static state: only `FlatRedBallService.Default` is static"). It predates or sidesteps
-that rule. Two consequences worth deciding rather than inheriting (D9): whether the Glue seam is
-static or an instance member / constructor parameter, and whether it is `internal` (matching
-`TmxLoader`, relying on `InternalsVisibleTo`) or public. A static mutable seam also leaks between
-xUnit tests running in the same assembly unless every test restores it in a `finally` — which
-`TileMapLoadingTests` does, and which is a tell that the shape costs something.
+**But do not copy its shape uncritically.** `TmxLoader` is `internal static ... { get; set; }` —
+mutable static state, which CLAUDE.md's architecture rules forbid ("No static state: only
+`FlatRedBallService.Default` is static") and which leaks across tests unless each restores it in a
+`finally`. See D9.
 
 ### Failure policy: collect, don't throw
 
@@ -213,10 +181,9 @@ list. Missing element files, unmapped type strings, and unparseable elements eac
 and continue. A `GlueLoadOptions.Strict` flag throws on the first `Error` for callers who want
 fail-fast.
 
-Rationale: during a 14-phase incremental build, most of a project will reference things the loader
-cannot handle *yet*. A hard failure on the first unknown type makes the loader untestable against
-real fixtures until Phase 14. FRB1 itself already tolerates missing/corrupt element files
-(`GlueProjectSaveExtensions.cs:574`, `:584`) — this is the same posture with better reporting.
+Rationale in G19: under fail-fast, Phase 1 could not load its own primary fixture. FRB1 already
+tolerates missing and corrupt element files (`GlueProjectSaveExtensions.cs:574`, `:584`) — this is
+the same posture with better reporting.
 
 ### Boot
 
@@ -655,7 +622,9 @@ Load the `engine-tdd` skill before touching `src/`. Each group below is roughly 
 ### 7.0 — FRB1-side work (optional, parallel, blocks nothing)
 
 Lands in the sibling `FlatRedBall` repo as standalone PRs on FRB1's own cadence. **Nothing in 7.1+
-waits on any of this.** Zero-impact changes only — see the ground rule in §1 and D7.
+waits on any of this.** Zero-impact changes only — see the ground rule in §1 and D7. In particular,
+**do not bump any sample's `FileVersion`**: re-saving does not do it and hand-editing is
+user-visible (G1).
 
 - [ ] Fix the duplicate `"FileVersion"` key in `Samples/BeefballWeb/BeefballWeb/BeefballWeb.gluj`
       lines 37–38 (G2) — drop the stale `42`. Already last-one-wins, so this is observably a no-op.
@@ -666,8 +635,6 @@ waits on any of this.** Zero-impact changes only — see the ground rule in §1 
 - [ ] File an FRB1 issue for the `[DefaultValue(true)]` / read-path mismatch (G5), with the
       round-trip test that demonstrates it. **Report only — do not fix**; every available fix churns
       user files.
-- [ ] Do **not** bump any sample's `FileVersion` — re-saving does not do it, and doing it by hand is
-      user-visible (G1). Fixture choice solves this instead.
 
 ### 7.1 — Fixtures and conventions
 
@@ -783,9 +750,8 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       set: `Sprite`, `AxisAlignedRectangle`, `Circle`, `Polygon`, `ShapeCollection`, `Text`.
       Everything else — `TileShapeCollection`, `LayeredTileMap`, `PositionedObjectList<T>`, the
       collision relationships, `CameraControllingEntity` — warns and is owned by a later phase.
-- [ ] Decide and record: the issue lists "generic `.gumx` runtime types" in Phase 1's type map, but
-      no `.gumx` runtime type appears as a `SourceClassType` in the fixture (the `.gumx` is a
-      `GlobalFile`). **Recommendation: defer Gum type mapping to Phase 5** and note it here.
+- [ ] No rows for Gum runtime types. The issue lists them under Phase 1, but none appears in a
+      `SourceClassType` position in any fixture (the `.gumx` is a `GlobalFile`) — deferred to Phase 5.
 - [ ] Make the map extensible — later phases add rows without editing a `switch`.
 
 ### 7.6 — Boot into FRB2's screen system
@@ -800,9 +766,8 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       non-generic seam is needed because every loaded screen shares one CLR type — this is the
       Phase 14 API in embryo, so keep it `internal` for now rather than committing to public shape).
 - [ ] Manual check: point the boot entry point at the vendored DoorsDemo fixture and confirm the
-      game starts on `Level1` with an empty screen and no exception. Note that `Level1` is a
-      *derived* screen — Phase 1 boots it without applying its base, which is correct here only
-      because Phase 1 builds empty screens.
+      game starts on `Level1` with an empty screen and no exception — noting that `Level1` is
+      *derived*, and Phase 1 boots it un-merged.
 
 ### 7.7 — Documentation and wrap-up
 
@@ -810,8 +775,6 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       `src/FlatRedBall2.csproj`); do not add to the count.
 - [ ] Log any further FRB1 bug found during implementation as an issue on the FRB1 repo (G2 and G5
       are already known; the epic explicitly welcomes more).
-- [ ] Amend §5 in place with any gotcha implementation surfaces that this list missed, and note in
-      §6 where a decision changed and why.
 - [ ] Update this document's checkboxes and flip its **Status** row.
 - [ ] Update the Phase 1 row in [`plan/plan.md`](../plan.md).
 - [ ] Decide whether a `glue-project-loading` skill is warranted yet, or whether it should wait
