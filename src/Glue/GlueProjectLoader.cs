@@ -1,0 +1,175 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using FlatRedBall2.Glue.Model;
+
+namespace FlatRedBall2.Glue;
+
+/// <summary>
+/// Reads a Glue <c>.gluj</c> project and the <c>.glsj</c>/<c>.glej</c> element files it references.
+/// </summary>
+/// <remarks>
+/// Parsing only — the loaded graph is data. Building real objects from it, applying variables, and
+/// resolving inheritance are later phases, so a project whose contents this build cannot construct
+/// still loads cleanly and reports what it could not handle.
+/// </remarks>
+public static class GlueProjectLoader
+{
+    private const string ScreenExtension = ".glsj";
+    private const string EntityExtension = ".glej";
+
+    /// <summary>
+    /// Loads the project at <paramref name="glujPath"/> and resolves its element references.
+    /// </summary>
+    /// <param name="glujPath">Path to the <c>.gluj</c> file.</param>
+    /// <param name="options">File access and strictness. Defaults to reading from disk, tolerantly.</param>
+    /// <returns>The project plus every diagnostic raised. Check <see cref="GlueLoadResult.HasErrors"/>.</returns>
+    /// <exception cref="GlueLoadException">Only when <see cref="GlueLoadOptions.Strict"/> is set.</exception>
+    public static GlueLoadResult Load(string glujPath, GlueLoadOptions? options = null)
+    {
+        options ??= new GlueLoadOptions();
+        var diagnostics = new List<GlueLoadDiagnostic>();
+
+        GlueProjectSave? project = ReadFile(glujPath, GlueJsonContext.Default.GlueProjectSave, options, diagnostics, elementName: null);
+
+        if (project is null)
+        {
+            // Hand back an empty project rather than null so callers have one shape to handle.
+            return new GlueLoadResult(new GlueProjectSave(), diagnostics);
+        }
+
+        ReportVersion(project, diagnostics, options);
+
+        string projectDirectory = Path.GetDirectoryName(glujPath) ?? string.Empty;
+
+        foreach (var reference in project.ScreenReferences)
+        {
+            var screen = ReadElement(reference.Name, ScreenExtension, projectDirectory,
+                GlueJsonContext.Default.ScreenSave, options, diagnostics);
+            if (screen is not null)
+                project.Screens.Add(screen);
+        }
+
+        foreach (var reference in project.EntityReferences)
+        {
+            var entity = ReadElement(reference.Name, EntityExtension, projectDirectory,
+                GlueJsonContext.Default.EntitySave, options, diagnostics);
+            if (entity is not null)
+                project.Entities.Add(entity);
+        }
+
+        // Matches FRB1: once resolved, the references are spent and the elements are the truth.
+        project.ScreenReferences.Clear();
+        project.EntityReferences.Clear();
+
+        return new GlueLoadResult(project, diagnostics);
+    }
+
+    /// <summary>
+    /// Turns a Glue element name into a path. Element names are backslash-separated regardless of
+    /// platform, so they need converting before use — but only here. Everywhere else the name is an
+    /// identity that <c>StartUpScreen</c> and <c>BaseScreen</c> compare against verbatim.
+    /// </summary>
+    internal static string ElementNameToRelativePath(string elementName) =>
+        elementName.Replace('\\', '/');
+
+    private static TElement? ReadElement<TElement>(
+        string? elementName,
+        string extension,
+        string projectDirectory,
+        JsonTypeInfo<TElement> typeInfo,
+        GlueLoadOptions options,
+        List<GlueLoadDiagnostic> diagnostics)
+        where TElement : GlueElement
+    {
+        if (string.IsNullOrEmpty(elementName))
+        {
+            Report(diagnostics, options, new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning, "An element reference has no name and was skipped."));
+            return null;
+        }
+
+        string path = Path.Combine(projectDirectory, ElementNameToRelativePath(elementName) + extension);
+        var element = ReadFile(path, typeInfo, options, diagnostics, elementName);
+
+        if (element is not null && element.Name != elementName)
+        {
+            // The file that was found wins; the mismatch usually means a rename went half-applied.
+            Report(diagnostics, options, new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"File declares its name as '{element.Name}' but was referenced as '{elementName}'. " +
+                "Using the file that was found.",
+                elementName));
+        }
+
+        return element;
+    }
+
+    private static T? ReadFile<T>(
+        string path,
+        JsonTypeInfo<T> typeInfo,
+        GlueLoadOptions options,
+        List<GlueLoadDiagnostic> diagnostics,
+        string? elementName)
+    {
+        string? resolvedPath = options.ResolveFilePath(path);
+
+        if (resolvedPath is null)
+        {
+            // A missing element is survivable; a missing project is not.
+            var severity = elementName is null ? GlueDiagnosticSeverity.Error : GlueDiagnosticSeverity.Warning;
+            Report(diagnostics, options, new GlueLoadDiagnostic(
+                severity, $"Could not find '{path}'.", elementName));
+            return default;
+        }
+
+        if (!string.Equals(resolvedPath, path, StringComparison.Ordinal))
+        {
+            Report(diagnostics, options, new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"Found '{resolvedPath}' for '{path}' by ignoring case. This loads here but may not " +
+                "on a case-sensitive filesystem.",
+                elementName));
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize(options.ReadAllText(resolvedPath), typeInfo);
+        }
+        catch (Exception exception) when (exception is JsonException or IOException)
+        {
+            var severity = elementName is null ? GlueDiagnosticSeverity.Error : GlueDiagnosticSeverity.Warning;
+            Report(diagnostics, options, new GlueLoadDiagnostic(
+                severity, $"Could not read '{resolvedPath}': {exception.Message}", elementName));
+            return default;
+        }
+    }
+
+    private static void ReportVersion(
+        GlueProjectSave project, List<GlueLoadDiagnostic> diagnostics, GlueLoadOptions options)
+    {
+        if (project.FileVersion >= GlueVersions.Latest)
+            return;
+
+        string detail = project.FileVersion < GlueVersions.LastFileShapeChange
+            ? $"This is below version {GlueVersions.LastFileShapeChange}, the last version that changed " +
+              "what Glue writes to disk, so some data may be shaped differently than expected."
+            : "This is above every version that changed what Glue writes to disk, so it reads the same " +
+              "as a current project.";
+
+        Report(diagnostics, options, new GlueLoadDiagnostic(
+            GlueDiagnosticSeverity.Info,
+            $"Project is FileVersion {project.FileVersion}; the newest known is {GlueVersions.Latest}. {detail}"));
+    }
+
+    private static void Report(
+        List<GlueLoadDiagnostic> diagnostics, GlueLoadOptions options, GlueLoadDiagnostic diagnostic)
+    {
+        diagnostics.Add(diagnostic);
+
+        if (options.Strict && diagnostic.Severity == GlueDiagnosticSeverity.Error)
+            throw new GlueLoadException(diagnostic);
+    }
+}
