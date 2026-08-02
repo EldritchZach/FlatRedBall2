@@ -25,10 +25,15 @@ is the whole bar.
 
 ### Ground rules inherited from the epic
 
-- **Latest `FileVersion` only.** No replication of `GluxVersions` gating history. Projects must be
-  opened and re-saved in current Glue first. FRB1's current `LatestVersion` is **67**
-  (`GluxVersions.NineSliceHasTilingMiddleSections`, March 15 2026) — see
-  `FRBDK/Glue/GlueCommon/SaveClasses/GlueProjectSave.cs:213`.
+- **Latest `FileVersion` only.** No replication of `GluxVersions` gating history. FRB1's current
+  `LatestVersion` is **68** (`GluxVersions.GumHasFrbRuntimeInterfaces`, July 26 2026) — see
+  `FRBDK/Glue/GlueCommon/SaveClasses/GlueProjectSave.cs:219`.
+
+  **The issue's phrasing of this rule rests on a mistaken premise** and should be read for intent,
+  not literally. It says projects "must be opened/re-saved in current Glue first" — but re-saving
+  does **not** bump `FileVersion` (proven in G1). The workable intent is: *the FRB2 reader
+  implements one schema — the current one — and carries no version-gated branches.* That is
+  satisfied by choosing fixtures above the last file-shape-affecting gate, not by upgrading anything.
 - **Fully data-driven, no required user base class.** Loaded elements are generic objects;
   `CustomVariables` are a reflected property bag. Behavior hooks in via external registration, not
   subclassing.
@@ -37,12 +42,19 @@ is the whole bar.
   package — consistent with Gum/Tiled integration.
 - **Test fixtures are vendored.** Commit a snapshot of representative FRB1 sample files into this
   repo rather than reading live from the sibling `FlatRedBall` checkout.
-- **FRB1 is editable.** Both repos are checked out locally and both are ours. When the cheapest fix
-  for a problem is a change on the FRB1/Glue side — re-saving a stale sample, fixing a corrupt
-  committed file, correcting a serialization annotation — **make it there.** Do not contort the FRB2
-  loader to accommodate a defect that should be fixed at the source. §5 tags each problem with the
-  repo that owns the fix. The one hard constraint is that Glue keeps targeting FRB1 `.csproj`
-  projects; this epic does not change what Glue *generates*.
+- **FRB1 changes: zero-impact only.** Both repos are ours, but FRB1 has real users and this epic
+  must not spend their goodwill. Sort any candidate FRB1 change into one of two buckets:
+  - **Zero-impact — land it freely.** Comments, docs, new issues, and fixes that are already
+    semantically no-ops for every consumer (G2's duplicate JSON key is the model case: last-one-wins
+    means removing the stale line changes nothing anyone observes).
+  - **User-visible — do not land it as part of this epic.** Anything that changes behavior,
+    regenerates sample code, bumps a sample's `FileVersion`, or alters what Glue writes to disk.
+    Report it, and let the FRB1 maintainer schedule it independently on FRB1's own cadence.
+
+  **This epic requires no FRB1 change to proceed.** Every problem in §5 is either fixable FRB2-side
+  or resolvable by choosing different fixtures — verified, not assumed. Nothing in §7 blocks on an
+  upstream merge. Glue also keeps targeting FRB1 `.csproj` projects throughout; this epic never
+  changes what Glue *generates*.
 
 ### Where FRB1 lives
 
@@ -213,19 +225,23 @@ Everything below was verified against FRB1 source or real committed sample files
 it at the source in the sibling `FlatRedBall` checkout (see the ground rule in §1), `Both` = needs a
 change on each side.
 
+**No entry below requires a user-visible FRB1 change.** Two are worth a zero-impact upstream fix
+(G2's corrupt file, G11's append-only comment); the rest are FRB2-side or resolved by fixture choice.
+
 | # | Problem | Severity | Fix |
 |---|---|---|---|
-| G1 | No FRB1 sample is at the required `FileVersion` | **Blocker** | FRB1 |
-| G2 | `BeefballWeb.gluj` has a duplicate `FileVersion` key | High | FRB1 |
+| G1 | No FRB1 sample is at `LatestVersion`, and re-saving will not fix that | High | FRB2 (fixture choice) |
+| G2 | `BeefballWeb.gluj` has a duplicate `FileVersion` key | High | FRB1 (zero-impact) |
+| G17 | `LatestVersion` is a moving target — it advanced 67 → 68 mid-planning | Medium | FRB2 |
 | G3 | Absent ≠ `false` — true-by-default members are omitted on write | **Blocker** | FRB2 |
 | G4 | 31 semantically-important members are `[JsonIgnore]` bag-backed and never appear by name | **Blocker** | FRB2 |
-| G5 | `[DefaultValue(true)]` disagrees with FRB1's own read path | Medium | FRB1 |
+| G5 | `[DefaultValue(true)]` disagrees with FRB1's own read path | Medium | FRB1 (report only) |
 | G6 | `.gluj` and element files are written with different serializer settings | Medium | FRB2 |
 | G7 | Element names are backslash-separated | High | FRB2 |
 | G8 | Case sensitivity is unspecified | Medium | FRB2 |
 | G9 | `PropertySave.Type` is not a CLR type name, and is sometimes absent | Medium | FRB2 |
 | G10 | Same data lives in a typed property *and* the bag on the same object | Medium | FRB2 |
-| G11 | Enum values are raw ints with no cross-repo compile-time link | High | Both |
+| G11 | Enum values are raw ints with no cross-repo compile-time link | High | FRB2 + a zero-impact FRB1 comment |
 | G12 | FRB1 silently swallows missing and corrupt element files | Low | FRB2 |
 | G13 | An element's `Name` field can disagree with its file path | Low | FRB2 |
 | G14 | Display/camera data is duplicated at the project root and in `DisplaySettings` | Low | FRB2 |
@@ -234,10 +250,10 @@ change on each side.
 
 ---
 
-### G1 — No FRB1 sample is at the required `FileVersion` · **Blocker** · fix in FRB1
+### G1 — No FRB1 sample is at `LatestVersion`, and re-saving will not fix that · High · **fix by fixture choice, no FRB1 change**
 
-`GlueProjectSave.LatestVersion` is **67** (`GlueProjectSave.cs:213`), and the epic's ground rule is
-"latest `FileVersion` only." Every committed sample is below it:
+`GlueProjectSave.LatestVersion` is **68** (`GlueProjectSave.cs:219`). Every committed sample is
+below it:
 
 | Version | Projects |
 |---|---|
@@ -249,22 +265,44 @@ change on each side.
 | 60 | all six `Platformer/*Demo` projects |
 | 61 | `FormsSampleProject` (the newest anything gets) |
 
-The two fixtures the epic names — ChickenClicker and Beefball — are **25 versions stale**, and the
-inheritance test case it calls out (`Platformer/*Demo/Screens/Level1.glsj`) is 7 behind. Taken
-literally, the ground rule means there is currently nothing in FRB1 the loader is allowed to read.
+The two fixtures the epic names — ChickenClicker and Beefball — are **26 versions stale**.
 
-**How we tackle it.** Open each fixture project in current Glue and re-save it, which is exactly the
-migration the ground rule asks *users* to perform — so doing it ourselves both unblocks the work and
-proves the migration path is real. Land the re-saved samples as a PR against the FRB1 repo, then
-vendor from the re-saved output. Diff each before/after pair and record what version 42 → 67 actually
-changed; that diff is free documentation of the schema delta and will inform every later phase.
+**Re-saving does not upgrade a project.** The only `FileVersion` assignment in the entire FRBDK
+outside tests is `ProjectLoader.cs:157`, and it sits in the `!glueProjectFile.Exists()` branch —
+*new projects only*. Open a version 42 project in current Glue, change something, save: it is still
+version 42. Raising it is a deliberate manual edit, and `GlueProjectFileVersionPlugin` raises an
+error when a `.gluj`'s version exceeds the linked engine's `EngineDllSyntaxVersion`, so bumping a
+sample's version without also upgrading its engine reference **puts a visible error in front of any
+user who opens that sample**. Upgrading the samples is not a re-save; it is an invasive,
+user-visible change to FRB1, and this epic does not need it.
 
-Do **not** work around this by relaxing the version rule in code. If re-saving turns out to be
-impractical for some project, that project simply is not a Phase 1 fixture.
+**How we tackle it: pick better fixtures.** Most `GluxVersions` entries gate engine and codegen
+capability, not file shape. The ones that actually change what lands on disk are
+`GlueSavedToJson = 9`, `SeparateJsonFilesForElements = 11`, `RemoveRedundantDerivedData = 38`,
+`VariantsInsteadOfTypes = 53`, and `CaseSensitiveLoading = 55` — **all ≤ 55**. So any sample at 60
+or 61 is already above every file-shape-affecting gate, and reads identically to a version 68 file
+for everything Phase 1 touches.
+
+`Samples/Platformer/DoorsDemo` (version 60) is the right primary fixture — and it is strictly better
+than what the epic proposed:
+
+| | ChickenClicker (v42) | DoorsDemo (v60) |
+|---|---|---|
+| Version vs. schema gates | below `RemoveRedundantDerivedData`, `VariantsInsteadOfTypes`, `CaseSensitiveLoading` | above all of them |
+| Entities | none | `Entities/Door.glej`, `Entities/Player.glej` |
+| Screens | 3, all near-empty | `Screens/GameScreen.glsj`, `Screens/Level1.glsj` |
+| Inheritance | none | `Level1` sets `BaseScreen` — the Phase 6 case the epic asks for |
+
+Vendor `DoorsDemo` as the primary fixture and `FormsSampleProject` (61, screens-only, Gum-heavy) as
+the Phase 5 fixture. Keep ChickenClicker and Beefball out of the fixture set entirely, or vendor one
+deliberately as a *legacy-tolerance* fixture — a v42 file is useful precisely because it sits below
+those three gates and proves the loader degrades with a diagnostic rather than misreading.
+
+Zero FRB1 changes. Nothing blocks on an upstream merge.
 
 ---
 
-### G2 — `BeefballWeb.gluj` has a duplicate `FileVersion` key · High · fix in FRB1
+### G2 — `BeefballWeb.gluj` has a duplicate `FileVersion` key · High · fix in FRB1 (zero-impact)
 
 `Samples/BeefballWeb/BeefballWeb/BeefballWeb.gluj` lines 37–38:
 
@@ -276,12 +314,15 @@ impractical for some project, that project simply is not a Phase 1 fixture.
 A committed, corrupt file — almost certainly a bad merge. Newtonsoft takes last-one-wins silently,
 which is why nobody noticed.
 
-**How we tackle it.** Fix the file in FRB1 (drop the stale `42`). On the FRB2 side, add a test
-asserting what `System.Text.Json` does with a duplicate key so the behavior is pinned rather than
-assumed — STJ is also last-one-wins for object members, but that is worth one test, not a guess.
-Then treat this as evidence for a broader question: are there other hand-merged corruptions in the
-sample set? A quick JSON well-formedness sweep across all `.gluj`/`.glsj`/`.glej` in FRB1 is cheap
-and worth doing once.
+**How we tackle it.** This is the model zero-impact FRB1 fix: because Newtonsoft already resolves it
+to `55`, deleting the stale `42` line changes nothing any consumer observes, and it removes a file
+that would confuse the next person to read it. Land it upstream as a one-line PR, independent of
+this epic — nothing here waits on it.
+
+On the FRB2 side, add a test pinning what `System.Text.Json` does with a duplicate key rather than
+assuming it matches Newtonsoft. Also do the cheap thing once: sweep every `.gluj`/`.glsj`/`.glej` in
+FRB1 for well-formedness and duplicate keys. Report what turns up; fix only what is provably a
+no-op, and leave anything with observable consequences to the maintainer.
 
 ---
 
@@ -333,7 +374,7 @@ POCOs cannot expose their own properties without it. Build the helper first, the
 
 ---
 
-### G5 — `[DefaultValue(true)]` disagrees with FRB1's own read path · Medium · fix in FRB1
+### G5 — `[DefaultValue(true)]` disagrees with FRB1's own read path · Medium · report only, do **not** fix
 
 `AddToManagers`, `IncludeInICollidable`, `IncludeInIClickable` and `CallActivity` are annotated
 `[DefaultValue(true)]`, which Newtonsoft uses on *write* to omit them. But element files are read
@@ -341,10 +382,16 @@ back with **no settings at all** (`GlueProjectSaveExtensions.cs:578`, `:599`), s
 the attribute on the way in — FRB1 relies purely on the constructor. The annotation and the reader
 agree by coincidence, not by construction: change the constructor and the round-trip breaks silently.
 
-**How we tackle it.** Log it against FRB1 with the round-trip test that demonstrates it. The epic
-explicitly welcomes FRB1 bugs found this way. Low urgency — current behavior is correct by accident,
-so this is fragility, not breakage. FRB2 does not wait on it: G3's approach (mirror the constructor)
-is correct regardless of how FRB1 resolves this.
+**How we tackle it: file the issue, change nothing.** Every available fix here is user-visible.
+Dropping the `[DefaultValue(true)]` annotations makes Newtonsoft start *writing* those members, so
+the next save churns every element file in every user project. Adding `DefaultValueHandling.Populate`
+on read changes load behavior for existing projects. Current behavior is correct-by-accident — this
+is fragility, not breakage, and it is the FRB1 maintainer's call whether the cleanup is worth the
+churn.
+
+Report it with the round-trip test that demonstrates it (the epic explicitly welcomes FRB1 bugs
+found this way) and move on. FRB2 does not wait on any of it: G3's approach — mirror the constructor
+— stays correct no matter how, or whether, FRB1 resolves this.
 
 ---
 
@@ -426,12 +473,16 @@ therefore match FRB1's **numeric values** exactly — and nothing enforces that.
 member into `SourceType` in FRB1, every FRB2 project silently misreads every object of that type. No
 compiler error, no test failure, just wrong behavior.
 
-**How we tackle it.** Two parts. In FRB2: assign explicit numeric values to every mirrored enum
-member (`FlatRedBallType = 2`, never bare ordinals) and add a test that pins each value, so a drift
-shows up as a failing assert naming the member. In FRB1: add a comment at each mirrored enum
-declaration noting that FRB2 mirrors its values and that members must be appended, never inserted or
-reordered. That is the cheapest durable guard short of code-sharing the enums, which the epic's
-package boundary rules out.
+**How we tackle it.** Two parts, neither user-visible. In FRB2: assign explicit numeric values to
+every mirrored enum member (`FlatRedBallType = 2`, never bare ordinals) and add a test pinning each
+value, so drift surfaces as a failing assert naming the member. In FRB1: add a comment at each
+mirrored enum noting that FRB2 pins its values and that members must be appended, never inserted or
+reordered — comments compile to nothing, so this is safely in the zero-impact bucket. Together they
+are the cheapest durable guard short of code-sharing the enums, which the epic's package boundary
+rules out.
+
+Note the asymmetry: **the FRB2 test is the actual guard.** The FRB1 comment only helps someone who
+reads it. If the upstream comment is unwelcome for any reason, the guard still works.
 
 ---
 
@@ -485,16 +536,36 @@ support needs its own design pass and a byte-comparison round-trip test against 
 
 ---
 
+### G17 — `LatestVersion` is a moving target · Medium · fix in FRB2
+
+`LatestVersion` advanced from **67** to **68** during the few hours this plan was being written —
+`GumHasFrbRuntimeInterfaces` (July 26 2026) landed in the FRB1 checkout mid-research, and an earlier
+section of this very document had to be corrected. The `gluj-versions` skill documents adding
+versions as routine maintenance, so this cadence is normal, not exceptional.
+
+**How we tackle it.** Never hardcode a version constant in loader logic. `LatestVersion` belongs in
+exactly one place in FRB2 — a single constant next to the mirrored `GluxVersions`, used only for the
+"below current version" diagnostic (D6) and nothing else. Because the reader is version-agnostic by
+design (one schema, no gated branches), a version bump upstream should require **zero** FRB2 changes
+beyond optionally refreshing that constant.
+
+This is also the strongest argument against blocking on version (D6): a hard gate would have turned
+this routine upstream bump into total test failure with no useful diagnostic. Test the diagnostic
+against a synthetic fixture rather than a real sample, so the corpus drifting does not break tests.
+
+---
+
 ### G16 — Real files contain shapes this epic excludes · Low · fix in FRB2
 
-`ChickenClicker.gluj` has a populated `CustomClasses` array (`TileMapInfo`), which the epic
-explicitly excludes. Real files also carry `SyncedProjects`, `PerformanceSettingsSave`,
-`ResolutionPresets`, `Bookmarks`, and `PluginData`.
+The chosen fixture proves this is the norm, not the exception: `DoorsDemo.gluj:53` has a populated
+`CustomClasses` array (`TileMapInfo`, `PlatformerValues`) — the one thing the epic excludes outright
+— plus `PluginData`, `ResolutionPresets`, and `SyncedProjects`. Excluded shapes are not rare corner
+cases you can avoid by picking a tidy fixture; they are in the first real file you open.
 
 **How we tackle it.** Omit them from the mirror entirely — STJ ignores unknown JSON members by
 default, so their presence costs nothing. "Out of scope" must mean the loader is *unbothered* by
-them, not that it rejects files containing them. Add one test loading a fixture with a populated
-`CustomClasses` and asserting a clean load, so nobody later mistakes tolerance for an oversight.
+them, not that it rejects files containing them. The DoorsDemo fixture covers this by construction;
+assert a clean load explicitly so nobody later mistakes tolerance for an oversight.
 
 ---
 
@@ -505,10 +576,10 @@ them, not that it rejects files containing them. Add one test loading a fixture 
 | D1 | Fail-fast vs skip-with-warning for unmapped types | **Skip + diagnostic**, with an opt-in `Strict` mode. Reasoning in §4. |
 | D2 | Mirror POCO names | **Keep FRB1 names verbatim** under `FlatRedBall2.Glue.Model`. |
 | D3 | Fixture location | **`tests/FlatRedBall2.Tests/Glue/Fixtures/<ProjectName>/`**, copied to output via `<None ... CopyToOutputDirectory="PreserveNewest" />` — matches the existing `Animation\Content\Corpus\**` rows in `tests/FlatRedBall2.Tests/FlatRedBall2.Tests.csproj:24`. |
-| D4 | Which sample to vendor first | **`Samples/ChickenClicker`, re-saved to version 67 first** (G1) — 111-line `.gluj`, three 15-line `.glsj`, no entities. Smallest thing that exercises the full reference-resolution path. Add a re-saved `Samples/Beefball` (4 entities with `NamedObjects`, `CustomVariables`, `StateCategoryList`) as the richer second fixture. |
+| D4 | Which sample to vendor first | **`Samples/Platformer/DoorsDemo` as-is** (G1) — version 60, above every file-shape-affecting gate, and it carries two entities, two screens, and the `BaseScreen` inheritance case in one small project. `FormsSampleProject` (61) for Phase 5. **Not** ChickenClicker or Beefball: at version 42 they sit below three schema gates, and upgrading them is a user-visible FRB1 change we do not need. |
 | D5 | Case-sensitivity rule for element-name lookup | **Case-insensitive match with a diagnostic on case mismatch** (G8). Glue authored these on Windows; a silent miss on Linux is the worse failure. Confirm this does not mask a genuinely missing file. |
-| D6 | `FileVersion` enforcement | **Warn below 67, do not block** — but vendor only re-saved v67 fixtures, so the warning path is exercised by a synthetic file rather than by the real corpus. Blocking is tempting given the ground rule, but a hard gate turns any future FRB1 version bump into an instant total test failure with no diagnostic. Revisit if version drift causes real misreads. |
-| D7 | Who re-saves the FRB1 samples, and does it land upstream? | **We do, as a PR to the FRB1 repo** (G1). Re-saving is the migration the ground rule already demands of users; doing it upstream means every FRB1 consumer benefits and FRB2 vendors from a clean source rather than a local scratch copy. Confirm with the FRB1 maintainer that bumping sample versions is welcome before opening the PR. |
+| D6 | `FileVersion` enforcement | **Warn below `LatestVersion`, never block** (G17). A hard gate would have failed every test the day `LatestVersion` went 67 → 68 mid-planning, with no useful diagnostic. Exercise the warning with a synthetic fixture, not a real sample, so corpus drift cannot break tests. |
+| D7 | Do we change FRB1 at all? | **No user-visible change; this epic does not depend on FRB1 at all** (see §1 ground rules). Land only zero-impact fixes upstream — G2's duplicate key, G11's append-only comment — as standalone PRs on FRB1's own cadence. Report everything else and let the maintainer schedule it. |
 | D8 | Authority when a typed field and a bag entry disagree | **Typed field wins, disagreement emits a diagnostic** (G10) — except where FRB1 declares the member bag-backed (G4), in which case the bag is authoritative by definition. |
 
 ---
@@ -518,33 +589,32 @@ them, not that it rejects files containing them. Add one test loading a fixture 
 Repo rule: **a failing test comes first, or the commit body explains why one was not feasible.**
 Load the `engine-tdd` skill before touching `src/`. Each group below is roughly one commit.
 
-### 7.0 — FRB1-side work (do this first; G1 blocks everything else)
+### 7.0 — FRB1-side work (optional, parallel, blocks nothing)
 
-Lands in the sibling `FlatRedBall` repo, not this one. See D7 before opening the PR.
+Lands in the sibling `FlatRedBall` repo as standalone PRs on FRB1's own cadence. **Nothing in 7.1+
+waits on any of this.** Zero-impact changes only — see the ground rule in §1 and D7.
 
-- [ ] Confirm with the FRB1 maintainer that bumping sample `FileVersion`s upstream is welcome.
 - [ ] Fix the duplicate `"FileVersion"` key in `Samples/BeefballWeb/BeefballWeb/BeefballWeb.gluj`
-      lines 37–38 (G2) — drop the stale `42`.
-- [ ] Sweep every `.gluj`/`.glsj`/`.glej` in the FRB1 repo for JSON well-formedness and duplicate
-      keys; fix what turns up (G2).
-- [ ] Open `Samples/ChickenClicker` in current Glue and re-save it to `FileVersion` 67 (G1).
-- [ ] Open `Samples/Beefball` in current Glue and re-save it to `FileVersion` 67 (G1).
-- [ ] Record the version 42 → 67 diff for both projects in this document — it is the schema delta
-      every later phase will need.
-- [ ] Add a comment at each enum FRB2 will mirror, noting that FRB2 pins its numeric values and that
-      members must be appended, never inserted or reordered (G11).
+      lines 37–38 (G2) — drop the stale `42`. Already last-one-wins, so this is observably a no-op.
+- [ ] Sweep every `.gluj`/`.glsj`/`.glej` in the FRB1 repo for well-formedness and duplicate keys.
+      Fix only what is provably a no-op; report anything with observable consequences (G2).
+- [ ] Add a comment at each enum FRB2 mirrors, noting that FRB2 pins its numeric values and that
+      members must be appended, never inserted or reordered (G11). Comments only.
 - [ ] File an FRB1 issue for the `[DefaultValue(true)]` / read-path mismatch (G5), with the
-      round-trip test that demonstrates it.
-- [ ] Open the FRB1 PR; do not start 7.1 until the re-saved samples exist.
+      round-trip test that demonstrates it. **Report only — do not fix**; every available fix churns
+      user files.
+- [ ] Do **not** bump any sample's `FileVersion` — re-saving does not do it, and doing it by hand is
+      user-visible (G1). Fixture choice solves this instead.
 
 ### 7.1 — Fixtures and conventions
 
 - [ ] Create `tests/FlatRedBall2.Tests/Glue/` (mirrors `src/Glue/`, per `.claude/code-style.md` §Test Organization).
-- [ ] Vendor the **re-saved** `Samples/ChickenClicker` Glue files into
-      `tests/FlatRedBall2.Tests/Glue/Fixtures/ChickenClicker/` — `ChickenClicker.gluj` plus
-      `Screens/GameScreen.glsj`, `Screens/MenuScreen.glsj`, `Screens/OptionsScreen.glsj`.
-- [ ] Vendor the **re-saved** `Samples/Beefball` Glue files into `Fixtures/Beefball/` — `.gluj`,
-      `Screens/GameScreen.glsj`, and the four `.glej` files (`PlayerBall`, `Puck`, `Goal`, `ScoreHud`).
+- [ ] Vendor `Samples/Platformer/DoorsDemo` **as-is** into
+      `tests/FlatRedBall2.Tests/Glue/Fixtures/DoorsDemo/` — `DoorsDemo.gluj`, `Screens/GameScreen.glsj`,
+      `Screens/Level1.glsj`, `Entities/Door.glej`, `Entities/Player.glej` (D4).
+- [ ] Optionally vendor `Samples/ChickenClicker` (v42) as a deliberate **legacy-tolerance** fixture —
+      it sits below three schema gates, which is exactly what makes it useful for proving the loader
+      degrades with a diagnostic rather than misreading (G1).
 - [ ] Author a tiny hand-written `Fixtures/Synthetic/` project for the cases no real sample covers:
       a below-version `.gluj` (D6), a missing element reference (G12), a name/path mismatch (G13),
       and a case-mismatched reference (G8).
@@ -555,8 +625,8 @@ Lands in the sibling `FlatRedBall` repo, not this one. See D7 before opening the
 
 ### 7.2 — POCO mirror
 
-- [ ] Failing test: deserializing the ChickenClicker `.gluj` fixture yields `FileVersion == 67`,
-      `StartUpScreen == "Screens\\MenuScreen"`, and three `ScreenReferences`.
+- [ ] Failing test: deserializing the DoorsDemo `.gluj` fixture yields `FileVersion == 60`,
+      `StartUpScreen == "Screens\\Level1"`, two `ScreenReferences`, and two `EntityReferences`.
 - [ ] Add `src/Glue/Model/` POCOs for `GlueProjectSave`, `GlueElementFileReference`, `GlueElement`,
       `ScreenSave`, `EntitySave`, `PropertySave`, `InstructionSave`, `NamedObjectSave`,
       `CustomVariable`, `ReferencedFileSave`, `StateSave`, `StateSaveCategory`, `DisplaySettings`.
@@ -600,8 +670,9 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 
 - [ ] Failing test: `GlueProjectLoader` routes every read through its injectable `TextLoader`
       delegate and never touches `System.IO` (mirrors `TileMapLoadingTests.cs:15`).
-- [ ] Failing test: loading the ChickenClicker fixture populates `Screens.Count == 3` and clears
-      `ScreenReferences`, matching `LoadReferencedScreensAndEntities` (`GlueProjectSaveExtensions.cs:567`).
+- [ ] Failing test: loading the DoorsDemo fixture populates `Screens.Count == 2` and
+      `Entities.Count == 2`, and clears both reference lists, matching
+      `LoadReferencedScreensAndEntities` (`GlueProjectSaveExtensions.cs:567`).
 - [ ] Failing test: `"Screens\\MenuScreen"` resolves to `Screens/MenuScreen.glsj` with forward
       slashes on non-Windows (G7).
 - [ ] Failing test: `\` normalization applies to path building only — `StartUpScreen` and
@@ -614,13 +685,14 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       emits one `Warning`, and the file path stays authoritative (G13).
 - [ ] Implement `GlueProjectLoader.Load`, `GlueLoadResult`, `GlueLoadDiagnostic`, `GlueLoadOptions`.
 - [ ] Failing test: `GlueLoadOptions.Strict` throws on the first `Error` diagnostic.
-- [ ] Failing test: loading the Beefball fixture populates four entities and, for `PlayerBall`,
-      retains two `NamedObjects` and ten `CustomVariables` un-applied (proving Phase 1 parses
-      without instantiating).
+- [ ] Failing test: DoorsDemo's `Screens/GameScreen.glsj` retains its ten `NamedObjects` parsed but
+      **un-applied**, proving Phase 1 parses without instantiating.
+- [ ] Failing test: `Level1.BaseScreen == "Screens\\GameScreen"` is parsed and retained without any
+      merge occurring — inheritance is Phase 6, and Phase 1 must not quietly start resolving it.
 - [ ] Failing test: the `.glsj`/`.glej` omission rules are covered independently of `.gluj`'s — do
       not assume one generalizes to the other (G6).
-- [ ] Failing test: a `.gluj` with `FileVersion` below 67 loads and emits one `Info` diagnostic,
-      using the synthetic fixture rather than a real sample (D6).
+- [ ] Failing test: a `.gluj` below `LatestVersion` loads and emits one `Info` diagnostic, asserted
+      against the **synthetic** fixture so corpus drift cannot break it (D6, G17).
 
 ### 7.5 — Type mapping
 
@@ -643,8 +715,10 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       `FlatRedBallService` (`src/FlatRedBallService.cs:465` is the existing `Start<T>` path; a
       non-generic seam is needed because every loaded screen shares one CLR type — this is the
       Phase 14 API in embryo, so keep it `internal` for now rather than committing to public shape).
-- [ ] Manual check: point the boot entry point at the vendored ChickenClicker fixture and confirm
-      the game starts on `MenuScreen` with an empty screen and no exception.
+- [ ] Manual check: point the boot entry point at the vendored DoorsDemo fixture and confirm the
+      game starts on `Level1` with an empty screen and no exception. Note that `Level1` is a
+      *derived* screen — Phase 1 boots it without applying its base, which is correct here only
+      because Phase 1 builds empty screens.
 
 ### 7.7 — Documentation and wrap-up
 
@@ -666,13 +740,15 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 
 - [ ] `dotnet build src/FlatRedBall2.csproj` succeeds with no new warnings and no AOT/trim warnings.
 - [ ] `dotnet test tests/FlatRedBall2.Tests/` passes.
-- [ ] Both vendored fixtures load with zero `Error` diagnostics.
-- [ ] ChickenClicker boots to `MenuScreen` from its `.gluj` with no hand-written screen class.
-- [ ] `Beefball`'s `PlayerBall` `.glej` round-trips into POCOs with `NamedObjects`,
-      `CustomVariables`, and `StateCategoryList` all populated but un-applied.
+- [ ] Every vendored fixture loads with zero `Error` diagnostics.
+- [ ] DoorsDemo boots to `Level1` from its `.gluj` with no hand-written screen class.
+- [ ] DoorsDemo's `Player.glej` and `GameScreen.glsj` round-trip into POCOs with `NamedObjects`,
+      `CustomVariables`, and `BaseScreen` all populated but un-applied.
 - [ ] No Newtonsoft.Json reference was added anywhere.
 - [ ] Every open decision in §6 is either implemented as recommended or amended in place with the
       reason it changed.
-- [ ] Every gotcha in §5 is either covered by a test, fixed upstream in FRB1, or explicitly deferred
-      to a named later phase — none silently dropped.
-- [ ] The FRB1-side PR (§7.0) is merged, and `Fixtures/README.md` names the FRB1 commit it vendored.
+- [ ] Every gotcha in §5 is either covered by a test, reported upstream, or explicitly deferred to a
+      named later phase — none silently dropped.
+- [ ] `Fixtures/README.md` names the FRB1 commit it vendored from.
+- [ ] **No user-visible FRB1 change was made or required.** Any upstream PR opened along the way was
+      zero-impact and merged (or not) independently of this phase.
