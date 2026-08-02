@@ -16,6 +16,19 @@ public static class GlueTypeMap
 {
     // Keyed on the open type name so a generic's arguments do not have to match for the outer type
     // to resolve. Adding a row is how a later phase claims a type.
+    //
+    // The value is a factory rather than a Type so construction is a direct `new`. Going through
+    // Activator.CreateInstance(Type) instead is trim-unsafe: the constructor is not rooted, so a
+    // trimmed or AOT publish throws MissingMethodException and every object comes back null — and
+    // the IL2067 that warns about it only appears at publish time, never on `dotnet build`.
+    private static readonly Dictionary<string, Func<object>> FactoriesByGlueName = new(StringComparer.Ordinal)
+    {
+        ["FlatRedBall.Sprite"] = static () => new Rendering.Sprite(),
+        ["FlatRedBall.Math.Geometry.AxisAlignedRectangle"] = static () => new Collision.AARect(),
+        ["FlatRedBall.Math.Geometry.Circle"] = static () => new Collision.Circle(),
+        ["FlatRedBall.Math.Geometry.Polygon"] = static () => new Collision.Polygon(),
+    };
+
     private static readonly Dictionary<string, Type> TypesByGlueName = new(StringComparer.Ordinal)
     {
         ["FlatRedBall.Sprite"] = typeof(Rendering.Sprite),
@@ -23,6 +36,22 @@ public static class GlueTypeMap
         ["FlatRedBall.Math.Geometry.Circle"] = typeof(Collision.Circle),
         ["FlatRedBall.Math.Geometry.Polygon"] = typeof(Collision.Polygon),
     };
+
+    /// <summary>Constructs an instance of the mapped type, without reflection.</summary>
+    /// <returns>False if a later phase owns this type.</returns>
+    public static bool TryCreate(GlueTypeName typeName, [NotNullWhen(true)] out object? instance)
+    {
+        instance = null;
+
+        if (typeName.IsElementReference)
+            return false;
+
+        if (!FactoriesByGlueName.TryGetValue(typeName.OpenTypeName, out var factory))
+            return false;
+
+        instance = factory();
+        return true;
+    }
 
     /// <summary>Resolves a parsed Glue type name to its FRB2 equivalent.</summary>
     /// <returns>True if this build can construct the type; false if a later phase owns it.</returns>

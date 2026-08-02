@@ -30,6 +30,27 @@ public class GlueEndToEndTests
     }
 
     [Fact]
+    public void Beefball_GameScreen_BuildsTheArenaWallsInsideTheirShapeCollection()
+    {
+        // The walls are ContainedObjects of a ShapeCollection, which FRB2 has no equivalent for. An
+        // unbuildable container must not take its buildable children down with it — otherwise the
+        // one fixture chosen to demonstrate this phase renders an empty arena, silently.
+        var result = GlueProjectLoader.Load(Gluj("Beefball", "Beefball.gluj"));
+        var gameScreen = result.Project.Screens.Single(s => s.Name == @"Screens\GameScreen");
+
+        var screen = new GlueScreen { Save = gameScreen };
+        screen.BuildObjects();
+
+        var walls = Enumerable.Range(1, 6)
+            .Select(i => $"Wall{i}")
+            .Where(name => screen.Objects.ContainsKey(name))
+            .ToList();
+
+        walls.Count.ShouldBe(6);
+        screen.Objects["Wall1"].ShouldBeOfType<AARect>();
+    }
+
+    [Fact]
     public void Beefball_PlayerBall_BuildsBothCirclesAtTheirAuthoredRadius()
     {
         // The payoff case for this phase: a real Glue entity becomes real, sized, attached FRB2

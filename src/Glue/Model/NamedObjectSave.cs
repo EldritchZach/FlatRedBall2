@@ -55,8 +55,19 @@ public class NamedObjectSave
     /// <summary>Glue's name/value bag. Several members below read through it rather than from JSON.</summary>
     public List<PropertySave> Properties { get; set; } = new();
 
-    /// <summary>Whether this object is a list rather than a single instance.</summary>
-    public bool IsList { get; set; }
+    /// <summary>
+    /// Whether this object is a list rather than a single instance.
+    /// </summary>
+    /// <remarks>
+    /// Computed, never read from JSON: Glue declares its own <c>IsList</c> as <c>[JsonIgnore]</c> and
+    /// derives it the same way, so the flag never appears on disk. A mirror that bound it to JSON
+    /// would read <c>false</c> for every list in every real project.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsList =>
+        SourceType == SourceType.FlatRedBallType &&
+        GlueTypeName.Parse(SourceClassType).OpenTypeName is
+            "PositionedObjectList" or "FlatRedBall.Math.PositionedObjectList";
 
     /// <summary>Whether this object is attached to its container, and follows it.</summary>
     /// <remarks>Deliberately not defaulted true — matches FRB1, which writes it explicitly.</remarks>

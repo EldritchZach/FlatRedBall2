@@ -23,7 +23,23 @@ internal static class GlueElementBuilder
         Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle)
     {
         var builder = new GlueObjectBuilder(diagnostics);
+        BuildInto(namedObjects, builder, elementName, objects, diagnostics, addSingle);
+    }
 
+    /// <remarks>
+    /// Recurses into <c>ContainedObjects</c> for <em>every</em> object, not only lists. Glue nests
+    /// freely — Beefball's arena walls are children of a <c>ShapeCollection</c>, a type FRB2 has no
+    /// equivalent for — and an unbuildable container must not take its buildable children with it.
+    /// FRB1's generator recurses unconditionally for the same reason.
+    /// </remarks>
+    private static void BuildInto(
+        List<NamedObjectSave> namedObjects,
+        GlueObjectBuilder builder,
+        string? elementName,
+        Dictionary<string, object> objects,
+        List<GlueLoadDiagnostic> diagnostics,
+        Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle)
+    {
         foreach (var save in namedObjects)
         {
             if (string.IsNullOrEmpty(save.InstanceName))
@@ -35,6 +51,11 @@ internal static class GlueElementBuilder
 
             if (built is not null)
                 objects[save.InstanceName] = built;
+
+            // A list already consumed its children as members; anything else may still contain
+            // objects that belong to the same owner.
+            if (!save.IsList && save.ContainedObjects.Count > 0)
+                BuildInto(save.ContainedObjects, builder, elementName, objects, diagnostics, addSingle);
         }
     }
 

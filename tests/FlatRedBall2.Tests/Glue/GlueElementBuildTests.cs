@@ -37,7 +37,7 @@ public class GlueElementBuildTests
                 ""NamedObjects"": [ {
                     ""InstanceName"": ""Shapes"",
                     ""SourceClassType"": ""FlatRedBall.Math.PositionedObjectList<T>"",
-                    ""IsList"": true,
+                    ""SourceType"": 2,
                     ""ContainedObjects"": [
                         { ""InstanceName"": ""A"", ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"" },
                         { ""InstanceName"": ""B"", ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"" }
@@ -98,7 +98,7 @@ public class GlueElementBuildTests
                 ""NamedObjects"": [ {
                     ""InstanceName"": ""PlayerList"",
                     ""SourceClassType"": ""FlatRedBall.Math.PositionedObjectList<T>"",
-                    ""IsList"": true,
+                    ""SourceType"": 2,
                     ""ContainedObjects"": [
                         { ""InstanceName"": ""Player1"", ""SourceClassType"": ""Entities\\Player"", ""SourceType"": 1 }
                     ]

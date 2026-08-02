@@ -27,6 +27,21 @@ public sealed class GlueObjectBuilder
         ["Visible"] = "IsVisible",
     };
 
+    /// <summary>
+    /// What the trimmer must keep on every constructible type: the properties instructions assign,
+    /// and the parameterless constructor <see cref="Activator.CreateInstance(Type)"/> needs.
+    /// </summary>
+    /// <remarks>
+    /// Rooting properties alone is not enough and fails silently. Without the constructor, a trimmed
+    /// or AOT publish throws <see cref="MissingMethodException"/> inside
+    /// <see cref="Activator.CreateInstance(Type)"/>, every <c>Create</c> returns null, and every
+    /// screen loads completely empty — while an ordinary <c>dotnet build</c> stays clean, because
+    /// the IL2067 that would flag it is only reported at publish time.
+    /// </remarks>
+    private const DynamicallyAccessedMemberTypes Rooted =
+        DynamicallyAccessedMemberTypes.PublicProperties |
+        DynamicallyAccessedMemberTypes.PublicParameterlessConstructor;
+
     private readonly ICollection<GlueLoadDiagnostic> _diagnostics;
 
     /// <summary>Creates a builder that reports what it cannot handle into <paramref name="diagnostics"/>.</summary>
@@ -40,22 +55,10 @@ public sealed class GlueObjectBuilder
     {
         var typeName = GlueTypeName.Parse(save.SourceClassType);
 
-        if (!GlueTypeMap.TryGetType(typeName, out var type))
+        if (!GlueTypeMap.TryCreate(typeName, out object? instance))
         {
             Warn($"'{save.InstanceName}' is a '{save.SourceClassType}', which cannot be built by " +
                  "this build. A later phase owns this type.", elementName);
-            return null;
-        }
-
-        object instance;
-        try
-        {
-            instance = Activator.CreateInstance(type)!;
-        }
-        catch (Exception exception) when (exception is MissingMethodException or MemberAccessException)
-        {
-            Warn($"'{save.InstanceName}' is a '{type.Name}', which has no parameterless constructor.",
-                elementName);
             return null;
         }
 
@@ -136,10 +139,10 @@ public sealed class GlueObjectBuilder
     /// <see cref="DynamicDependencyAttribute"/> here</b>, or its properties get trimmed away and
     /// every value assignment on it silently does nothing in a published AOT build.</para>
     /// </remarks>
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Collision.AARect))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Collision.Circle))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Collision.Polygon))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Rendering.Sprite))]
+    [DynamicDependency(Rooted, typeof(Collision.AARect))]
+    [DynamicDependency(Rooted, typeof(Collision.Circle))]
+    [DynamicDependency(Rooted, typeof(Collision.Polygon))]
+    [DynamicDependency(Rooted, typeof(Rendering.Sprite))]
     [UnconditionalSuppressMessage("Trimming", "IL2075",
         Justification = "Every reflected type is rooted by the DynamicDependency attributes above, " +
                         "which cover exactly the closed set GlueTypeMap can construct.")]

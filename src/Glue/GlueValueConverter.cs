@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Reflection;
 using System.Text.Json;
 using XnaColor = Microsoft.Xna.Framework.Color;
 
@@ -133,16 +133,47 @@ internal static class GlueValueConverter
         return true;
     }
 
-    private static Dictionary<string, XnaColor> BuildNamedColors()
-    {
-        var colors = new Dictionary<string, XnaColor>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var property in typeof(XnaColor).GetProperties(BindingFlags.Public | BindingFlags.Static))
+    /// <summary>
+    /// The colour names Glue can author, as data rather than reflection.
+    /// </summary>
+    /// <remarks>
+    /// Reading these off <c>Color</c>'s static properties would be shorter, but reflection over a
+    /// type in another assembly is not trim-safe, and rooting it by attribute fails too: the
+    /// backing assembly is <c>MonoGame.Framework</c> on desktop and an <c>nkast.Xna.Framework</c>
+    /// assembly on the web target, so no single <c>DynamicDependency</c> resolves on both. Under
+    /// trimming the table would come back empty and every named colour would silently fall back to
+    /// the engine default — a failure visible only after publish.
+    /// <para>A name outside this list converts to nothing and warns, which is loud and fixable.
+    /// Extend the list rather than reaching back for reflection.</para>
+    /// </remarks>
+    private static Dictionary<string, XnaColor> BuildNamedColors() =>
+        new(StringComparer.OrdinalIgnoreCase)
         {
-            if (property.PropertyType == typeof(XnaColor) && property.GetValue(null) is XnaColor color)
-                colors[property.Name] = color;
-        }
-
-        return colors;
-    }
+            ["White"] = XnaColor.White,
+            ["Black"] = XnaColor.Black,
+            ["Transparent"] = XnaColor.Transparent,
+            ["TransparentBlack"] = XnaColor.Transparent,
+            ["Red"] = XnaColor.Red,
+            ["Green"] = XnaColor.Green,
+            ["Blue"] = XnaColor.Blue,
+            ["Yellow"] = XnaColor.Yellow,
+            ["Cyan"] = XnaColor.Cyan,
+            ["Magenta"] = XnaColor.Magenta,
+            ["Orange"] = XnaColor.Orange,
+            ["Purple"] = XnaColor.Purple,
+            ["Pink"] = XnaColor.Pink,
+            ["Brown"] = XnaColor.Brown,
+            ["Gray"] = XnaColor.Gray,
+            ["Grey"] = XnaColor.Gray,
+            ["LightGray"] = XnaColor.LightGray,
+            ["DarkGray"] = XnaColor.DarkGray,
+            ["Lime"] = XnaColor.Lime,
+            ["Teal"] = XnaColor.Teal,
+            ["Navy"] = XnaColor.Navy,
+            ["Olive"] = XnaColor.Olive,
+            ["Maroon"] = XnaColor.Maroon,
+            ["Silver"] = XnaColor.Silver,
+            ["Gold"] = XnaColor.Gold,
+            ["CornflowerBlue"] = XnaColor.CornflowerBlue,
+        };
 }
