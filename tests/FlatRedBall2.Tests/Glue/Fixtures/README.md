@@ -27,6 +27,23 @@ at 60 is above all of them, and it also carries two entities, two screens, and a
 collision, collision relationships, and a camera controller — all owned by later phases. Loading it
 is expected to emit unmapped-type warnings; the bar is zero *errors*.
 
+## Beefball
+
+| | |
+|---|---|
+| Source path | `Samples/Beefball/Beefball/` |
+| Source commit | `7346ae1cd1d076cebed948b8c1b605489c5efb2f` |
+| Synced | 2026-08-02 |
+| `FileVersion` | 42 |
+
+The project that can actually be *seen* working. It is shapes-only and tile-free, so every one of
+its visual objects is a type the loader can already build — unlike DoorsDemo, whose tilemaps and
+collision relationships belong to much later phases.
+
+Its version is 42, below the file-shape gates, which makes it a weaker schema fixture than DoorsDemo
+but does not affect the objects this phase builds. Use DoorsDemo to test the *reader* and Beefball to
+test what the reader *produces*.
+
 ## ChickenClicker — deliberately outdated
 
 | | |
