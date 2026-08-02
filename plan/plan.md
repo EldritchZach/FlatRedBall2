@@ -57,7 +57,7 @@ via reflection. No codegen step.
 |---|---|---|
 | 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | Implemented |
 | 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
-| 3 | CustomVariables | Not written |
+| 3 | CustomVariables | Next — not written |
 | 4 | Referenced files / assets | Not written |
 | 5 | Gum integration | Not written |
 | 6 | Inheritance | Not written |
@@ -69,6 +69,11 @@ via reflection. No codegen step.
 | 12 | Platformer movement | Not written |
 | 13 | Camera / display setup | Not written |
 | 14 | Name-based Screen navigation and Entity instantiation API | Not written |
+
+**Status of the epic: 2 of 14 phases implemented.** A project loads and its shapes and sprites
+appear at the authored size and position. Sprites have no textures yet (Phase 4), variables are not
+applied (Phase 3), and derived screens do not merge their base (Phase 6) — so a real game does not
+play yet. Phases 3, 4 and 6 together are the next milestone worth demonstrating.
 
 The phase list above mirrors issue #804 and **is not exhaustive** — expect it to grow as
 implementation surfaces schema corners the issue did not anticipate. Add new phases rather than

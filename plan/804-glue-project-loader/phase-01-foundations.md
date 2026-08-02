@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | In progress — §7.1–7.6 landed, see §9 |
+| **Status** | Implemented — see §9. Manual boot check still outstanding. |
 | **Depends on** | Nothing — this is the base of the epic |
 | **Blocks** | Every other phase (2–14) |
 | **Suggested branch** | `804-phase-1-glue-loader-foundations` |

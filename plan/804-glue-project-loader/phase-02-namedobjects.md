@@ -121,6 +121,58 @@ reported as an error, or Phase 2's diagnostics drown in noise for every art-bear
 
 ---
 
+### G23 — FRB2 shapes are invisible by default; Glue shapes are not
+
+`AARect`, `Circle` and `Polygon` default `IsVisible = false` because in FRB2 they are primarily
+collision volumes. `Sprite` defaults `true`. A shape authored in Glue is meant to be seen.
+
+**How we tackle it.** Shapes are made visible on construction, before instructions are applied, so an
+explicit `Visible` instruction still wins. Without this the phase would "work" and still draw
+nothing - the exact failure it exists to fix. Note the rename: Glue's `Visible` is FRB2's `IsVisible`.
+
+### G24 - `IsList` is computed by Glue and never written to disk
+
+FRB1 declares `IsList` as `[JsonIgnore]` and derives it from
+`SourceType == FlatRedBallType && SourceClassType is PositionedObjectList<T>`
+(`NamedObjectSave.cs:609-619`). **It never appears in a `.glsj`/`.glej`.** Measured across all three
+vendored fixtures: 36 `NamedObjects`, **zero** with `IsList` set, seven with `ContainedObjects`.
+
+A mirror that binds `IsList` to JSON therefore reads `false` for every list in every real project,
+and any code branching on it is dead on real data while passing tests built from hand-written JSON.
+That is exactly what happened here - see section 9.
+
+**How we tackle it.** Compute it, the way FRB1 does. More generally: **a computed or bag-backed FRB1
+member must not be mirrored as a JSON-bound property**, and a test that hand-writes such a value is
+testing fiction. Phase 1's G4 is the same lesson from the other direction.
+
+### G25 - Nesting is not list-only
+
+Glue nests `ContainedObjects` under any object, not just lists. Beefball's six arena walls are
+children of a `ShapeCollection` - a type FRB2 has no equivalent for (D12). Recursing only into lists
+drops them, and an unbuildable container silently takes its perfectly buildable children with it.
+FRB1's generator recurses unconditionally (`NamedObjectSaveCodeGenerator.cs:268-271`).
+
+**How we tackle it.** Recurse into `ContainedObjects` for every object, registering children on the
+same owner the parent would have used. A container this build cannot construct is not a reason to
+discard what is inside it.
+
+### G26 - Trim and AOT warnings only appear at *publish*
+
+`dotnet build` on the engine can be completely clean while the same code fails under
+`PublishTrimmed` or `PublishAot`. The engine sets `IsAotCompatible=true`, but the dataflow warnings
+that matter (`IL2067` on `Activator.CreateInstance`, `IL2036` on an unresolvable
+`DynamicDependency`) surface only when a *consuming app* is published.
+
+**How we tackle it.** Any change that reflects over a type must be checked with a real trimmed
+publish, not a build. Two consequences already bitten by this are recorded in section 9:
+
+- **Rooting properties does not root the constructor.** `PublicProperties` and
+  `PublicParameterlessConstructor` are separate member kinds. Prefer a `Func<object>` factory that
+  directly `new`s the type over `Activator.CreateInstance` - then there is nothing to root.
+- **`DynamicDependency` on a type from another assembly may not resolve.** The XNA `Color` type lives
+  in `MonoGame.Framework` on desktop and an `nkast.Xna.Framework` assembly on web, so no single
+  attribute works on both targets. Prefer data over reflection there.
+
 ## 6. Tasks
 
 Test-first throughout. Each group is roughly one commit.
@@ -188,58 +240,80 @@ Test-first throughout. Each group is roughly one commit.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean, `dotnet test` green.
-- [ ] Beefball's `PlayerBall` builds both its circles, at their authored radii, attached to the entity.
-- [ ] DoorsDemo still loads with zero errors and a lower unmapped count than Phase 1's 13.
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] `dotnet build` clean, `dotnet test` green (1293).
+- [x] **A real `PublishTrimmed` emits no IL warnings from `src/Glue`.** A clean build does not prove
+      this and never did — see G26. This belongs in the bar for every phase that reflects.
+- [x] Beefball's `PlayerBall` builds both its circles, at their authored radii, attached to the entity.
+- [x] Beefball's `GameScreen` builds all six arena walls, nested inside an unbuildable container.
+- [x] DoorsDemo loads with zero errors. Its unmapped count stays at 13 — correct, since this phase
+      added no rows to the type map.
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [ ] Someone has watched it draw. Needs a display and a real game loop; still outstanding.
 
 ---
 
 ## 9. What landed
 
-Four commits. 25 new tests, full suite 1289 green, zero warnings from `src/Glue`.
+Eight commits. 33 new tests, full suite **1293 green**, zero build warnings from `src/Glue`, and
+**verified clean under a real `PublishTrimmed`** (see G26 for why a build alone proves nothing).
 
 | Piece | File |
 |---|---|
 | Construct + configure + attach one object | `src/Glue/GlueObjectBuilder.cs` |
+| Glue name to a construction factory | `src/Glue/GlueTypeMap.cs` |
 | JSON value to CLR property type | `src/Glue/GlueValueConverter.cs` |
-| Build a whole element's objects | `src/Glue/GlueElementBuilder.cs` |
+| Build a whole element, including nesting | `src/Glue/GlueElementBuilder.cs` |
 | Screens/entities that build themselves | `src/Glue/GlueScreen.cs` |
 
-**The payoff test:** Beefball's `PlayerBall` loads from `.glej` and becomes two `Circle`s at radius
-16, attached to the entity, visible — no hand-written C# anywhere in the path.
+**The payoff:** Beefball's `PlayerBall` loads from `.glej` and becomes two `Circle`s at radius 16,
+attached and visible; its `GameScreen` builds the six arena walls. DoorsDemo's player gets its sprite
+and a collision box at the authored offset. No hand-written C# in that path.
 
-### Found while building
+### Five defects found after the code "worked"
 
-- **FRB2 shapes are invisible by default.** `AARect`, `Circle` and `Polygon` default
-  `IsVisible = false` because they are primarily collision volumes; `Sprite` defaults true. A shape
-  authored in Glue is meant to be seen, so shapes are made visible on construction. Without this the
-  phase would have "worked" and still drawn nothing — the exact failure it exists to fix. An explicit
-  `Visible` instruction still wins. Note the rename: Glue's `Visible` is FRB2's `IsVisible`.
-- **Attachment is simpler than FRB1's, and the plan's order-of-operations worry was unfounded.**
-  FRB2's `X` is a plain stored offset and `AbsoluteX` is computed on read, so assigning position
-  before or after setting `Parent` gives the same result. FRB1 needs care here; FRB2 does not.
-- **Reflection is not trim-safe, and the engine builds AOT-compatible.** The reflected set is closed —
-  exactly what `GlueTypeMap` can construct — so the four types' properties are rooted with
-  `DynamicDependency` rather than suppressing `IL2075` and hoping. **Adding a type to `GlueTypeMap`
-  now requires adding a matching `DynamicDependency`**, or its properties get trimmed and every
-  assignment on it silently does nothing in a published AOT build. Documented at the reflection site.
-- **Rebuilding leaked objects.** `BuildObjects` left the previous build's children attached, so a
-  rebuild duplicated everything and the duplicates still rendered. Reachable in normal use — hot
-  reload restarts a screen, which rebuilds it. Fixed and covered.
+Every one of these was live with a green test suite. Four were invisible to tests because the tests
+used data Glue does not actually produce; one was invisible because it only appears at publish.
+
+| # | Defect | Why the suite missed it |
+|---|---|---|
+| 1 | **Every object failed to build under trimming/AOT.** Rooting properties does not root the constructor, so `Activator.CreateInstance` threw and every screen loaded empty. | `dotnet build` is clean; `IL2067` only appears when a consuming app is published (G26). |
+| 2 | **Nested objects were dropped, so Beefball's arena rendered nothing.** Recursion only happened for lists — and `IsList` is never written to disk, so that branch was dead on real data. | Both list tests hand-wrote `"IsList": true`, a value Glue never emits (G24). |
+| 3 | **Authored positions on attached objects were discarded**, misplacing DoorsDemo's collision box and all four Beefball score labels. | Tests asserted the wrong behaviour, because the semantics were reasoned from property names instead of read out of Glue's generator (G21). |
+| 4 | **The colour table was empty under trimming**, so every named colour fell back to the engine default. | Same as 1 — publish-only, and `DynamicDependency` could not resolve `Color` across both backends. |
+| 5 | **`IncludeInICollidable` was parsed and ignored**, so a shape excluded from collision was silently collidable. | Nothing asserted it. |
+
+Defect 3 came from a research pass that enumerated every instruction in the fixtures and noticed
+values being discarded. Defects 1, 2 and 4 came from an adversarial review that reproduced each with
+running code. **The suite being green was not evidence of correctness at any point in this phase** —
+that is the durable lesson, and it applies to every phase after this one.
 
 ### Corrections to this document
 
-- §6.5 originally claimed DoorsDemo's unmapped count would drop from 13. It does not, and it should
-  not: this phase added no rows to `GlueTypeMap`. The count falls when Phases 9/10/13 land.
-- §4 said attachment must happen before offsets are assigned. Not true in FRB2 — see above.
+- Section 6.5 claimed DoorsDemo's unmapped count would drop from 13. It does not, and should not:
+  this phase added no rows to the type map. The count falls when Phases 9/10/13 land.
+- Section 4 said attachment must happen before offsets are assigned. Untrue in FRB2 — `X` is stored
+  and `AbsoluteX` computed on read, so order is irrelevant.
+- G21 was originally decided the opposite way. See G21.
 
 ### What Phase 3 picks up
 
 - `CustomVariables` and their `DefaultValue`s, including tunnelled variables
   (`SourceObject`/`SourceObjectProperty`) that forward to a member of a `NamedObject` this phase
-  built. The objects are addressable by Glue instance name via `Objects`, which is the hook.
-- `CustomVariable.Type` is bag-backed (Phase 1, G4) — it is the only place a variable's declared type
-  is recorded, and `GlueValueConverter` already converts by target type, so it should be reusable.
-- Phase 3 should decide whether `Objects` stays a `IReadOnlyDictionary<string, object>` or becomes
-  the indexer Phase 14 sketches (`entity["Health"]`). This phase deliberately did not pre-decide it.
+  built. Objects are addressable by Glue instance name via `Objects`, which is the hook.
+- `CustomVariable.Type` is bag-backed (Phase 1 G4) — the only place a variable's declared type is
+  recorded. `GlueValueConverter` already converts by target type and should be reusable.
+- **Heed G24 when mirroring anything else.** Several `CustomVariable` members are computed or
+  bag-backed in FRB1; binding them to JSON will read empty on real projects while synthetic tests
+  pass.
+- Decide whether `Objects` stays an `IReadOnlyDictionary<string, object>` or becomes the indexer
+  Phase 14 sketches (`entity["Health"]`). Deliberately not pre-decided here.
+
+### Known gaps left open
+
+- `ShapeCollection` and `Text` are still unbuildable (D12) — FRB2 has neither type.
+- `Sprite.CurrentChainName` has no FRB2 property; the equivalent is the method `PlayAnimation(string)`,
+  which property reflection cannot reach. Phase 4 needs a member-to-action hook, not just a setter.
+- `Sprite.AnimationChains` names an asset, so it needs Phase 4.
+- Polygon geometry is stored outside the instruction list; a constructed polygon has no points and
+  warns that it will not render.
+- Nobody has watched any of this draw. That needs a display and a real game loop.
