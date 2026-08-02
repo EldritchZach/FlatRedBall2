@@ -1,0 +1,35 @@
+# Glue loader test fixtures
+
+Vendored snapshots of FlatRedBall 1 Glue project files, used to test the `.gluj`/`.glsj`/`.glej`
+loader (see `plan/804-glue-project-loader/`). Committed here rather than read from the sibling
+`FlatRedBall` checkout so the tests are self-contained.
+
+## DoorsDemo
+
+| | |
+|---|---|
+| Source repo | `FlatRedBall` (sibling checkout, `C:\git\flatredball`) |
+| Source path | `Samples/Platformer/DoorsDemo/DoorsDemo/` |
+| Source commit | `7346ae1cd1d076cebed948b8c1b605489c5efb2f` |
+| Synced | 2026-08-01 |
+| `FileVersion` | 60 |
+
+Copied **as-is** — do not re-save or hand-edit. Only the Glue project files are vendored; the
+`.csproj`, content, and generated code are not needed to test the loader.
+
+Why this project rather than the two the tracking issue names (ChickenClicker, Beefball): those are
+`FileVersion` 42, which sits *below* three gates that change what lands on disk
+(`RemoveRedundantDerivedData` 38, `VariantsInsteadOfTypes` 53, `CaseSensitiveLoading` 55). DoorsDemo
+at 60 is above all of them, and it also carries two entities, two screens, and a derived screen
+(`Level1` sets `BaseScreen`) in one small project.
+
+**Most of this fixture is intentionally unmappable in Phase 1.** Its `NamedObjects` are mostly tile
+collision, collision relationships, and a camera controller — all owned by later phases. Loading it
+is expected to emit unmapped-type warnings; the bar is zero *errors*.
+
+## Re-syncing
+
+Re-copy from the same source path and update the commit hash and date above. Do not "upgrade" a
+fixture by opening it in Glue: opening and saving does **not** raise `FileVersion` (only new
+projects get the current version), and hand-editing the version would make Glue show a version error
+to anyone opening that sample.
