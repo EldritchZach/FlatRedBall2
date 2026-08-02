@@ -4,6 +4,22 @@
 
 Open work only. When an item ships, delete it — don't leave a "landed" breadcrumb. Design decisions and historical context that outlive a TODO belong in skill files, XML docs, or commit messages, not here.
 
+## `TileMap.TmxLoader` is mutable static state, which the architecture rules forbid
+
+`src/Tiled/TileMap.cs:52` declares `internal static Func<string, GraphicsDevice, Tilemap> TmxLoader { get; set; }`
+as an injectable seam so tests never touch disk and WASM can route reads through `TitleContainer`.
+The seam itself is right and worth keeping — the *static mutable* part is the problem. CLAUDE.md's
+architecture rules say "No static state: only `FlatRedBallService.Default` is static," and this is a
+settable static that any test can leave modified for every subsequent test in the assembly.
+`tests/FlatRedBall2.Tests/Tiled/TileMapLoadingTests.cs` already has to save and restore it in a
+`try`/`finally` to stay safe, which is the tell.
+
+Found while designing the equivalent read seam for the Glue project loader (#804), which routes its
+seam through an options object instead of copying this shape. Two ways out: move `TmxLoader` onto an
+options/parameter passed to the `TileMap` constructor (matching what #804 does, but it changes an
+internal signature and every call site), or leave it and accept the test-isolation hazard. Worth
+deciding deliberately rather than letting the next seam copy it a third time.
+
 ## Kni Blazor.GL Pitch support unreleased — blocks #799 web-side verification
 
 Kni merged `Pitch` support for `SoundEffectInstance` on Blazor.GL in [kniEngine/kni#2614](https://github.com/kniEngine/kni/pull/2614) (2026-07-26) and for `DynamicSoundEffectInstance` in [#2615](https://github.com/kniEngine/kni/pull/2615) (2026-07-28), but neither is in a published NuGet release yet — latest `nkast.Kni.Platform.Blazor.GL` (4.2.9001.2) is pinned to a commit from 2025-11-16. Until Kni publishes a release containing both PRs, Pitch does not work on Kni's web backend for any sound type, one-shot or streaming — confirmed via `diagnostics/MusicPitchWebSpike` throwing `DynamicSoundEffectInstance does not support Pitch` at runtime.

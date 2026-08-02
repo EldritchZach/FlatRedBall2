@@ -608,7 +608,9 @@ fail-fast, Phase 1 could not load its own primary fixture at all.
 | D4 | Which sample to vendor first | **`Samples/Platformer/DoorsDemo` as-is** (G1) — version 60, above every file-shape-affecting gate, and it carries two entities, two screens, and the `BaseScreen` inheritance case in one small project. `FormsSampleProject` (61) for Phase 5. **Not** ChickenClicker or Beefball: at version 42 they sit below three schema gates, and upgrading them is a user-visible FRB1 change we do not need. |
 | D5 | Case-sensitivity rule for element-name lookup | **Case-insensitive match with a diagnostic on case mismatch** (G8). Glue authored these on Windows; a silent miss on Linux is the worse failure. Confirm this does not mask a genuinely missing file. |
 | D6 | `FileVersion` enforcement | **Warn below `LatestVersion`, never block** (G17). A hard gate would have failed every test the day `LatestVersion` went 67 → 68 mid-planning, with no useful diagnostic. Exercise the warning with a synthetic fixture, not a real sample, so corpus drift cannot break tests. |
-| D7 | Do we change FRB1 at all? | **No user-visible change; this epic does not depend on FRB1 at all** (see §1 ground rules). Land only zero-impact fixes upstream — G2's duplicate key, G11's append-only comment — as standalone PRs on FRB1's own cadence. Report everything else and let the maintainer schedule it. |
+| D7 | Do we change FRB1 at all? | **Decided: no — leave FRB1 untouched for now.** Not even the zero-impact fixes. They are someone else's repo, nothing here needs them, and opening PRs on another project mid-epic adds coordination cost for no gain to this work. G2 and G5 stay documented here; revisit once Phase 1 has landed and there is a reason to engage upstream. |
+| D10 | Correct the tracking issue's mistaken premise upstream? | **Decided: no.** The correction lives in §1 of this document. Vic reviews the PR, which carries the reasoning — a separate comment on #804 duplicates it. Revisit if someone starts a later phase straight from the issue without reading this doc. |
+| D11 | Vendor the deliberately-outdated fixture? | **Decided: yes — `ChickenClicker` at version 42 is vendored** alongside DoorsDemo. It is the only fixture below the three file-shape gates, so it is the only one that proves the loader warns instead of misreading. The outdated-file problem already invalidated one round of this plan (G1); leaving it untested would be betting it never recurs. |
 | D8 | Authority when a typed field and a bag entry disagree | **Typed field wins, disagreement emits a diagnostic** (G10) — except where FRB1 declares the member bag-backed (G4), in which case the bag is authoritative by definition. |
 
 | D9 | Read-seam shape: static like `TmxLoader`, or an instance member? | **Instance member set through `GlueLoadOptions`.** `TileMap.TmxLoader` is `internal static` mutable state, which CLAUDE.md's "no static state" rule forbids and which leaks across tests unless every one restores it. The loader already takes an options object, so the seam costs nothing to carry there. Keep it `internal` for Phase 1 — public is a Phase 14 API decision. |
@@ -619,22 +621,14 @@ fail-fast, Phase 1 could not load its own primary fixture at all.
 Repo rule: **a failing test comes first, or the commit body explains why one was not feasible.**
 Load the `engine-tdd` skill before touching `src/`. Each group below is roughly one commit.
 
-### 7.0 — FRB1-side work (optional, parallel, blocks nothing)
+### 7.0 — FRB1-side work: none (D7)
 
-Lands in the sibling `FlatRedBall` repo as standalone PRs on FRB1's own cadence. **Nothing in 7.1+
-waits on any of this.** Zero-impact changes only — see the ground rule in §1 and D7. In particular,
-**do not bump any sample's `FileVersion`**: re-saving does not do it and hand-editing is
-user-visible (G1).
+**Deliberately empty.** FRB1 is left untouched by this phase. The two candidate upstream changes —
+G2's duplicate `FileVersion` key and G11's append-only enum comment — stay documented in §5 rather
+than landing as PRs on another team's repo mid-epic. G5 stays a report-only finding.
 
-- [ ] Fix the duplicate `"FileVersion"` key in `Samples/BeefballWeb/BeefballWeb/BeefballWeb.gluj`
-      lines 37–38 (G2) — drop the stale `42`. Already last-one-wins, so this is observably a no-op.
-- [ ] Sweep every `.gluj`/`.glsj`/`.glej` in the FRB1 repo for well-formedness and duplicate keys.
-      Fix only what is provably a no-op; report anything with observable consequences (G2).
-- [ ] Add a comment at each enum FRB2 mirrors, noting that FRB2 pins its numeric values and that
-      members must be appended, never inserted or reordered (G11). Comments only.
-- [ ] File an FRB1 issue for the `[DefaultValue(true)]` / read-path mismatch (G5), with the
-      round-trip test that demonstrates it. **Report only — do not fix**; every available fix churns
-      user files.
+Do not bump any sample's `FileVersion`: re-saving does not do it, and hand-editing is user-visible
+(G1). Fixture choice solves that instead.
 
 ### 7.1 — Fixtures and conventions
 

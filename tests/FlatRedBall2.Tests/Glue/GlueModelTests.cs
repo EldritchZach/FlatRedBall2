@@ -1,0 +1,152 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using FlatRedBall2.Glue;
+using FlatRedBall2.Glue.Model;
+using Shouldly;
+using Xunit;
+
+namespace FlatRedBall2.Tests.Glue;
+
+// Covers the POCO mirror of FRB1's Glue save classes. The mirror's job is to read what Glue
+// actually writes — which is not the same as what its C# classes declare, because element files are
+// written with defaults omitted and much of the data lives in name/value bags.
+public class GlueModelTests
+{
+    private static string FixturePath(params string[] parts) =>
+        Path.Combine(new[] { AppContext.BaseDirectory, "Glue", "Fixtures" }.Concat(parts).ToArray());
+
+    private static GlueProjectSave LoadProject(string project, string glujFileName) =>
+        JsonSerializer.Deserialize(
+            File.ReadAllText(FixturePath(project, glujFileName)),
+            GlueJsonContext.Default.GlueProjectSave)!;
+
+    private static ScreenSave LoadScreen(string project, string screenFileName) =>
+        JsonSerializer.Deserialize(
+            File.ReadAllText(FixturePath(project, "Screens", screenFileName)),
+            GlueJsonContext.Default.ScreenSave)!;
+
+    private static EntitySave LoadEntity(string project, string entityFileName) =>
+        JsonSerializer.Deserialize(
+            File.ReadAllText(FixturePath(project, "Entities", entityFileName)),
+            GlueJsonContext.Default.EntitySave)!;
+
+    [Fact]
+    public void Deserialize_DerivedScreen_RetainsOwnObjectsWithDefinedByBase()
+    {
+        // Level1 derives from GameScreen and redeclares four of its objects with DefinedByBase set.
+        // Phase 1 must retain them exactly as written — merging and deduping are Phase 6's job.
+        var level1 = LoadScreen("DoorsDemo", "Level1.glsj");
+
+        level1.BaseScreen.ShouldBe(@"Screens\GameScreen");
+        level1.NamedObjects.Select(o => o.InstanceName)
+            .ShouldBe(new[] { "Map", "SolidCollision", "CloudCollision", "PlayerList" });
+        level1.NamedObjects.ShouldAllBe(o => o.DefinedByBase);
+
+        var playerList = level1.NamedObjects.Single(o => o.InstanceName == "PlayerList");
+        playerList.InstantiatedByBase.ShouldBeTrue();
+        playerList.ExposedInDerived.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Deserialize_DuplicateJsonKey_TakesLastValue()
+    {
+        // A real committed sample (BeefballWeb.gluj) carries "FileVersion" twice. Newtonsoft hid
+        // this behind last-one-wins; pin that System.Text.Json agrees rather than assuming it.
+        string json = @"{ ""FileVersion"": 42, ""FileVersion"": 55 }";
+
+        var project = JsonSerializer.Deserialize(json, GlueJsonContext.Default.GlueProjectSave)!;
+
+        project.FileVersion.ShouldBe(55);
+    }
+
+    [Fact]
+    public void Deserialize_EntityWithReferencedFiles_RetainsThemUnloaded()
+    {
+        var player = LoadEntity("DoorsDemo", "Player.glej");
+
+        player.NamedObjects.Count.ShouldBe(2);
+        player.CustomVariables.Count.ShouldBe(6);
+        player.ReferencedFiles.Count.ShouldBe(5);
+    }
+
+    [Fact]
+    public void Deserialize_GlujHeader_ReadsVersionStartUpScreenAndReferences()
+    {
+        var project = LoadProject("DoorsDemo", "DoorsDemo.gluj");
+
+        project.FileVersion.ShouldBe(60);
+        project.StartUpScreen.ShouldBe(@"Screens\Level1");
+        project.ScreenReferences.Select(r => r.Name)
+            .ShouldBe(new[] { @"Screens\GameScreen", @"Screens\Level1" });
+        project.EntityReferences.Select(r => r.Name)
+            .ShouldBe(new[] { @"Entities\Door", @"Entities\Player" });
+    }
+
+    [Fact]
+    public void Deserialize_NamedObjectOmittingAttachToContainer_DefaultsToFalse()
+    {
+        // The counter-example to the constructor-defaults rule: FRB1 deliberately leaves
+        // AttachToContainer out of its constructor, so absent must mean false here.
+        string json = @"{ ""InstanceName"": ""Thing"" }";
+
+        var namedObject = JsonSerializer.Deserialize(json, GlueJsonContext.Default.NamedObjectSave)!;
+
+        namedObject.AttachToContainer.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Deserialize_NamedObjectOmittingConstructorDefaults_KeepsThemTrue()
+    {
+        // Element files are written with defaults omitted, and FRB1 restores these in its
+        // constructor. A mirror that lets them fall to false reads every real project as empty.
+        string json = @"{ ""InstanceName"": ""CircleInstance"" }";
+
+        var namedObject = JsonSerializer.Deserialize(json, GlueJsonContext.Default.NamedObjectSave)!;
+
+        namedObject.Instantiate.ShouldBeTrue();
+        namedObject.AddToManagers.ShouldBeTrue();
+        namedObject.IncludeInICollidable.ShouldBeTrue();
+        namedObject.IncludeInIClickable.ShouldBeTrue();
+        namedObject.CallActivity.ShouldBeTrue();
+        namedObject.GenerateTimedEmit.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Deserialize_OutdatedProjectWithCustomClasses_LoadsCleanly()
+    {
+        // ChickenClicker is FileVersion 42 and carries a populated CustomClasses array, which this
+        // epic excludes. Excluded shapes must be ignored, not rejected.
+        var project = LoadProject("ChickenClicker", "ChickenClicker.gluj");
+
+        project.FileVersion.ShouldBe(42);
+        project.StartUpScreen.ShouldBe(@"Screens\MenuScreen");
+        project.ScreenReferences.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void Deserialize_ScreenWithNestedObjects_PreservesContainedObjectNesting()
+    {
+        // GameScreen has nine top-level objects; a tenth lives inside PlayerList.ContainedObjects.
+        // Flattening that into the top level would silently corrupt the object graph.
+        var gameScreen = LoadScreen("DoorsDemo", "GameScreen.glsj");
+
+        gameScreen.NamedObjects.Count.ShouldBe(9);
+
+        var playerList = gameScreen.NamedObjects.Single(o => o.InstanceName == "PlayerList");
+        playerList.ContainedObjects.Count.ShouldBe(1);
+        playerList.ContainedObjects[0].SourceClassType.ShouldBe(@"Entities\Player");
+    }
+
+    [Fact]
+    public void Deserialize_ValueBagBackedMember_ReadsThroughProperties()
+    {
+        // CustomVariable.Type has no JSON field of its own — it lives in the Properties bag, so the
+        // mirror must expose it as an accessor rather than a deserialized property.
+        var player = LoadEntity("DoorsDemo", "Player.glej");
+
+        var withType = player.CustomVariables.First(v => v.Type is not null);
+        withType.Type.ShouldNotBeNullOrEmpty();
+    }
+}

@@ -27,6 +27,23 @@ at 60 is above all of them, and it also carries two entities, two screens, and a
 collision, collision relationships, and a camera controller — all owned by later phases. Loading it
 is expected to emit unmapped-type warnings; the bar is zero *errors*.
 
+## ChickenClicker — deliberately outdated
+
+| | |
+|---|---|
+| Source path | `Samples/ChickenClicker/ChickenClicker/` |
+| Source commit | `7346ae1cd1d076cebed948b8c1b605489c5efb2f` |
+| Synced | 2026-08-01 |
+| `FileVersion` | 42 |
+
+Vendored **because** it is stale, not in spite of it. At version 42 it sits below three gates that
+change what lands on disk, so it is the only fixture that proves the loader degrades with a clear
+diagnostic instead of silently misreading an old file. Do not "fix" or upgrade it — its age is the
+entire point.
+
+It also carries a populated `CustomClasses` array, which this epic excludes outright, so it doubles
+as proof that excluded shapes are tolerated rather than rejected.
+
 ## Re-syncing
 
 Re-copy from the same source path and update the commit hash and date above. Do not "upgrade" a
