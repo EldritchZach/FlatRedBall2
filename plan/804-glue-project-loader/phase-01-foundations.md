@@ -326,6 +326,25 @@ no-op, and leave anything with observable consequences to the maintainer.
 
 ---
 
+### G17 — `LatestVersion` is a moving target · Medium · fix in FRB2
+
+`LatestVersion` advanced from **67** to **68** during the few hours this plan was being written —
+`GumHasFrbRuntimeInterfaces` (July 26 2026) landed in the FRB1 checkout mid-research, and an earlier
+section of this very document had to be corrected. The `gluj-versions` skill documents adding
+versions as routine maintenance, so this cadence is normal, not exceptional.
+
+**How we tackle it.** Never hardcode a version constant in loader logic. `LatestVersion` belongs in
+exactly one place in FRB2 — a single constant next to the mirrored `GluxVersions`, used only for the
+"below current version" diagnostic (D6) and nothing else. Because the reader is version-agnostic by
+design (one schema, no gated branches), a version bump upstream should require **zero** FRB2 changes
+beyond optionally refreshing that constant.
+
+This is also the strongest argument against blocking on version (D6): a hard gate would have turned
+this routine upstream bump into total test failure with no useful diagnostic. Test the diagnostic
+against a synthetic fixture rather than a real sample, so the corpus drifting does not break tests.
+
+---
+
 ### G3 — Absent ≠ `false` · **Blocker** · fix in FRB2
 
 Element files are written with `DefaultValueHandling.Ignore` (`GlueProjectSaveExtensions.cs:434`),
@@ -466,7 +485,7 @@ corruption signal worth surfacing, not a tie to break silently.
 
 ---
 
-### G11 — Raw-int enums with no cross-repo compile-time link · High · fix in Both
+### G11 — Raw-int enums with no cross-repo compile-time link · High · FRB2 + a zero-impact FRB1 comment
 
 Enums serialize as bare ints (`"SourceType": 2`) with no string converter. FRB2's mirrored enums must
 therefore match FRB1's **numeric values** exactly — and nothing enforces that. If someone inserts a
@@ -533,25 +552,6 @@ attributes. STJ honors neither: it has no `ShouldSerialize` convention, and
 anyone later. **If write-back support is ever added, this becomes a blocker**, because FRB2 would
 silently emit members FRB1 omits and produce `.gluj` diffs that churn on every save. Any future write
 support needs its own design pass and a byte-comparison round-trip test against Glue's output.
-
----
-
-### G17 — `LatestVersion` is a moving target · Medium · fix in FRB2
-
-`LatestVersion` advanced from **67** to **68** during the few hours this plan was being written —
-`GumHasFrbRuntimeInterfaces` (July 26 2026) landed in the FRB1 checkout mid-research, and an earlier
-section of this very document had to be corrected. The `gluj-versions` skill documents adding
-versions as routine maintenance, so this cadence is normal, not exceptional.
-
-**How we tackle it.** Never hardcode a version constant in loader logic. `LatestVersion` belongs in
-exactly one place in FRB2 — a single constant next to the mirrored `GluxVersions`, used only for the
-"below current version" diagnostic (D6) and nothing else. Because the reader is version-agnostic by
-design (one schema, no gated branches), a version bump upstream should require **zero** FRB2 changes
-beyond optionally refreshing that constant.
-
-This is also the strongest argument against blocking on version (D6): a hard gate would have turned
-this routine upstream bump into total test failure with no useful diagnostic. Test the diagnostic
-against a synthetic fixture rather than a real sample, so the corpus drifting does not break tests.
 
 ---
 
