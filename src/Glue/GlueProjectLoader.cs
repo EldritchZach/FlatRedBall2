@@ -64,6 +64,8 @@ public static class GlueProjectLoader
         project.ScreenReferences.Clear();
         project.EntityReferences.Clear();
 
+        ReportUnbuildableTypes(project, diagnostics, options);
+
         return new GlueLoadResult(project, diagnostics);
     }
 
@@ -144,6 +146,65 @@ public static class GlueProjectLoader
             Report(diagnostics, options, new GlueLoadDiagnostic(
                 severity, $"Could not read '{resolvedPath}': {exception.Message}", elementName));
             return default;
+        }
+    }
+
+    /// <summary>
+    /// Walks every object in the project and notes the ones whose type this build cannot construct.
+    /// </summary>
+    /// <remarks>
+    /// These are warnings by design, not errors: most of a real project's objects belong to phases
+    /// that have not landed yet, so a project that reports many of these has still loaded correctly.
+    /// The count is a progress metric — each phase that lands should shrink it.
+    /// </remarks>
+    private static void ReportUnbuildableTypes(
+        GlueProjectSave project, List<GlueLoadDiagnostic> diagnostics, GlueLoadOptions options)
+    {
+        var elementNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var screen in project.Screens)
+        {
+            if (screen.Name is not null)
+                elementNames.Add(screen.Name);
+        }
+
+        foreach (var entity in project.Entities)
+        {
+            if (entity.Name is not null)
+                elementNames.Add(entity.Name);
+        }
+
+        foreach (var screen in project.Screens)
+            ReportUnbuildableTypes(screen.NamedObjects, screen.Name, elementNames, diagnostics, options);
+
+        foreach (var entity in project.Entities)
+            ReportUnbuildableTypes(entity.NamedObjects, entity.Name, elementNames, diagnostics, options);
+    }
+
+    private static void ReportUnbuildableTypes(
+        List<NamedObjectSave> namedObjects,
+        string? elementName,
+        HashSet<string> elementNames,
+        List<GlueLoadDiagnostic> diagnostics,
+        GlueLoadOptions options)
+    {
+        foreach (var namedObject in namedObjects)
+        {
+            var typeName = GlueTypeName.Parse(namedObject.SourceClassType);
+
+            // An object whose type names another element resolves within the project, so it is not
+            // unmapped — Phase 2 builds it from that element's own data.
+            bool isKnownElement = elementNames.Contains(typeName.ToElementNameCandidate());
+
+            if (!isKnownElement && !GlueTypeMap.TryGetType(typeName, out _))
+            {
+                Report(diagnostics, options, new GlueLoadDiagnostic(
+                    GlueDiagnosticSeverity.Warning,
+                    $"'{namedObject.InstanceName}' is a '{namedObject.SourceClassType}', which " +
+                    "cannot be built by this build. A later phase owns this type.",
+                    elementName));
+            }
+
+            ReportUnbuildableTypes(namedObject.ContainedObjects, elementName, elementNames, diagnostics, options);
         }
     }
 

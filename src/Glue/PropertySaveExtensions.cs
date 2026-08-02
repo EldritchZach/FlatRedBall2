@@ -6,11 +6,16 @@ using FlatRedBall2.Glue.Model;
 namespace FlatRedBall2.Glue;
 
 /// <summary>
-/// Reads typed values out of a Glue name/value bag. Mirrors FRB1's
-/// <c>PropertySaveListExtensions.GetValue&lt;T&gt;</c>, including its tolerance: a missing name or an
-/// undecodable value yields <c>default(T)</c> rather than throwing, because a partially readable
-/// project is more useful than none.
+/// Reads typed values out of a Glue name/value bag, following FRB1's
+/// <c>PropertySaveListExtensions.GetValue&lt;T&gt;</c>.
 /// </summary>
+/// <remarks>
+/// Deliberately more forgiving than FRB1, which tolerates only a missing name and throws
+/// <see cref="InvalidCastException"/> when a value does not match the requested type. Here any
+/// undecodable value yields <c>default(T)</c> as well, because a value's real type is not knowable
+/// in advance — <see cref="PropertySave.Type"/> is unreliable — and a partially readable project is
+/// worth more than an exception. Dropped values are traced to the debug output.
+/// </remarks>
 public static class PropertySaveExtensions
 {
     /// <summary>
@@ -53,16 +58,13 @@ public static class PropertySaveExtensions
         // Unwrap int?/float?/etc. so one code path serves both the nullable and non-nullable request.
         Type target = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
 
-        if (target.IsEnum)
-        {
-            // Glue writes enums as bare ints with no string converter.
-            return value.TryGetInt32(out int enumValue)
-                ? (T)Enum.ToObject(target, enumValue)
-                : default;
-        }
-
         if (target == typeof(string))
-            return value.ValueKind == JsonValueKind.String ? (T)(object)value.GetString()! : default;
+        {
+            if (value.ValueKind == JsonValueKind.String)
+                return (T)(object)value.GetString()!;
+
+            return Mismatch<T>(value, target);
+        }
 
         if (target == typeof(bool))
         {
@@ -70,25 +72,52 @@ public static class PropertySaveExtensions
             {
                 JsonValueKind.True => (T)(object)true,
                 JsonValueKind.False => (T)(object)false,
-                _ => default,
+                _ => Mismatch<T>(value, target),
             };
         }
 
+        // Everything below is numeric or an int-backed enum, and JsonElement's numeric TryGet
+        // methods *throw* rather than returning false when the element is not a Number — including
+        // for the Undefined element a property with no "Value" key deserializes to. One gate here
+        // covers every remaining branch.
+        if (value.ValueKind != JsonValueKind.Number)
+            return Mismatch<T>(value, target);
+
+        if (target.IsEnum)
+        {
+            // Glue writes enums as bare ints with no string converter.
+            return value.TryGetInt32(out int enumValue)
+                ? (T)Enum.ToObject(target, enumValue)
+                : Mismatch<T>(value, target);
+        }
+
         if (target == typeof(int))
-            return value.TryGetInt32(out int i) ? (T)(object)i : default;
+            return value.TryGetInt32(out int i) ? (T)(object)i : Mismatch<T>(value, target);
 
         if (target == typeof(long))
-            return value.TryGetInt64(out long l) ? (T)(object)l : default;
+            return value.TryGetInt64(out long l) ? (T)(object)l : Mismatch<T>(value, target);
 
         if (target == typeof(float))
-            return value.TryGetSingle(out float f) ? (T)(object)f : default;
+            return value.TryGetSingle(out float f) ? (T)(object)f : Mismatch<T>(value, target);
 
         if (target == typeof(double))
-            return value.TryGetDouble(out double d) ? (T)(object)d : default;
+            return value.TryGetDouble(out double d) ? (T)(object)d : Mismatch<T>(value, target);
 
         if (target == typeof(decimal))
-            return value.TryGetDecimal(out decimal m) ? (T)(object)m : default;
+            return value.TryGetDecimal(out decimal m) ? (T)(object)m : Mismatch<T>(value, target);
 
+        return Mismatch<T>(value, target);
+    }
+
+    /// <summary>
+    /// Leaves a trail when a value is silently dropped. Returning <c>default</c> keeps a project
+    /// loading, but a shape that never appears because its radius was authored as a string is
+    /// otherwise undebuggable.
+    /// </summary>
+    private static T? Mismatch<T>(JsonElement value, Type target)
+    {
+        System.Diagnostics.Debug.WriteLine(
+            $"[Glue] Could not read a {value.ValueKind} value as {target.Name}; using the default.");
         return default;
     }
 }

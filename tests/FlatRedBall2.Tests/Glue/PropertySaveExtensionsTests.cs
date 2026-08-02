@@ -23,7 +23,48 @@ public class PropertySaveExtensionsTests
     {
         string typeJson = type is null ? "" : $@", ""Type"": ""{type}""";
         string json = $@"[{{ ""Name"": ""{name}"", ""Value"": {rawJsonValue}{typeJson} }}]";
-        return JsonSerializer.Deserialize<List<PropertySave>>(json)!;
+        return JsonSerializer.Deserialize(json, GlueJsonContext.Default.ListPropertySave)!;
+    }
+
+    [Fact]
+    public void GetValue_EntryWithNoValueAtAll_ReturnsDefaultInsteadOfThrowing()
+    {
+        // Glue saves with NullValueHandling.Ignore, so a null-valued property is written with its
+        // "Value" key omitted entirely. That leaves a default JsonElement (ValueKind.Undefined), and
+        // the numeric JsonElement.TryGet* methods throw on it rather than returning false — so one
+        // null-valued property anywhere in a project would otherwise kill the whole load.
+        var bag = JsonSerializer.Deserialize(
+            @"[{ ""Name"": ""NullString"", ""Type"": ""String"" }]",
+            GlueJsonContext.Default.ListPropertySave)!;
+
+        bag.GetValue<int>("NullString").ShouldBe(0);
+        bag.GetValue<float>("NullString").ShouldBe(0f);
+        bag.GetValue<TestSourceType>("NullString").ShouldBe(TestSourceType.File);
+        bag.GetValue<int?>("NullString").ShouldBeNull();
+    }
+
+    [Fact]
+    public void GetValue_ValueKindMismatchesRequestedType_ReturnsDefaultInsteadOfThrowing()
+    {
+        // The Type string is unreliable, so callers will inevitably request a type the value cannot
+        // supply. Every branch must tolerate that, not just the string and bool ones.
+        var bag = JsonSerializer.Deserialize(
+            @"[
+                { ""Name"": ""Str"", ""Value"": ""not a number"" },
+                { ""Name"": ""Bool"", ""Value"": true },
+                { ""Name"": ""Obj"", ""Value"": { ""nested"": 1 } },
+                { ""Name"": ""Null"", ""Value"": null }
+            ]",
+            GlueJsonContext.Default.ListPropertySave)!;
+
+        bag.GetValue<int>("Str").ShouldBe(0);
+        bag.GetValue<int>("Bool").ShouldBe(0);
+        bag.GetValue<int>("Obj").ShouldBe(0);
+        bag.GetValue<int>("Null").ShouldBe(0);
+        bag.GetValue<TestSourceType>("Str").ShouldBe(TestSourceType.File);
+        bag.GetValue<decimal>("Obj").ShouldBe(0m);
+        bag.GetValue<bool>("Str").ShouldBeFalse();
+        bag.GetValue<string>("Bool").ShouldBeNull();
     }
 
     [Fact]
