@@ -87,6 +87,33 @@ public class GlueElementBuildTests
     }
 
     [Fact]
+    public void BuildObjects_NestedEntityInstance_IsDeferredNotErrored()
+    {
+        // A list of entity instances is the common Glue pattern (PlayerList holding Entities\Player).
+        // Instantiating one needs Phase 6, so it must be reported and skipped — not fail the build.
+        var screen = new GlueScreen
+        {
+            Save = Screen(@"{
+                ""Name"": ""Screens\\Test"",
+                ""NamedObjects"": [ {
+                    ""InstanceName"": ""PlayerList"",
+                    ""SourceClassType"": ""FlatRedBall.Math.PositionedObjectList<T>"",
+                    ""IsList"": true,
+                    ""ContainedObjects"": [
+                        { ""InstanceName"": ""Player1"", ""SourceClassType"": ""Entities\\Player"", ""SourceType"": 1 }
+                    ]
+                } ]
+            }"),
+        };
+
+        screen.BuildObjects();
+
+        ((List<object>)screen.Objects["PlayerList"]).ShouldBeEmpty();
+        screen.BuildDiagnostics.ShouldContain(d => d.Severity == GlueDiagnosticSeverity.Warning);
+        screen.BuildDiagnostics.ShouldNotContain(d => d.Severity == GlueDiagnosticSeverity.Error);
+    }
+
+    [Fact]
     public void BuildObjects_TypesOwnedByLaterPhases_AreSkippedWithoutErrors()
     {
         var screen = new GlueScreen

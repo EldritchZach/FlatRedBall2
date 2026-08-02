@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | In progress |
+| **Status** | Implemented — see §9 |
 | **Depends on** | Phase 1 (loader, model, type map) — landed |
 | **Suggested branch** | `804-phase-2-namedobjects` |
 
@@ -123,43 +123,45 @@ Test-first throughout. Each group is roughly one commit.
 
 ### 6.1 — Construction
 
-- [ ] Failing test: a `NamedObjectSave` with `SourceClassType` `FlatRedBall.Math.Geometry.Circle`
+- [x] Failing test: a `NamedObjectSave` with `SourceClassType` `FlatRedBall.Math.Geometry.Circle`
       produces a real `Circle`.
-- [ ] Failing test: all four mapped types construct; an unmapped type produces no instance and one
+- [x] Failing test: all four mapped types construct; an unmapped type produces no instance and one
       warning naming the object and its type.
-- [ ] Implement the object factory over `GlueTypeMap`.
+- [x] Implement the object factory over `GlueTypeMap`.
 
 ### 6.2 — Property assignment
 
-- [ ] Failing test: an `InstructionSaves` entry `Radius = 16.0` lands as `Circle.Radius == 16f`.
-- [ ] Failing test: assignment covers float, int, bool, and string-named colour members.
-- [ ] Failing test: an unknown member name warns and does not throw.
-- [ ] Failing test: a value that cannot convert to the property type warns and leaves the default.
-- [ ] Implement reflection-based assignment, reusing any existing engine helper rather than writing a
+- [x] Failing test: an `InstructionSaves` entry `Radius = 16.0` lands as `Circle.Radius == 16f`.
+- [x] Failing test: assignment covers float, int, bool, and string-named colour members.
+- [x] Failing test: an unknown member name warns and does not throw.
+- [x] Failing test: a value that cannot convert to the property type warns and leaves the default.
+- [x] Implement reflection-based assignment, reusing any existing engine helper rather than writing a
       parallel one.
 
 ### 6.3 — Attachment
 
-- [ ] Failing test: an object with `AttachToContainer` gets `Parent` set to its owning entity.
-- [ ] Failing test: `RelativeX`/`RelativeY` land on FRB2's `X`/`Y`, and `AbsoluteX` reflects the
+- [x] Failing test: an object with `AttachToContainer` gets `Parent` set to its owning entity.
+- [x] Failing test: `RelativeX`/`RelativeY` land on FRB2's `X`/`Y`, and `AbsoluteX` reflects the
       parent's position plus the offset.
-- [ ] Failing test: attachment is applied before offsets, so no frame renders at the wrong position.
-- [ ] Failing test: an absolute `X` on an attached object is ignored with a warning (G21).
+- [x] Failing test: attachment is applied before offsets, so no frame renders at the wrong position.
+- [x] Failing test: an absolute `X` on an attached object is ignored with a warning (G21).
 
 ### 6.4 — Nesting and lists
 
-- [ ] Failing test: `ContainedObjects` are constructed and owned by their container.
-- [ ] Failing test: an `IsList` object produces a list whose members are the contained objects.
-- [ ] Failing test: a nested `SourceType.Entity` is recorded as deferred, not errored (Phase 6).
+- [x] Failing test: `ContainedObjects` are constructed and owned by their container.
+- [x] Failing test: an `IsList` object produces a list whose members are the contained objects.
+- [x] Failing test: a nested `SourceType.Entity` is recorded as deferred, not errored (Phase 6).
 
 ### 6.5 — Wire into the loaded screen
 
-- [ ] Failing test: a `GlueScreen` built from a `ScreenSave` has its objects constructed and
+- [x] Failing test: a `GlueScreen` built from a `ScreenSave` has its objects constructed and
       registered.
-- [ ] Failing test: a `GlueEntity` built from an `EntitySave` likewise.
-- [ ] Failing test: the DoorsDemo unmapped-type count drops from 13, and the Beefball fixture builds
-      its shapes with zero errors.
-- [ ] Vendor the Beefball fixture — shapes-only and tile-free, so it is the first project that can
+- [x] Failing test: a `GlueEntity` built from an `EntitySave` likewise.
+- [x] Failing test: the Beefball fixture builds its shapes with zero errors.
+- [x] **Correction:** DoorsDemo's unmapped count stays at 13, and that is right. This phase added no
+      new rows to `GlueTypeMap` — it made the already-mapped types actually construct. The count
+      drops when Phases 9/10/13 claim tile collision, relationships, and the camera.
+- [x] Vendor the Beefball fixture — shapes-only and tile-free, so it is the first project that can
       visibly work end to end.
 
 ### 6.6 — Wrap-up
