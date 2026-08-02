@@ -128,10 +128,7 @@ public sealed class GlueObjectBuilder
             if (string.IsNullOrEmpty(instruction.Member))
                 continue;
 
-            string? memberName = ResolveMemberName(instruction.Member, save, elementName);
-            if (memberName is null)
-                continue;
-
+            string memberName = ResolveMemberName(instruction.Member);
             var property = type.GetProperty(memberName, BindingFlags.Public | BindingFlags.Instance);
 
             if (property is null || !property.CanWrite)
@@ -154,27 +151,22 @@ public sealed class GlueObjectBuilder
     }
 
     /// <summary>
-    /// Maps a Glue member name onto the FRB2 property it sets, or null when it should be skipped.
+    /// Maps a Glue member name onto the FRB2 property it sets.
     /// </summary>
     /// <remarks>
-    /// Position is the interesting case. FRB1 gives an attached object both an absolute <c>X</c> and a
-    /// <c>RelativeX</c>; FRB2 has one <c>X</c> that already <em>means</em> the offset whenever a
-    /// parent is set. So the two Glue members collapse onto one property, chosen by attachment — and
-    /// an absolute value on an attached object is dropped, because honouring it would silently place
-    /// the object at that value as an offset instead.
+    /// Position is the interesting case, and it resolves more simply than it first appears. FRB1
+    /// gives an attached object both an absolute <c>X</c> and a <c>RelativeX</c>, but Glue's codegen
+    /// emits <c>CopyAbsoluteToRelative()</c> — literally <c>RelativePosition = Position</c> — just
+    /// before attaching, so an authored absolute value *becomes* the offset. FRB2's <c>X</c> already
+    /// means that offset whenever a parent is set.
+    /// <para>So both Glue members map to the same FRB2 property regardless of attachment, and no
+    /// value is dropped. Dropping absolute values would misplace real authored content: DoorsDemo's
+    /// player collision box and every Beefball score label are authored exactly this way.</para>
     /// </remarks>
-    private string? ResolveMemberName(string glueMember, NamedObjectSave save, string? elementName)
+    private static string ResolveMemberName(string glueMember)
     {
         if (glueMember is "RelativeX" or "RelativeY" or "RelativeZ")
             return glueMember["Relative".Length..];
-
-        if (save.AttachToContainer && glueMember is "X" or "Y" or "Z")
-        {
-            Warn($"'{save.InstanceName}' is attached to its container but sets an absolute " +
-                 $"'{glueMember}'. Attachment wins, so the value was ignored — author it as " +
-                 $"'Relative{glueMember}' if an offset was intended.", elementName);
-            return null;
-        }
 
         return MemberAliases.TryGetValue(glueMember, out string? alias) ? alias : glueMember;
     }

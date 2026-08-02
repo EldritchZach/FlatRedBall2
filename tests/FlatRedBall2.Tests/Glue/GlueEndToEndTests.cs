@@ -86,6 +86,29 @@ public class GlueEndToEndTests
     }
 
     [Fact]
+    public void DoorsDemo_PlayerCollisionBox_KeepsItsAuthoredOffsetAndSize()
+    {
+        // Regression: this rectangle is attached AND authored with an absolute Y of 11. An earlier
+        // reading of Glue's semantics dropped absolute values on attached objects, which silently
+        // put the player's collision box 11 units off — centred on the sprite instead of raised to
+        // stand on it. Glue's codegen copies absolute into relative before attaching, so 11 is the
+        // offset. It is also authored Visible=false, which must survive the shape-visibility default.
+        var result = GlueProjectLoader.Load(Gluj("DoorsDemo", "DoorsDemo.gluj"));
+        var player = result.Project.Entities.Single(e => e.Name == @"Entities\Player");
+
+        var entity = new GlueEntity { Y = 100f, Save = player };
+        entity.BuildObjects();
+
+        var box = (AARect)entity.Objects["AxisAlignedRectangleInstance"];
+
+        box.Y.ShouldBe(11f);
+        box.AbsoluteY.ShouldBe(111f);
+        box.Width.ShouldBe(14f);
+        box.Height.ShouldBe(22f);
+        box.IsVisible.ShouldBeFalse();
+    }
+
+    [Fact]
     public void DoorsDemo_StillLoadsWithZeroErrors()
     {
         var result = GlueProjectLoader.Load(Gluj("DoorsDemo", "DoorsDemo.gluj"));

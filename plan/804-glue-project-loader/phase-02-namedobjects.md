@@ -77,14 +77,11 @@ FRB1 gives an attached object both an absolute `X` and a `RelativeX`. **FRB2 has
 
 So both Glue members collapse onto the same FRB2 property, selected by attachment state:
 
-| Glue member | `AttachToContainer` | FRB2 target |
-|---|---|---|
-| `RelativeX`/`Y`/`Z` | true | `X`/`Y`/`Z` |
-| `X`/`Y`/`Z` | false | `X`/`Y`/`Z` |
-| `X`/`Y`/`Z` | true | ambiguous — see G21 |
+Both Glue members map to FRB2's `X`/`Y`/`Z` in every case — see G21 for why the attached-plus-absolute
+case is not the exception it looks like.
 
-Attachment must happen **before** the offsets are assigned, or the first frame renders in the wrong
-place.
+Assignment order does not matter: FRB2 stores `X` and computes `AbsoluteX` on read, so setting
+position before or after `Parent` gives the same result. FRB1 needs care here; FRB2 does not.
 
 ### Registration
 
@@ -97,17 +94,24 @@ one call. `Screen.Add(IRenderable renderable, Layer?)` for screen-level objects.
 
 Carried forward from Phase 1 where still live; new ones numbered from G21.
 
-### G21 — Absolute position on an attached object is ambiguous
+### G21 — An absolute position on an attached object *is* the offset
 
-Glue can author an `X` instruction on an object that also has `AttachToContainer = true`. In FRB1
-those are different properties, so the absolute assignment is simply overwritten by attachment. FRB2
-has one property, so applying it would place the object at that value *as an offset* — a different,
-silently wrong result.
+Glue can author an `X` instruction on an object that also has `AttachToContainer = true`. It is
+tempting to treat that as ambiguous, or to assume attachment overwrites it. Both readings are wrong.
 
-**How we tackle it.** When an object is attached and carries an absolute `X`/`Y`/`Z` instruction,
-ignore the instruction and emit a warning naming the object. Matching FRB1's effective behaviour
-(attachment wins) is the safe reading, and the warning surfaces authoring that never did what its
-author expected.
+Glue's own code generator emits `instance.CopyAbsoluteToRelative()` immediately before attaching
+(`NamedObjectSaveCodeGenerator.cs:1148`), and `CopyAbsoluteToRelative` is literally
+`RelativePosition = Position` (`PositionedObject.cs:1607`). So the authored absolute value *becomes*
+the relative offset. FRB2's `X` already means that offset once a parent is set, so **both Glue members
+map to the same FRB2 property, and nothing is dropped.**
+
+**How we tackle it.** `X` and `RelativeX` both resolve to `X`, regardless of attachment.
+
+This one was originally decided the other way — drop the value and warn — and that was a real bug,
+not a cosmetic one. Every attached object with an authored absolute position would have been
+misplaced, including DoorsDemo's player collision box (authored `Y: 11`, which raises the box to
+stand on the sprite) and all four Beefball score labels. Caught by checking Glue's codegen rather
+than reasoning from the property names. Covered by a regression test on the real fixture.
 
 ### G22 — A `Sprite` with no texture is not a failure
 

@@ -23,11 +23,14 @@ public class GlueObjectBuilderTests
     }
 
     [Fact]
-    public void Create_AbsolutePositionOnAnAttachedObject_IsIgnoredWithAWarning()
+    public void Create_AbsolutePositionOnAnAttachedObject_BecomesTheOffset()
     {
-        // FRB1 has separate X and RelativeX, so an absolute assignment on an attached object is
-        // simply overwritten by attachment. FRB2 has one property, so honouring it would silently
-        // place the object at that value as an *offset* — a different, wrong result.
+        // Glue's own codegen emits `instance.CopyAbsoluteToRelative()` before attaching
+        // (NamedObjectSaveCodeGenerator.cs:1148), and CopyAbsoluteToRelative is
+        // `RelativePosition = Position` (PositionedObject.cs:1607). So an authored absolute X on an
+        // attached object *becomes* the relative offset — X and RelativeX are the same thing here.
+        // Dropping it would misplace real authored objects: DoorsDemo's player collision box and
+        // every Beefball ScoreHud label are authored exactly this way.
         var (builder, diagnostics) = NewBuilder();
         var save = Save(@"{
             ""InstanceName"": ""Shape"",
@@ -38,8 +41,8 @@ public class GlueObjectBuilderTests
 
         var circle = (Circle)builder.Create(save)!;
 
-        circle.X.ShouldBe(0f);
-        diagnostics.ShouldContain(d => d.Severity == GlueDiagnosticSeverity.Warning);
+        circle.X.ShouldBe(500f);
+        diagnostics.ShouldBeEmpty();
     }
 
     [Fact]
