@@ -55,8 +55,8 @@ via reflection. No codegen step.
 
 | Phase | Document | Status |
 |---|---|---|
-| 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | In progress |
-| 2 | NamedObjects | Not written |
+| 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | Implemented |
+| 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
 | 3 | CustomVariables | Not written |
 | 4 | Referenced files / assets | Not written |
 | 5 | Gum integration | Not written |

@@ -166,9 +166,9 @@ Test-first throughout. Each group is roughly one commit.
 
 ### 6.6 — Wrap-up
 
-- [ ] XML docs on new public types.
-- [ ] Update this document's checkboxes and `plan/plan.md`.
-- [ ] Record what Phase 3 must pick up.
+- [x] XML docs on new public types.
+- [x] Update this document's checkboxes and `plan/plan.md`.
+- [x] Record what Phase 3 must pick up (§9).
 
 ---
 
@@ -188,3 +188,54 @@ Test-first throughout. Each group is roughly one commit.
 - [ ] Beefball's `PlayerBall` builds both its circles, at their authored radii, attached to the entity.
 - [ ] DoorsDemo still loads with zero errors and a lower unmapped count than Phase 1's 13.
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+Four commits. 25 new tests, full suite 1289 green, zero warnings from `src/Glue`.
+
+| Piece | File |
+|---|---|
+| Construct + configure + attach one object | `src/Glue/GlueObjectBuilder.cs` |
+| JSON value to CLR property type | `src/Glue/GlueValueConverter.cs` |
+| Build a whole element's objects | `src/Glue/GlueElementBuilder.cs` |
+| Screens/entities that build themselves | `src/Glue/GlueScreen.cs` |
+
+**The payoff test:** Beefball's `PlayerBall` loads from `.glej` and becomes two `Circle`s at radius
+16, attached to the entity, visible — no hand-written C# anywhere in the path.
+
+### Found while building
+
+- **FRB2 shapes are invisible by default.** `AARect`, `Circle` and `Polygon` default
+  `IsVisible = false` because they are primarily collision volumes; `Sprite` defaults true. A shape
+  authored in Glue is meant to be seen, so shapes are made visible on construction. Without this the
+  phase would have "worked" and still drawn nothing — the exact failure it exists to fix. An explicit
+  `Visible` instruction still wins. Note the rename: Glue's `Visible` is FRB2's `IsVisible`.
+- **Attachment is simpler than FRB1's, and the plan's order-of-operations worry was unfounded.**
+  FRB2's `X` is a plain stored offset and `AbsoluteX` is computed on read, so assigning position
+  before or after setting `Parent` gives the same result. FRB1 needs care here; FRB2 does not.
+- **Reflection is not trim-safe, and the engine builds AOT-compatible.** The reflected set is closed —
+  exactly what `GlueTypeMap` can construct — so the four types' properties are rooted with
+  `DynamicDependency` rather than suppressing `IL2075` and hoping. **Adding a type to `GlueTypeMap`
+  now requires adding a matching `DynamicDependency`**, or its properties get trimmed and every
+  assignment on it silently does nothing in a published AOT build. Documented at the reflection site.
+- **Rebuilding leaked objects.** `BuildObjects` left the previous build's children attached, so a
+  rebuild duplicated everything and the duplicates still rendered. Reachable in normal use — hot
+  reload restarts a screen, which rebuilds it. Fixed and covered.
+
+### Corrections to this document
+
+- §6.5 originally claimed DoorsDemo's unmapped count would drop from 13. It does not, and it should
+  not: this phase added no rows to `GlueTypeMap`. The count falls when Phases 9/10/13 land.
+- §4 said attachment must happen before offsets are assigned. Not true in FRB2 — see above.
+
+### What Phase 3 picks up
+
+- `CustomVariables` and their `DefaultValue`s, including tunnelled variables
+  (`SourceObject`/`SourceObjectProperty`) that forward to a member of a `NamedObject` this phase
+  built. The objects are addressable by Glue instance name via `Objects`, which is the hook.
+- `CustomVariable.Type` is bag-backed (Phase 1, G4) — it is the only place a variable's declared type
+  is recorded, and `GlueValueConverter` already converts by target type, so it should be reusable.
+- Phase 3 should decide whether `Objects` stays a `IReadOnlyDictionary<string, object>` or becomes
+  the indexer Phase 14 sketches (`entity["Health"]`). This phase deliberately did not pre-decide it.
