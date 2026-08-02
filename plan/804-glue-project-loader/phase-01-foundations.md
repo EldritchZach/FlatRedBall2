@@ -191,11 +191,20 @@ members by default, so omission is safe.
 
 ### The read seam
 
-Follow the existing precedent in `src/Tiled/TileMap.cs` — `TileMap.TmxLoader` is a static
-injectable delegate specifically so tests never touch disk and WASM can route through
-`TitleContainer` (see the comment in `tests/FlatRedBall2.Tests/Tiled/TileMapLoadingTests.cs:9`).
-Give `GlueProjectLoader` the same shape: a `Func<string, string> TextLoader` defaulting to
-`File.ReadAllText`, and a `Func<string, bool> FileExists`.
+The engine already has this pattern: `TileMap.TmxLoader` (`src/Tiled/TileMap.cs:52`) is an injectable
+delegate specifically so tests never touch disk and WASM can route through `TitleContainer` (see the
+comment at `tests/FlatRedBall2.Tests/Tiled/TileMapLoadingTests.cs:9`). `GlueProjectLoader` needs the
+same seam: a `Func<string, string> TextLoader` defaulting to `File.ReadAllText`, plus a
+`Func<string, bool> FileExists`.
+
+**But do not copy its shape uncritically.** `TmxLoader` is declared
+`internal static Func<...> { get; set; }` — mutable static state, which CLAUDE.md's architecture
+rules forbid ("No static state: only `FlatRedBallService.Default` is static"). It predates or sidesteps
+that rule. Two consequences worth deciding rather than inheriting (D9): whether the Glue seam is
+static or an instance member / constructor parameter, and whether it is `internal` (matching
+`TmxLoader`, relying on `InternalsVisibleTo`) or public. A static mutable seam also leaks between
+xUnit tests running in the same assembly unless every test restores it in a `finally` — which
+`TileMapLoadingTests` does, and which is a tell that the shape costs something.
 
 ### Failure policy: collect, don't throw
 
@@ -247,6 +256,8 @@ change on each side.
 | G14 | Display/camera data is duplicated at the project root and in `DisplaySettings` | Low | FRB2 |
 | G15 | `ShouldSerialize*` and `[JsonIgnore]` are Newtonsoft-only | Low | FRB2 |
 | G16 | Real files contain shapes this epic excludes | Low | FRB2 |
+| G18 | Type strings are generic — exact-string matching cannot work | High | FRB2 |
+| G19 | The Phase 1 fixture is mostly *un*mappable in Phase 1, by design | Medium | FRB2 |
 
 ---
 
@@ -529,9 +540,9 @@ clear message at load time. Keep the file path authoritative for lookup.
 
 ### G14 — Display data duplicated at root and in `DisplaySettings` · Low · fix in FRB2
 
-`ChickenClicker.gluj` carries `In2D`, `ResolutionWidth`, `ResolutionHeight`, `OrthogonalWidth`,
+`DoorsDemo.gluj` carries `In2D`, `ResolutionWidth`, `ResolutionHeight`, `OrthogonalWidth`,
 `OrthogonalHeight` at the root **and** a `DisplaySettings` block with its own `ResolutionWidth` /
-`ResolutionHeight`. `GlueProjectSave.cs:220` labels the root copies "April 2017 - adding replacement
+`ResolutionHeight`. `GlueProjectSave.cs:226` labels the root copies "April 2017 - adding replacement
 for these, eventually should get removed."
 
 **How we tackle it.** Phase 1 parses both and applies neither — Phase 13 owns the mapping. Record
@@ -569,6 +580,57 @@ assert a clean load explicitly so nobody later mistakes tolerance for an oversig
 
 ---
 
+### G18 — Type strings are generic; exact-string matching cannot work · High · fix in FRB2
+
+`SourceClassType` is not a flat set of type names. Across the DoorsDemo fixture alone:
+
+```
+FlatRedBall.Sprite
+FlatRedBall.Math.Geometry.AxisAlignedRectangle
+FlatRedBall.TileCollisions.TileShapeCollection
+FlatRedBall.TileGraphics.LayeredTileMap
+FlatRedBall.Math.PositionedObjectList<T>                                    <- literal "<T>"
+FlatRedBall.Math.Collision.ListVsListRelationship<Entities.Player, Entities.Door>
+FlatRedBall.Math.Collision.DelegateListVsSingleRelationship<Entities.Player, FlatRedBall.TileCollisions.TileShapeCollection>
+FlatRedBall.Entities.CameraControllingEntity
+Entities\Player                                                             <- element ref, not a CLR type
+```
+
+Three separate shapes hide in there: an **unresolved generic placeholder** (`<T>` literally, on
+lists), **closed generics whose arguments are themselves Glue element names** (`Entities.Player`),
+and **element references in backslash form** (`Entities\Player`) used where a type name would go.
+
+**How we tackle it.** The type map cannot be a dictionary keyed on the whole string. Phase 1 needs a
+small parser that splits a `SourceClassType` into (open type name, type arguments) before lookup, and
+classifies the result as: FRB2-native type, Glue element reference, or unmapped. Phases 2/8/9 then
+consume the parsed form rather than re-parsing strings. Get this right in Phase 1 — every later phase
+inherits it, and retrofitting a parser under a string-keyed map means touching all of them.
+
+The `Entities\Player`-as-type case also means G7's backslash normalization applies to type strings,
+not just to element names and paths. Same helper, one more caller.
+
+---
+
+### G19 — The Phase 1 fixture is mostly unmappable in Phase 1, by design · Medium · fix in FRB2
+
+Of DoorsDemo's nine top-level `NamedObjects` in `GameScreen.glsj`, **Phase 1 can map none of them**:
+two `TileShapeCollection` and one `LayeredTileMap` belong to Phase 10, three collision relationships
+to Phase 9, `CameraControllingEntity` to Phase 13, and the two `PositionedObjectList<T>` to Phase 2.
+Only the entities' `Sprite` and `AxisAlignedRectangle` fall in Phase 1's declared target set.
+
+This is the correct outcome, but it looks like failure if nobody says so in advance: **loading the
+primary fixture in Phase 1 emits roughly a dozen "unmapped type" warnings, and that is success.**
+
+**How we tackle it.** Say it explicitly here and in the Definition of Done: the Phase 1 bar is *zero
+`Error` diagnostics*, not zero diagnostics. Assert the expected warning count in a test so the number
+is pinned and later phases visibly drive it down — each phase that lands should shrink that count,
+which turns it into a free progress metric for the whole epic rather than noise to ignore.
+
+It is also the strongest possible validation of D1 (skip-with-diagnostic over fail-fast): under
+fail-fast, Phase 1 could not load its own primary fixture at all.
+
+---
+
 ## 6. Open decisions
 
 | # | Decision | Recommendation |
@@ -582,6 +644,7 @@ assert a clean load explicitly so nobody later mistakes tolerance for an oversig
 | D7 | Do we change FRB1 at all? | **No user-visible change; this epic does not depend on FRB1 at all** (see §1 ground rules). Land only zero-impact fixes upstream — G2's duplicate key, G11's append-only comment — as standalone PRs on FRB1's own cadence. Report everything else and let the maintainer schedule it. |
 | D8 | Authority when a typed field and a bag entry disagree | **Typed field wins, disagreement emits a diagnostic** (G10) — except where FRB1 declares the member bag-backed (G4), in which case the bag is authoritative by definition. |
 
+| D9 | Read-seam shape: static like `TmxLoader`, or an instance member? | **Instance member set through `GlueLoadOptions`.** `TileMap.TmxLoader` is `internal static` mutable state, which CLAUDE.md's "no static state" rule forbids and which leaks across tests unless every one restores it. The loader already takes an options object, so the seam costs nothing to carry there. Keep it `internal` for Phase 1 — public is a Phase 14 API decision. |
 ---
 
 ## 7. Tasks
@@ -669,7 +732,8 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 ### 7.4 — Reference resolution and the read seam
 
 - [ ] Failing test: `GlueProjectLoader` routes every read through its injectable `TextLoader`
-      delegate and never touches `System.IO` (mirrors `TileMapLoadingTests.cs:15`).
+      delegate and never touches `System.IO` (mirrors `TileMapLoadingTests.cs:15`, but as an
+      instance seam rather than static state — D9).
 - [ ] Failing test: loading the DoorsDemo fixture populates `Screens.Count == 2` and
       `Entities.Count == 2`, and clears both reference lists, matching
       `LoadReferencedScreensAndEntities` (`GlueProjectSaveExtensions.cs:567`).
@@ -685,10 +749,17 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       emits one `Warning`, and the file path stays authoritative (G13).
 - [ ] Implement `GlueProjectLoader.Load`, `GlueLoadResult`, `GlueLoadDiagnostic`, `GlueLoadOptions`.
 - [ ] Failing test: `GlueLoadOptions.Strict` throws on the first `Error` diagnostic.
-- [ ] Failing test: DoorsDemo's `Screens/GameScreen.glsj` retains its ten `NamedObjects` parsed but
-      **un-applied**, proving Phase 1 parses without instantiating.
-- [ ] Failing test: `Level1.BaseScreen == "Screens\\GameScreen"` is parsed and retained without any
-      merge occurring — inheritance is Phase 6, and Phase 1 must not quietly start resolving it.
+- [ ] Failing test: DoorsDemo's `Screens/GameScreen.glsj` retains **nine** top-level `NamedObjects`
+      parsed but un-applied, and `PlayerList` retains **one** `ContainedObjects` child whose
+      `SourceClassType` is `"Entities\\Player"` — nesting must not be flattened into the top level.
+- [ ] Failing test: `Level1.BaseScreen == "Screens\\GameScreen"` is parsed and retained with **no**
+      merge — `Level1` keeps exactly its own four `NamedObjects` (`Map`, `SolidCollision`,
+      `CloudCollision`, `PlayerList`), not the nine from its base. Inheritance is Phase 6.
+- [ ] Failing test: those four carry `DefinedByBase == true` (and `PlayerList` also
+      `InstantiatedByBase` and `ExposedInDerived`) — a derived element redeclares its base's objects
+      even above the `RemoveRedundantDerivedData` gate, and Phase 1 must not dedupe them.
+- [ ] Failing test: `Player.glej` yields two `NamedObjects`, six `CustomVariables`, and five
+      `ReferencedFiles` parsed and retained — files are Phase 4, so none is loaded.
 - [ ] Failing test: the `.glsj`/`.glej` omission rules are covered independently of `.gluj`'s — do
       not assume one generalizes to the other (G6).
 - [ ] Failing test: a `.gluj` below `LatestVersion` loads and emits one `Info` diagnostic, asserted
@@ -696,12 +767,25 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 
 ### 7.5 — Type mapping
 
-- [ ] Failing test: `GlueTypeMap` maps `"FlatRedBall.Math.Geometry.Circle"` to FRB2's `Circle`
-      (the string appears verbatim in `PlayerBall.glej:165`).
+- [ ] Failing test: `GlueTypeMap` maps `"FlatRedBall.Math.Geometry.AxisAlignedRectangle"` and
+      `"FlatRedBall.Sprite"` to their FRB2 equivalents (both appear in `Player.glej`).
+- [ ] Failing test: the type-string parser splits `"FlatRedBall.Math.PositionedObjectList<T>"` into
+      an open type plus an unresolved argument, and
+      `"...ListVsListRelationship<Entities.Player, Entities.Door>"` into an open type plus two
+      **element-reference** arguments — not CLR type names (G18).
+- [ ] Failing test: `"Entities\\Player"` in a `SourceClassType` position classifies as an element
+      reference, with backslash normalization shared with G7's helper (G18).
 - [ ] Failing test: an unmapped type string returns no type and yields one `Warning` diagnostic
       naming both the element and the type string (D1).
-- [ ] Implement `src/Glue/GlueTypeMap.cs` covering the Phase 2 target set:
-      `Sprite`, `AxisAlignedRectangle`, `Circle`, `Polygon`, `ShapeCollection`, `Text`.
+- [ ] Failing test: loading DoorsDemo emits the expected count of unmapped-type `Warning`s and
+      **zero** `Error`s — pin the number so later phases visibly drive it down (G19).
+- [ ] Implement `src/Glue/GlueTypeMap.cs` over the parsed form, covering only Phase 1's declared
+      set: `Sprite`, `AxisAlignedRectangle`, `Circle`, `Polygon`, `ShapeCollection`, `Text`.
+      Everything else — `TileShapeCollection`, `LayeredTileMap`, `PositionedObjectList<T>`, the
+      collision relationships, `CameraControllingEntity` — warns and is owned by a later phase.
+- [ ] Decide and record: the issue lists "generic `.gumx` runtime types" in Phase 1's type map, but
+      no `.gumx` runtime type appears as a `SourceClassType` in the fixture (the `.gumx` is a
+      `GlobalFile`). **Recommendation: defer Gum type mapping to Phase 5** and note it here.
 - [ ] Make the map extensible — later phases add rows without editing a `switch`.
 
 ### 7.6 — Boot into FRB2's screen system
@@ -740,10 +824,13 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 
 - [ ] `dotnet build src/FlatRedBall2.csproj` succeeds with no new warnings and no AOT/trim warnings.
 - [ ] `dotnet test tests/FlatRedBall2.Tests/` passes.
-- [ ] Every vendored fixture loads with zero `Error` diagnostics.
+- [ ] Every vendored fixture loads with zero `Error` diagnostics. **Warnings are expected and are
+      not a failure** — DoorsDemo emits roughly a dozen unmapped-type warnings in Phase 1 by design
+      (G19), and the count is pinned by a test so later phases visibly drive it down.
 - [ ] DoorsDemo boots to `Level1` from its `.gluj` with no hand-written screen class.
 - [ ] DoorsDemo's `Player.glej` and `GameScreen.glsj` round-trip into POCOs with `NamedObjects`,
-      `CustomVariables`, and `BaseScreen` all populated but un-applied.
+      `CustomVariables`, `ReferencedFiles`, and `BaseScreen` all populated but un-applied, and with
+      `ContainedObjects` nesting preserved rather than flattened.
 - [ ] No Newtonsoft.Json reference was added anywhere.
 - [ ] Every open decision in §6 is either implemented as recommended or amended in place with the
       reason it changed.
