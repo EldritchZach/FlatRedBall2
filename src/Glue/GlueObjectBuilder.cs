@@ -62,6 +62,15 @@ public sealed class GlueObjectBuilder
         ApplyShapeVisibilityDefault(instance);
         ApplyInstructions(instance, save, elementName);
 
+        // A Polygon starts with no points and its draw call bails below two, so it would be present,
+        // positioned, and invisible with nothing to say why.
+        if (instance is Collision.Polygon { Points.Count: < 2 })
+        {
+            Warn($"'{save.InstanceName}' is a Polygon with fewer than two points, so it will not " +
+                 "render. Glue stores polygon points outside the instruction list; reading them is " +
+                 "not supported yet.", elementName);
+        }
+
         return instance;
     }
 
@@ -73,9 +82,24 @@ public sealed class GlueObjectBuilder
     {
         object? instance = Create(save, elementName);
 
-        if (instance is IAttachable attachable && save.AttachToContainer)
-            container.Add(attachable);
+        if (instance is not IAttachable attachable || !save.AttachToContainer)
+            return instance;
 
+        // Glue lets a shape be attached for position and rendering without taking part in the
+        // entity's collision; FRB2's plain Add opts every shape in, so honour the flag. The
+        // opt-out overload is generic over "attachable and collidable", which no single interface
+        // expresses — hence the switch over the closed set of shape types.
+        if (!save.IncludeInICollidable)
+        {
+            switch (instance)
+            {
+                case Collision.AARect rect: container.Add(rect, isDefaultCollision: false); return instance;
+                case Collision.Circle circle: container.Add(circle, isDefaultCollision: false); return instance;
+                case Collision.Polygon polygon: container.Add(polygon, isDefaultCollision: false); return instance;
+            }
+        }
+
+        container.Add(attachable);
         return instance;
     }
 

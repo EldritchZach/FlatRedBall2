@@ -208,6 +208,41 @@ public class GlueObjectBuilderTests
     }
 
     [Fact]
+    public void AddTo_ShapeExcludedFromCollidable_IsAttachedButNotInDefaultCollision()
+    {
+        // Glue lets a shape ride along for position and rendering without joining the entity's
+        // collision. FRB2's plain Add opts every shape in, so the flag has to be honoured.
+        var (builder, _) = NewBuilder();
+        var parent = new Entity();
+        var save = Save(@"{
+            ""InstanceName"": ""VisualOnly"",
+            ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"",
+            ""AttachToContainer"": true,
+            ""IncludeInICollidable"": false
+        }");
+
+        var circle = (Circle)builder.AddTo(parent, save)!;
+
+        circle.Parent.ShouldBe(parent);
+        parent.Shapes.ShouldNotContain(circle);
+    }
+
+    [Fact]
+    public void Create_PolygonWithNoPoints_WarnsThatItWillNotRender()
+    {
+        // A Polygon starts empty and its draw call bails below two points, so without this it would
+        // be present, positioned, and invisible with nothing explaining why.
+        var (builder, diagnostics) = NewBuilder();
+        var save = Save(@"{
+            ""InstanceName"": ""Poly"",
+            ""SourceClassType"": ""FlatRedBall.Math.Geometry.Polygon""
+        }");
+
+        builder.Create(save).ShouldNotBeNull();
+        diagnostics.ShouldContain(d => d.Message.Contains("will not render"));
+    }
+
+    [Fact]
     public void AddTo_UnattachedObject_IsNotParented()
     {
         var (builder, _) = NewBuilder();
