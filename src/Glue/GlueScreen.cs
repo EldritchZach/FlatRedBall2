@@ -47,6 +47,14 @@ public class GlueScreen : Screen
     /// </summary>
     public void BuildObjects()
     {
+        // Unregister anything a previous build added, so a rebuild (hot reload restarts one) does
+        // not leave duplicates of every object behind it.
+        foreach (var previous in GlueElementBuilder.Flatten(_objects.Values))
+        {
+            if (previous is Rendering.IRenderable renderable)
+                Remove(renderable);
+        }
+
         _objects.Clear();
         _buildDiagnostics.Clear();
 
@@ -91,6 +99,13 @@ public class GlueEntity : Entity
     /// </summary>
     public void BuildObjects()
     {
+        // See GlueScreen.BuildObjects — a rebuild must not leave the previous children attached.
+        foreach (var previous in GlueElementBuilder.Flatten(_objects.Values))
+        {
+            if (previous is IAttachable attachable)
+                Remove(attachable);
+        }
+
         _objects.Clear();
         _buildDiagnostics.Clear();
 

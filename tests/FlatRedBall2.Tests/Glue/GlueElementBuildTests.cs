@@ -109,6 +109,32 @@ public class GlueElementBuildTests
     }
 
     [Fact]
+    public void BuildObjects_CalledTwice_DoesNotLeaveTheFirstBuildsChildrenAttached()
+    {
+        // Hot reload restarts a screen, which rebuilds it. Without unregistering the previous build
+        // every object would be duplicated, and the duplicates would still render.
+        var entity = new GlueEntity
+        {
+            Save = EntityOf(@"{
+                ""Name"": ""Entities\\Test"",
+                ""NamedObjects"": [ {
+                    ""InstanceName"": ""Shape"",
+                    ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"",
+                    ""AttachToContainer"": true
+                } ]
+            }"),
+        };
+
+        entity.BuildObjects();
+        var first = (Circle)entity.Objects["Shape"];
+        entity.BuildObjects();
+
+        entity.Objects.Count.ShouldBe(1);
+        entity.Objects["Shape"].ShouldNotBeSameAs(first);
+        entity.Children.Count(c => c is Circle).ShouldBe(1);
+    }
+
+    [Fact]
     public void BuildObjects_WithoutASave_DoesNothingAndDoesNotThrow()
     {
         var screen = new GlueScreen();

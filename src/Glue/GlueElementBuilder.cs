@@ -39,6 +39,26 @@ internal static class GlueElementBuilder
     }
 
     /// <summary>
+    /// Walks built objects, replacing each list with its members, so callers can treat lists and
+    /// single objects uniformly when unregistering.
+    /// </summary>
+    internal static IEnumerable<object> Flatten(IEnumerable<object> built)
+    {
+        foreach (var item in built)
+        {
+            if (item is List<object> list)
+            {
+                foreach (var member in list)
+                    yield return member;
+            }
+            else
+            {
+                yield return item;
+            }
+        }
+    }
+
+    /// <summary>
     /// Builds a list member's contents. The list itself is a plain <see cref="List{T}"/> of whatever
     /// could be constructed — FRB2 has no equivalent of Glue's <c>PositionedObjectList&lt;T&gt;</c>,
     /// and this phase does not need one.
