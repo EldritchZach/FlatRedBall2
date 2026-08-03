@@ -67,7 +67,7 @@ via reflection. No codegen step.
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
-| 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
+| 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
 
 **Status of the epic: 6 of 14 phases implemented, plus tile maps, 14 of 14 planned.** A project loads, its shapes and
@@ -94,9 +94,9 @@ work into an existing one.
 - **Decisions are numbered `D<n>`** in the same scheme: D1–D14 for Phases 1–2, then D30+ per phase.
 - **Each phase doc carries a progress metric.** The unmapped-type warning count is pinned by a test
   (`tests/FlatRedBall2.Tests/Glue/GlueTypeMapTests.cs:68`), and each phase records what it drives the
-  count down to. Current: DoorsDemo **6**, down from 13 at Phase 2. Note Phase 6 *raised* it to 18
+  count down to. Current: DoorsDemo **4**, down from 13 at Phase 2. Note Phase 6 *raised* it to 18
   first — its derived start-up screen began honestly carrying all nine objects it inherits — and
-  Phases 10 and 9 then took it to 6. What remains is the camera controller, which Phase 13 owns.
+  Phases 10, 9 and 13 then took it to 4. What remains has no FRB2 type at all (`Text`, `ShapeCollection`).
 
 ### Fixture caveat that affects Phases 7, 8 and 11
 

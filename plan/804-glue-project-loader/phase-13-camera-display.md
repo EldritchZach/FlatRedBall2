@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §9. `RangedAspectRatio` and `TextureFilter` diagnosed rather than supported. |
 | **Depends on** | Phase 2 (the camera controller is a NamedObject), Phase 10 (its `Map` reference) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-13-camera-display` |
@@ -309,3 +309,52 @@ Test-first throughout.
 - [ ] The camera follows `PlayerList` and clamps to the map.
 - [ ] Every `DisplaySettings` default is asserted against JSON that omits it (G131).
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+6 new tests, full suite **1372 green**. DoorsDemo now boots at its authored 256×224 scaled to
+768×672, with the camera following the player through the level — confirmed by screenshot.
+
+| Piece | File |
+|---|---|
+| Display block → FRB2 `DisplaySettings` | `src/Glue/GlueDisplayMapper.cs` |
+| Camera controller wiring | `src/Glue/GlueCameraBuilder.cs` |
+| Constructor defaults on the Glue mirror | `src/Glue/Model/DisplaySettings.cs` |
+| `ApplyDisplaySettings` entry point | `src/Glue/GlueProject.cs` |
+
+G131 was the blocker it was predicted to be: the mirror had no constructor, so an omitted `Scale`
+read `0` and produced a zero-sized window, and an omitted `DominantInternalCoordinates` picked the
+wrong axis. Both are now asserted against JSON that omits them.
+
+G132 is covered too — Beefball carries a stale 16:9 ratio alongside `NoAspectRatio`, and reading it
+unconditionally would letterbox a game that should fill the window.
+
+G137 held exactly: Glue writes only `LerpSmooth` and `LerpCoefficient`, FRB1's obsolete names, and
+`TargetApproachStyle` never appears on disk at all.
+
+### Two ordering bugs found by running it
+
+Neither would have been caught by the tests, which assert on `Objects` rather than on behaviour.
+
+- **An `Entity`-typed object on a screen was never registered.** `AddTo(Screen)` only handled
+  `IRenderable`, so the camera controller was built, correctly targeted — and never ran. Every
+  engine entity on a screen had the same problem.
+- **`Screen.Register` does not initialise.** The engine's own `Factory` does that as a separate
+  step, so registering without it leaves an engine entity half-built: the camera resolves its
+  `Camera` in `CustomInitialize` and threw a `NullReferenceException` on the screen's first frame.
+  The call is guarded, because a test can build a screen with no engine behind it and an entity's
+  initialiser is entitled to expect one.
+
+### Diagnosed rather than approximated
+
+`RangedAspectRatio` (no FRB2 band — locks to the first ratio and says so), `TextureFilter` other
+than point (FRB2 hardcodes point sampling), `ScaleGum` other than 100%, and a project not authored
+as 2D. Each warns by name. D132 and D133 stand: adding a third `AspectPolicy` value or threading a
+`SamplerState` through four batch types on zero fixture evidence is speculative API growth.
+
+**Not done:** D131's proposal to make FRB2's `Targets` settable so the loader can alias a live list.
+Targets are copied at build time, so an entity spawned later is not followed. Recorded here rather
+than silently accepted — it is a real divergence from FRB1, and the engine change is small when a
+project needs it.

@@ -31,7 +31,7 @@ public class GlueTypeMapTests
     public void TryGetType_LaterPhaseType_ReportsUnmapped()
     {
         GlueTypeMap.TryGetType("FlatRedBall.TileCollisions.TileShapeCollection", out _).ShouldBeFalse();
-        GlueTypeMap.TryGetType("FlatRedBall.Entities.CameraControllingEntity", out _).ShouldBeFalse();
+        GlueTypeMap.TryGetType("FlatRedBall.Graphics.Text", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class GlueTypeMapTests
         var result = GlueProjectLoader.Load(glujPath);
 
         result.HasErrors.ShouldBeFalse();
-        result.Diagnostics.Count(d => d.Message.Contains("cannot be built by this build")).ShouldBe(6);
+        result.Diagnostics.Count(d => d.Message.Contains("cannot be built by this build")).ShouldBe(4);
     }
 
     [Fact]

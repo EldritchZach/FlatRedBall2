@@ -106,12 +106,35 @@ public sealed class GlueObjectBuilder
     }
 
     /// <summary>Constructs an instance and registers it directly on a screen.</summary>
+    /// <remarks>
+    /// An entity is <see cref="Screen.Register(Entity)"/>ed rather than added: registration is what
+    /// gives it per-frame activity. A camera controller that is added but not registered loads
+    /// correctly, points at the right target, and never moves.
+    /// </remarks>
     public object? AddTo(Screen container, NamedObjectSave save, string? elementName = null)
     {
         object? instance = Create(save, elementName);
 
-        if (instance is Rendering.IRenderable renderable)
-            container.Add(renderable);
+        switch (instance)
+        {
+            case Entity entity:
+                container.Register(entity);
+
+                // Register wires the entity up but does not initialise it — the engine's own
+                // Factory does that as a separate step. Skipping it leaves an engine entity in a
+                // half-built state: a camera controller resolves its Camera in CustomInitialize and
+                // throws on the screen's first frame without it.
+                // Guarded because a test can build a screen with no engine behind it, and an
+                // entity's initialiser is entitled to expect one.
+                if (container.Engine is not null)
+                    entity.CustomInitialize();
+
+                break;
+
+            case Rendering.IRenderable renderable:
+                container.Add(renderable);
+                break;
+        }
 
         return instance;
     }
@@ -139,6 +162,11 @@ public sealed class GlueObjectBuilder
                 continue;
 
             string memberName = GlueMemberWriter.ResolveMemberName(instruction.Member);
+
+            // The camera controller's own members are applied later, once the objects they name
+            // exist. Letting the ordinary pass see them produces four warnings about nothing.
+            if (instance is Entities.CameraControllingEntity)
+                continue;
 
             // Some Glue members are methods in FRB2 rather than properties, and some values name a
             // loaded asset rather than carrying one. Both are handled before ordinary reflection.

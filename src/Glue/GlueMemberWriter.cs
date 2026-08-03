@@ -60,6 +60,7 @@ internal static class GlueMemberWriter
     [DynamicDependency(Rooted, typeof(Collision.Circle))]
     [DynamicDependency(Rooted, typeof(Collision.Polygon))]
     [DynamicDependency(Rooted, typeof(Rendering.Sprite))]
+    [DynamicDependency(Rooted, typeof(Entities.CameraControllingEntity))]
     [DynamicDependency(Rooted, typeof(GlueScreen))]
     [DynamicDependency(Rooted, typeof(GlueEntity))]
     [UnconditionalSuppressMessage("Trimming", "IL2075",

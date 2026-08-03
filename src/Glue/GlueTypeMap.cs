@@ -27,6 +27,7 @@ public static class GlueTypeMap
         ["FlatRedBall.Math.Geometry.AxisAlignedRectangle"] = static () => new Collision.AARect(),
         ["FlatRedBall.Math.Geometry.Circle"] = static () => new Collision.Circle(),
         ["FlatRedBall.Math.Geometry.Polygon"] = static () => new Collision.Polygon(),
+        ["FlatRedBall.Entities.CameraControllingEntity"] = static () => new Entities.CameraControllingEntity(),
     };
 
     private static readonly Dictionary<string, Type> TypesByGlueName = new(StringComparer.Ordinal)
@@ -35,6 +36,7 @@ public static class GlueTypeMap
         ["FlatRedBall.Math.Geometry.AxisAlignedRectangle"] = typeof(Collision.AARect),
         ["FlatRedBall.Math.Geometry.Circle"] = typeof(Collision.Circle),
         ["FlatRedBall.Math.Geometry.Polygon"] = typeof(Collision.Polygon),
+        ["FlatRedBall.Entities.CameraControllingEntity"] = typeof(Entities.CameraControllingEntity),
     };
 
     /// <summary>Constructs an instance of the mapped type, without reflection.</summary>

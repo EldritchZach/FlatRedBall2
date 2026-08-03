@@ -22,11 +22,13 @@ public sealed class GlueProject
     private readonly Dictionary<string, ScreenSave> _screens = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, EntitySave> _entities = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<GlueEntity>> _instances = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<GlueLoadDiagnostic> _diagnostics = new();
 
     private GlueProject(GlueLoadResult result, GlueContentSource? content)
     {
         Result = result;
         Content = content;
+        _diagnostics.AddRange(result.Diagnostics);
 
         foreach (var screen in result.Project.Screens.Where(s => !string.IsNullOrEmpty(s.Name)))
             _screens[screen.Name!] = screen;
@@ -35,8 +37,14 @@ public sealed class GlueProject
             _entities[entity.Name!] = entity;
     }
 
-    /// <summary>The raw load result, including every diagnostic the load produced.</summary>
+    /// <summary>The raw load result.</summary>
     public GlueLoadResult Result { get; }
+
+    /// <summary>
+    /// Everything the load reported, plus anything reported since — applying display settings, for
+    /// instance, happens after the load returns.
+    /// </summary>
+    public IReadOnlyList<GlueLoadDiagnostic> Diagnostics => _diagnostics;
 
     /// <summary>Where referenced assets come from, when one was supplied.</summary>
     public GlueContentSource? Content { get; }
@@ -48,6 +56,31 @@ public sealed class GlueProject
     public static GlueProject Load(
         string glujPath, GlueContentSource? content = null, GlueLoadOptions? options = null) =>
         new(GlueProjectLoader.Load(glujPath, options), content);
+
+    /// <summary>
+    /// Applies the project's display block to <paramref name="target"/>, usually
+    /// <c>FlatRedBallService.Default.DisplaySettings</c>.
+    /// </summary>
+    /// <remarks>
+    /// Call this before starting the first screen — FRB2 applies window properties only on
+    /// <c>Start</c>. Glue's display block is project-global, so once is enough.
+    /// </remarks>
+    public void ApplyDisplaySettings(Rendering.DisplaySettings target)
+    {
+        var source = Result.Project.DisplaySettings;
+
+        if (source is null)
+        {
+            _diagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                "This project has no DisplaySettings block, so its resolution and window setup " +
+                "could not be applied.",
+                null));
+            return;
+        }
+
+        GlueDisplayMapper.Apply(source, target, _diagnostics);
+    }
 
     /// <summary>The screen with this Glue name, or null.</summary>
     public ScreenSave? FindScreen(string glueName) =>

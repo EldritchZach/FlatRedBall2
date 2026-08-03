@@ -11,6 +11,26 @@ namespace FlatRedBall2.Glue.Model;
 /// </remarks>
 public class DisplaySettings
 {
+    /// <summary>
+    /// Reproduces FRB1's <c>SetDefaults()</c>. Glue omits a member equal to its default, so these
+    /// are exactly the values that never appear on disk — and reading them as <c>default(T)</c>
+    /// gives a zero-sized window and the wrong dominant axis.
+    /// </summary>
+    public DisplaySettings()
+    {
+        Scale = 100;
+        ScaleGum = 100;
+        GenerateDisplayCode = true;
+        DominantInternalCoordinates = 1; // Height
+        TextureFilter = 0;               // Linear, per FRB1's SetDefaults
+    }
+
+    /// <summary>
+    /// Whether Glue generates display setup at all. <c>false</c> means the game configures its own
+    /// camera, so a loader should apply nothing.
+    /// </summary>
+    public bool GenerateDisplayCode { get; set; }
+
     /// <summary>The preset's name, or <c>Custom</c>.</summary>
     public string? Name { get; set; }
 

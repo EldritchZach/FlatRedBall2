@@ -33,6 +33,9 @@ internal static class GlueElementBuilder
         // collection is derived from a map, so neither fits the construct-and-configure pass.
         GlueTileBuilder.Build(namedObjects, elementName, objects, diagnostics, content, register);
 
+        // The camera follows a list and bounds itself to a map, so it is finished once both exist.
+        GlueCameraBuilder.Build(namedObjects, elementName, objects, diagnostics);
+
         // Relationships reference other objects by name, so they come last. FRB1 codifies the same
         // ordering rather than relying on declaration order.
         GlueCollisionBuilder.Build(
