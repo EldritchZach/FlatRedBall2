@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Implemented — see §9. Manual boot check still outstanding. |
+| **Status** | Implemented — see §9. |
 | **Depends on** | Nothing — this is the base of the epic |
 | **Blocks** | Every other phase (2–14) |
 | **Suggested branch** | `804-phase-1-glue-loader-foundations` |
@@ -760,9 +760,9 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
       `FlatRedBallService` (`src/FlatRedBallService.cs:465` is the existing `Start<T>` path; a
       non-generic seam is needed because every loaded screen shares one CLR type — this is the
       Phase 14 API in embryo, so keep it `internal` for now rather than committing to public shape).
-- [ ] Manual check: point the boot entry point at the vendored DoorsDemo fixture and confirm the
-      game starts on `Level1` with an empty screen and no exception — noting that `Level1` is
-      *derived*, and Phase 1 boots it un-merged.
+- [x] Manual check: done, and automated rather than left to a human. A scratch host boots a
+      fixture through the real engine, runs frames and screenshots the back buffer. DoorsDemo starts
+      on `Level1` with no exception. (`Level1` is *derived*; Phase 6 now merges it.)
 
 ### 7.7 — Documentation and wrap-up
 
@@ -851,9 +851,19 @@ new build warnings and no AOT/trim warnings from `src/Glue/`.
   deliberately uses reflection, so it fails ~12 automation tests. Giving `AutomationMode` its own
   serializer context would unlock it. Reason recorded in the test `.csproj`.
 
-### Not done
+### The boot check, and a wrong assumption
 
-- **The manual boot check.** Running the game to watch DoorsDemo start on `Level1` needs a display
-  and a real game loop; it cannot run headless here. Everything up to the final `Start` call is
-  covered by tests — `StartUpScreen` resolves to `Screens\Level1`, and `GlueScreen` carries it — but
-  the last hop is unverified and wants a human at a keyboard.
+This originally read: *"Running the game to watch DoorsDemo start on `Level1` needs a display and a
+real game loop; it cannot run headless here."*
+
+**That was asserted, never tested, and it is wrong.** A `Game` plus `GraphicsDeviceManager` and
+repeated `RunOneFrame()` creates a real device and renders, without entering a blocking message
+loop. The back buffer can then be read with `GetBackBufferData` and saved as a PNG — so the check is
+not only possible, it automates.
+
+DoorsDemo boots to `Level1` with no exception, and Beefball's `GameScreen` renders its six arena
+walls with the goal gaps in the right places. DoorsDemo itself still draws blank, which is correct:
+everything visible in it is tile-based (Phase 10) or textured (Phase 4).
+
+The lesson is the same one the trimmed-publish runs keep teaching — a claim about what cannot be
+verified is itself a claim that needs verifying.

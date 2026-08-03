@@ -259,7 +259,8 @@ Test-first throughout. Each group is roughly one commit.
 - [x] DoorsDemo loads with zero errors. Its unmapped count stays at 13 — correct, since this phase
       added no rows to the type map.
 - [x] Every gotcha in §5 is covered by a test or explicitly deferred.
-- [ ] Someone has watched it draw. Needs a display and a real game loop; still outstanding.
+- [x] Someone has watched it draw — Beefball's six arena walls render, captured from the back
+      buffer of a real device. See Phase 1 §9.
 
 ---
 
@@ -351,4 +352,5 @@ present on every list in the live fixtures. Phase 6 §6.0 owns the fix and the w
   invisible in FRB1. `GlueValueConverter` handles no array shape, which is the real reason it fails.
   The warning text has been corrected; Phase 3 §6.4 owns the decoder, shared with `List<Vector2>`
   CustomVariables.
-- Nobody has watched any of this draw. That needs a display and a real game loop.
+- ~~Nobody has watched any of this draw.~~ Done — Beefball's arena renders correctly. The
+  assumption that it needed a human at a keyboard was wrong; see Phase 1 §9.
