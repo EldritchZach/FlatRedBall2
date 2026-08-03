@@ -1,4 +1,5 @@
 using System;
+using FlatRedBall2;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Shouldly;
@@ -37,6 +38,10 @@ public sealed class GraphicsDeviceFixture : IDisposable
 
             _game.RunOneFrame();
             GraphicsDevice = _game.GraphicsDevice;
+
+            var content = new ContentLoader();
+            content.Initialize(_game.Content, GraphicsDevice);
+            ContentLoader = content;
         }
         catch (Exception e)
         {
@@ -49,6 +54,9 @@ public sealed class GraphicsDeviceFixture : IDisposable
 
     /// <summary>The device, or null when this machine cannot provide one.</summary>
     public GraphicsDevice? GraphicsDevice { get; }
+
+    /// <summary>A content loader bound to that device, for tests that load real assets.</summary>
+    public ContentLoader? ContentLoader { get; }
 
     /// <summary>Whether tests needing a real device can run here.</summary>
     public bool IsAvailable => GraphicsDevice is not null;

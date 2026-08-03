@@ -29,6 +29,12 @@ public class GlueScreen : Screen
     /// </summary>
     public ScreenSave? Save { get; set; }
 
+    /// <summary>
+    /// Where referenced assets come from. Assign it alongside <c>Save</c>; without one the element
+    /// still builds and its file-typed values are reported and skipped.
+    /// </summary>
+    public GlueContentSource? Content { get; set; }
+
     /// <summary>The Glue element name, in backslash form (<c>Screens\Level1</c>).</summary>
     public string? GlueName => Save?.Name;
 
@@ -97,8 +103,11 @@ public class GlueScreen : Screen
         if (Save is null)
             return;
 
+        // Assets first: an object's instructions name them, so they have to exist by then.
+        Content?.Load(Save, _buildDiagnostics);
+
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
-            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name));
+            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name), Content);
 
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
@@ -121,6 +130,12 @@ public class GlueEntity : Entity
 
     /// <summary>The entity data this was built from. Assign it before <c>CustomInitialize</c> runs.</summary>
     public EntitySave? Save { get; set; }
+
+    /// <summary>
+    /// Where referenced assets come from. Assign it alongside <c>Save</c>; without one the element
+    /// still builds and its file-typed values are reported and skipped.
+    /// </summary>
+    public GlueContentSource? Content { get; set; }
 
     /// <summary>The Glue element name, in backslash form (<c>Entities\Player</c>).</summary>
     public string? GlueName => Save?.Name;
@@ -186,8 +201,11 @@ public class GlueEntity : Entity
         if (Save is null)
             return;
 
+        // Assets first: an object's instructions name them, so they have to exist by then.
+        Content?.Load(Save, _buildDiagnostics);
+
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
-            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name));
+            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name), Content);
 
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
     }

@@ -20,9 +20,10 @@ internal static class GlueElementBuilder
         string? elementName,
         Dictionary<string, object> objects,
         List<GlueLoadDiagnostic> diagnostics,
-        Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle)
+        Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle,
+        GlueContentSource? content = null)
     {
-        var builder = new GlueObjectBuilder(diagnostics);
+        var builder = new GlueObjectBuilder(diagnostics, content);
         BuildInto(namedObjects, builder, elementName, objects, diagnostics, addSingle);
     }
 

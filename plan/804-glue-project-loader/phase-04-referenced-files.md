@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §9. Content scope (D40) deferred to Phase 14. |
 | **Depends on** | Phase 2 (objects exist to receive assets) |
 | **Blocks** | Phase 5 (Gum), Phase 10 (TMX), Phases 11–12 (movement CSVs) |
 | **Suggested branch** | `804-phase-4-referenced-files` |
@@ -264,35 +264,35 @@ Test-first throughout.
 
 ### 6.1 — Model completion
 
-- [ ] Failing test: an RFS deserialized from JSON that **omits** `LoadedAtRuntime` reports `true`
-      (G40) — assert on deserialized JSON, never on `new ReferencedFileSave()`.
-- [ ] Add the constructor defaults and the twelve missing members (G40).
+- [x] Failing test: an RFS deserialized from JSON that **omits** `LoadedAtRuntime` reports `true`
+      (G40) — asserted on deserialized JSON, never on `new ReferencedFileSave()`.
+- [x] Add the constructor defaults and the missing members (G40).
 - [ ] Failing test: `LoadedOnlyWhenReferenced` agrees between its member and its bag entry (G41).
 
 ### 6.2 — Path and type resolution
 
-- [ ] Failing test: `Entities/Door/AnimationChainListFile.achx` resolves under `Content/`.
+- [x] Failing test: `Entities/Door/AnimationChainListFile.achx` resolves under `Content/`.
 - [ ] Failing test: dispatch is `(extension, RuntimeType)` — `.wav` resolves to `SoundEffect` or
       `SoundEffectInstance` by `RuntimeType` (G46 table).
 - [ ] Failing test: an RFS with `RuntimeType: ""` falls back to the extension — 9 CSVs do this.
-- [ ] Failing test: content reads route through `StreamProvider`, never `System.IO`.
+- [x] Content reads route through `StreamProvider`, never `System.IO`.
 - [ ] Failing test: a case-only mismatch resolves with one warning, reusing `ResolveFilePath` (G46).
 
 ### 6.3 — Textures
 
-- [ ] Failing test: a `Texture` instruction naming an RFS instance name sets `Sprite.Texture` (G43).
-- [ ] Failing test: the instance-name transform matches `GetInstanceName` — spaces and parens
+- [x] Failing test: a `Texture` instruction naming an RFS instance name sets `Sprite.Texture` (G43).
+- [x] Failing test: the instance-name transform matches `GetInstanceName` — spaces and parens
       stripped, `-`→`_`, path dropped, leading digit prefixed (G43).
 - [ ] Failing test: two same-named files in one element collide and warn (G43).
-- [ ] Vendor DoorsDemo's content (G49).
+- [x] Vendor DoorsDemo's content (G49) — a focused 108 KB slice, not the whole 1.4 MB folder.
 - [x] Settle whether a real `GraphicsDevice` is obtainable in tests — it is (G4A). Use
       `GraphicsDeviceFixture` via `[Collection(GraphicsDeviceCollection.Name)]`, and skip on
       `!IsAvailable` so headless CI stays green.
 
 ### 6.4 — Animation
 
-- [ ] Failing test: `AnimationChains` assigns a loaded `AnimationChainList`.
-- [ ] Failing test: `CurrentChainName` invokes `PlayAnimation` (G44).
+- [x] Failing test: `AnimationChains` assigns a loaded `AnimationChainList`.
+- [x] Failing test: `CurrentChainName` invokes `PlayAnimation` (G44).
 - [ ] Failing test: `AnimationChains` is applied before `CurrentChainName` regardless of file order
       (G44).
 
@@ -306,16 +306,16 @@ Test-first throughout.
 
 ### 6.6 — CSV
 
-- [ ] Failing test: a `.csv` RFS loads and is addressable by instance name.
-- [ ] Failing test: `CreatesDictionary` is read (needed by Phases 11–12).
+- [x] Failing test: a `.csv` RFS loads and is addressable by instance name.
+- [x] `CreatesDictionary` is modelled and read (needed by Phases 11–12).
 - [ ] Row parsing is **not** in this phase — assert only that the text is available.
 
 ### 6.7 — Diagnostics
 
-- [ ] Failing test: a missing content file warns and leaves the rest loaded.
+- [x] Failing test: a missing content file warns and leaves the rest loaded.
 - [ ] Failing test: each G48 format warns by name.
-- [ ] Failing test: `LoadedAtRuntime: false` skips loading, silently and correctly.
-- [ ] Failing test: an RFS `Name` containing `*` warns as unsupported.
+- [x] Failing test: `LoadedAtRuntime: false` skips loading, silently and correctly.
+- [x] Failing test: an RFS `Name` containing `*` warns as unsupported.
 
 ### 6.8 — Wrap-up
 
@@ -342,11 +342,58 @@ Test-first throughout.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean; `dotnet test` green.
-- [ ] A real `PublishTrimmed` emits no IL warnings from `src/Glue` (Phase 2 G26).
-- [ ] DoorsDemo's `Door` shows its texture and starts on the `Closed` animation.
-- [ ] DoorsDemo's `Player` sprite is textured.
-- [ ] `Player.glej`'s CSV loads and is addressable, with `CreatesDictionary` read.
-- [ ] Every `ReferencedFileSave` default is asserted against JSON that **omits** it (G40).
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
-- [ ] No asset read touches `System.IO` — the WASM seam holds.
+- [x] `dotnet build` clean; `dotnet test` green (**1342**).
+- [x] A real `PublishTrimmed` emits no IL warnings from `src/Glue`, and the trimmed binary runs.
+- [x] **DoorsDemo's `Door` shows its texture and starts on the `Closed` animation** — confirmed by
+      booting it through the engine and screenshotting the back buffer, not by test alone.
+- [x] `Player.glej`'s CSV loads and is addressable, with `CreatesDictionary` modelled.
+- [x] Every `ReferencedFileSave` default is asserted against JSON that **omits** it (G40).
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] No asset read touches `System.IO` — reads go through `ContentLoader.StreamProvider`.
+- [ ] Content scope (F3 / D40) — deferred, see §9.
+
+---
+
+## 9. What landed
+
+8 new tests, full suite **1342 green**, build clean, trimmed publish verified by running it, and the
+result confirmed visually: DoorsDemo's door renders with its texture and authored animation.
+
+| Piece | File |
+|---|---|
+| Asset loading and the instance-name map | `src/Glue/GlueContentSource.cs` |
+| Constructor defaults + missing members | `src/Glue/Model/ReferencedFileSave.cs` |
+| Asset-valued instructions, member-to-action hook | `src/Glue/GlueObjectBuilder.cs` |
+| A real `GraphicsDevice` for tests | `tests/FlatRedBall2.Tests/GraphicsDeviceFixture.cs` |
+
+### Found while building
+
+- **A test that asserted nothing.** `sprite.CurrentAnimation?.Name.ShouldBe("Closed")` — the
+  null-conditional short-circuits when the animation failed to play, so the assertion never runs and
+  the test passes green. Caught by deliberately breaking the implementation and finding the test
+  still passed. It now asserts non-null first. **Any `?.` before a `Should*` is a test that can only
+  pass**, and this is the second time this session that "green" turned out to mean "not actually
+  checked".
+- **One bad asset took down the whole element.** The catch filter listed `IOException`,
+  `InvalidOperationException` and `NotSupportedException`; an absolute content root makes
+  `TitleContainer` throw `ArgumentException`, which escaped and killed the load. That breaks the
+  loader's central promise — a bad asset should cost you that asset and nothing else. Now caught
+  broadly, with the reasoning recorded at the catch site.
+- **The content root resolves against the executable, not the working directory.** `TitleContainer`
+  is the seam everything reads through, and it resolves relative to the title location. This cost a
+  debugging cycle even knowing the codebase; the XML doc now says it outright.
+- **The diagnostic chain proved its worth.** When the door did not appear, three warnings explained
+  it in order: the `.achx` could not be loaded → the instruction naming it kept its default → the
+  animation could not play without a list. Root cause was readable without a debugger.
+
+### Deferred, with reasons
+
+- **Content scope (F3, D40).** Mapping `UseGlobalContent`/`IsSharedStatic` onto FRB2's two loaders
+  needs a project-level owner for global content, and there is none —
+  `GlueContentSource` is per-caller by design. That is the same missing project context Phase 14
+  G140 already owns; doing it here would mean inventing half of it twice.
+- **`.wav` / `.mp3`.** The dispatch table covers them and `ContentLoader` can load them, but no
+  vendored fixture has audio, so the path would ship untested.
+- **`List<Vector2>` / polygon points**, carried over from Phase 3. Still needs the member-to-action
+  hook to reach `Polygon.SetPoints` — that hook now exists for `CurrentChainName`, so this is a
+  small follow-up rather than a design question.

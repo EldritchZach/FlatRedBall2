@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
+using System.Text.Json;
+using Microsoft.Xna.Framework.Graphics;
 using FlatRedBall2.Glue.Model;
 
 namespace FlatRedBall2.Glue;
@@ -19,9 +20,19 @@ namespace FlatRedBall2.Glue;
 public sealed class GlueObjectBuilder
 {
     private readonly ICollection<GlueLoadDiagnostic> _diagnostics;
+    private readonly GlueContentSource? _content;
 
     /// <summary>Creates a builder that reports what it cannot handle into <paramref name="diagnostics"/>.</summary>
-    public GlueObjectBuilder(ICollection<GlueLoadDiagnostic> diagnostics) => _diagnostics = diagnostics;
+    /// <remarks>
+    /// <c>content</c> resolves instruction values that name a referenced asset. Without one, those
+    /// values are reported and skipped rather than failing the build.
+    /// </remarks>
+    public GlueObjectBuilder(
+        ICollection<GlueLoadDiagnostic> diagnostics, GlueContentSource? content = null)
+    {
+        _diagnostics = diagnostics;
+        _content = content;
+    }
 
     /// <summary>
     /// Constructs and configures an instance without attaching or registering it.
@@ -116,6 +127,15 @@ public sealed class GlueObjectBuilder
                 continue;
 
             string memberName = GlueMemberWriter.ResolveMemberName(instruction.Member);
+
+            // Some Glue members are methods in FRB2 rather than properties, and some values name a
+            // loaded asset rather than carrying one. Both are handled before ordinary reflection.
+            if (TryApplyAsAction(instance, memberName, instruction, save, elementName))
+                continue;
+
+            if (TryApplyAsAsset(instance, memberName, instruction, save, elementName))
+                continue;
+
             var property = GlueMemberWriter.FindProperty(instance, memberName);
 
             if (property is null || !property.CanWrite)
@@ -136,6 +156,86 @@ public sealed class GlueObjectBuilder
             property.SetValue(instance, converted);
         }
     }
+
+
+    /// <summary>
+    /// Applies a Glue member whose FRB2 equivalent is a method call rather than a property.
+    /// </summary>
+    /// <remarks>
+    /// <c>CurrentChainName</c> is the case that matters: FRB1 assigns a property, FRB2 exposes
+    /// <c>PlayAnimation(string)</c>, and property reflection cannot reach a method. Glue orders
+    /// instructions so the chain list is assigned first, which this relies on.
+    /// </remarks>
+    private bool TryApplyAsAction(
+        object instance, string memberName, InstructionSave instruction,
+        NamedObjectSave save, string? elementName)
+    {
+        if (memberName != "CurrentChainName" || instance is not Rendering.Sprite sprite)
+            return false;
+
+        string? chainName = instruction.Value.ValueKind == JsonValueKind.String
+            ? instruction.Value.GetString()
+            : null;
+
+        if (string.IsNullOrEmpty(chainName))
+            return true;
+
+        if (sprite.AnimationChains is null)
+        {
+            Warn($"'{save.InstanceName}' names the animation '{chainName}' but has no animation " +
+                 "list; the chain was not played.", elementName);
+            return true;
+        }
+
+        sprite.PlayAnimation(chainName);
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves an instruction whose value names a referenced asset by instance name rather than
+    /// carrying a value of its own.
+    /// </summary>
+    private bool TryApplyAsAsset(
+        object instance, string memberName, InstructionSave instruction,
+        NamedObjectSave save, string? elementName)
+    {
+        var property = GlueMemberWriter.FindProperty(instance, memberName);
+
+        if (property is null || !property.CanWrite || !IsAssetType(property.PropertyType))
+            return false;
+
+        string? assetName = instruction.Value.ValueKind == JsonValueKind.String
+            ? instruction.Value.GetString()
+            : null;
+
+        if (string.IsNullOrEmpty(assetName))
+            return true;
+
+        if (_content is null)
+        {
+            Warn($"'{save.InstanceName}.{memberName}' names the asset '{assetName}', but no content " +
+                 "source was supplied; the default was kept.", elementName);
+            return true;
+        }
+
+        object? asset = property.PropertyType == typeof(Texture2D)
+            ? _content.Get<Texture2D>(assetName)
+            : _content.Get<Animation.AnimationChainList>(assetName);
+
+        if (asset is null)
+        {
+            Warn($"'{save.InstanceName}.{memberName}' names the asset '{assetName}', which was not " +
+                 "loaded; the default was kept.", elementName);
+            return true;
+        }
+
+        property.SetValue(instance, asset);
+        return true;
+    }
+
+    /// <summary>Whether a property holds a loaded asset rather than a plain value.</summary>
+    private static bool IsAssetType(Type type) =>
+        type == typeof(Texture2D) || type == typeof(Animation.AnimationChainList);
 
     private void Warn(string message, string? elementName) =>
         _diagnostics.Add(new GlueLoadDiagnostic(GlueDiagnosticSeverity.Warning, message, elementName));
