@@ -112,18 +112,22 @@ public class GlueEndToEndTests
         // Regression: this rectangle is attached AND authored with an absolute Y of 11. An earlier
         // reading of Glue's semantics dropped absolute values on attached objects, which silently
         // put the player's collision box 11 units off — centred on the sprite instead of raised to
-        // stand on it. Glue's codegen copies absolute into relative before attaching, so 11 is the
-        // offset. It is also authored Visible=false, which must survive the shape-visibility default.
+        // stand on it. Glue's codegen picks between X and RelativeX at assignment time, which is
+        // what FRB2's X already means, so 11 is the offset. It is also authored Visible=false, which
+        // must survive the shape-visibility default.
+        // The entity's own Y is authored as a CustomVariable (-230), so the composed absolute
+        // position also proves Phase 3 applied it — this test used to set Y by hand instead.
         var result = GlueProjectLoader.Load(Gluj("DoorsDemo", "DoorsDemo.gluj"));
         var player = result.Project.Entities.Single(e => e.Name == @"Entities\Player");
 
-        var entity = new GlueEntity { Y = 100f, Save = player };
+        var entity = new GlueEntity { Save = player };
         entity.BuildObjects();
 
         var box = (AARect)entity.Objects["AxisAlignedRectangleInstance"];
 
+        entity.Y.ShouldBe(-230f);
         box.Y.ShouldBe(11f);
-        box.AbsoluteY.ShouldBe(111f);
+        box.AbsoluteY.ShouldBe(-219f);
         box.Width.ShouldBe(14f);
         box.Height.ShouldBe(22f);
         box.IsVisible.ShouldBeFalse();

@@ -53,7 +53,11 @@ public static class PropertySaveExtensions
         return false;
     }
 
-    private static T? Decode<T>(JsonElement value)
+    /// <summary>
+    /// Decodes a raw Glue value as <typeparamref name="T"/>. Shared with the variable bag, which
+    /// stores values undecoded for the same reason: the caller's type is the only reliable signal.
+    /// </summary>
+    internal static T? Decode<T>(JsonElement value)
     {
         // Unwrap int?/float?/etc. so one code path serves both the nullable and non-nullable request.
         Type target = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);

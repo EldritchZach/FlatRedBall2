@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §9 |
 | **Depends on** | Phase 2 (objects exist and are addressable by `Objects[name]`) |
 | **Blocks** | Phase 7 (a state is a set of CustomVariable values), Phase 14 (the indexer) |
 | **Suggested branch** | `804-phase-3-customvariables` |
@@ -242,55 +242,56 @@ Test-first throughout.
 
 ### 6.1 — Model completion
 
-- [ ] Add missing `CustomVariable` members: `IsShared`, `DefinedByBase`, `CreatesEvent`, `Summary`,
+- [x] Add missing `CustomVariable` members: `IsShared`, `DefinedByBase`, `CreatesEvent`, `Summary`,
       and bag-backed `OverridingPropertyType`, `TypeConverter`, `CreatesProperty` (key
       `"CreatesProperties"` — G38), `HasAccompanyingVelocityProperty`.
-- [ ] Failing test: `"<NONE>"` normalises for `DefaultValue`, `SourceObject`, `SourceObjectProperty`
+- [x] Failing test: `"<NONE>"` normalises for `DefaultValue`, `SourceObject`, `SourceObjectProperty`
       (G31).
-- [ ] Failing test: an absent `DefaultValue` reads as `Undefined`, an explicit null as `Null`, and
-      both classify as "do not assign" (G30).
+- [x] Failing test: an absent `DefaultValue` reads as `Undefined`, an explicit null as `Null`, and
+      both classify as "do not assign" (G30) — surfaced as `HasAuthoredValue`.
 
 ### 6.2 — Exposed variables
 
-- [ ] Failing test: `MovementSpeed = 300` from Beefball's `PlayerBall` lands in the bag.
-- [ ] Failing test: `X` with no `DefaultValue` leaves the Phase 2 position untouched (G30) — assert
-      against the real fixture, not synthetic JSON.
-- [ ] Failing test: `DefaultValue: ""` on a `bool`-typed variable is skipped (G32).
-- [ ] Failing test: a variable naming a real FRB2 property writes that property, not the bag.
+- [x] Failing test: `MovementSpeed = 300` from Beefball's `PlayerBall` lands in the bag.
+- [x] Failing test: `X` with no `DefaultValue` leaves the Phase 2 position untouched (G30) — asserted
+      against the real fixture.
+- [x] Failing test: `DefaultValue: ""` on a numeric variable is skipped (G32).
+- [x] Failing test: a variable naming a real FRB2 property writes that property, not the bag.
 
 ### 6.3 — Tunneling
 
-- [ ] Failing test: `CooldownCircleRadius = 16` sets `Objects["CooldownCircle"].Radius`.
-- [ ] Failing test: `CircleInstanceColor = "White"` sets the circle's colour.
-- [ ] Failing test: a tunnel naming a missing `SourceObject` warns and skips.
-- [ ] Failing test: a tunnel whose `SourceObject` was unbuildable in Phase 2 warns, not throws.
+- [x] Failing test: `CooldownCircleRadius = 16` sets `Objects["CooldownCircle"].Radius`.
+- [x] Failing test: a colour variable sets the circle's colour.
+- [x] Failing test: a tunnel naming a missing `SourceObject` warns and skips — the same path covers
+      a `SourceObject` whose type a later phase owns, which is the common case.
 
 ### 6.4 — Type coercion
 
-- [ ] Failing test: `ScoreHud.Score1` (int → string via `<default>`) reaches `DisplayText` as `"0"`.
-- [ ] Failing test: `Comma Separating` formats `1000` as `"1,000"`.
-- [ ] Failing test: `Minutes:Seconds` warns as unsupported.
-- [ ] Failing test: `List<Vector2>` decodes from `["-16, 16", …]` (G36) — shared with polygon
-      `Points`.
-- [ ] Extend the named-colour table to the full XNA set; test `Aquamarine` (G37).
+- [x] Failing test: int → string via `<default>` reaches the target as `"7"`.
+- [x] Failing test: `Comma Separating` formats `1000` as `"1,000"`.
+- [x] Failing test: `Minutes:Seconds` warns as unsupported rather than misformatting.
+- [x] Extend the named-colour table to the full XNA set; test `Aquamarine` (G37).
+- [ ] **Moved to Phase 4.** `List<Vector2>` decoding (G36) has no reachable target yet:
+      `Polygon.Points` is `IReadOnlyList<Vector2>` and geometry goes through `SetPoints(...)`, a
+      *method*. That is the member-to-action hook Phase 4 G44 already owns for
+      `Sprite.CurrentChainName`. Building the decoder now would be dead code.
 
 ### 6.5 — The bag
 
-- [ ] Failing test: a variable with no CLR member is readable afterwards.
-- [ ] Failing test: reads are type-driven by the caller's `T`, matching `GetValue<T>`.
-- [ ] Decide and document the resolution order (D31).
+- [x] Failing test: a variable with no CLR member is readable afterwards.
+- [x] Failing test: reads are type-driven by the caller's `T`, matching `GetValue<T>`.
+- [x] Decide and document the resolution order (D31) — implemented in `GlueVariableApplier.Read`.
 
 ### 6.6 — Ordering
 
-- [ ] Failing test: an element CustomVariable overrides a NamedObject instruction — Beefball's
-      `ScoreHud` ends at `"0"`, not `"99"`.
-- [ ] Failing test: declaration order is preserved; a later variable wins (G34).
+- [x] Failing test: an element CustomVariable overrides a NamedObject instruction.
+- [x] Failing test: declaration order is preserved; a later variable wins (G34).
 
 ### 6.7 — Wrap-up
 
-- [ ] XML docs; update this document and `plan/plan.md`.
-- [ ] Record what Phase 7 inherits: a state is "for each included variable, instruction-or-default",
-      so it reuses everything above.
+- [x] XML docs; update this document and `plan/plan.md`.
+- [x] Record what Phase 7 inherits: a state is "for each included variable, instruction-or-default",
+      so it reuses `GlueVariableApplier` wholesale.
 
 ---
 
@@ -307,11 +308,58 @@ Test-first throughout.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean; `dotnet test` green.
-- [ ] A real `PublishTrimmed` emits no IL warnings from `src/Glue` (Phase 2 G26).
-- [ ] Beefball's `PlayerBall` gets all ten CustomVariables, with the three tunneled ones reaching
-      their circles.
-- [ ] Beefball's `ScoreHud` labels read `"0"` — proving both tunneling and int→string coercion.
-- [ ] No entity moves to the origin: the `X`/`Y`/`Z`-with-no-default case is covered by a test on
+- [x] `dotnet build` clean; `dotnet test` green (**1311**).
+- [x] A real `PublishTrimmed` emits no IL warnings from `src/Glue`, **and the trimmed binary was run**
+      to confirm every reflected write survives (Phase 2 G26). The only warning is the pre-existing
+      third-party `GumCommon` IL2104.
+- [x] Beefball's `PlayerBall` gets all ten CustomVariables, with the tunneled ones reaching their
+      circles.
+- [x] Tunneling plus int→string coercion is proven. **Not** via `ScoreHud`, which tunnels into a
+      `Text` object FRB2 has no type for (D12) — the same shape is asserted against a `Circle`.
+- [x] No entity moves to the origin: the `X`/`Y`/`Z`-with-no-default case is covered by a test on
       the real fixture (G30).
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+14 new tests, full suite **1311 green**, no new build warnings, and **verified by running a real
+`PublishTrimmed` binary** rather than trusting a clean publish.
+
+| Piece | File |
+|---|---|
+| Apply and read variables, three destinations | `src/Glue/GlueVariableApplier.cs` |
+| Shared reflection + member-name resolution | `src/Glue/GlueMemberWriter.cs` |
+| `"<NONE>"` normalisation | `src/Glue/Model/GlueSentinel.cs` |
+| Overriding-type and converter coercion | `src/Glue/GlueValueConverter.cs` |
+| The full XNA colour table | `src/Glue/GlueValueConverter.cs` |
+| Model completion + `HasAuthoredValue` / `IsTunneling` | `src/Glue/Model/CustomVariable.cs` |
+
+**The payoff:** Beefball's `PlayerBall` now loads with its authored drag, its cooldown circle at the
+authored radius and colour, and its tuning values readable by name. DoorsDemo's player lands at its
+authored position instead of wherever the caller happened to put it.
+
+### Found while building
+
+- **The trimmed-binary run earned its place again.** A clean `PublishTrimmed` reported nothing, but
+  running it showed `Aquamarine` falling back to the engine default — the 26-entry colour table
+  (G37) was still a documented-but-unfixed gap. A publish that only checks for IL warnings would
+  have missed it, exactly as it missed Phase 2's defect 4.
+- **One existing test was asserting the absence of this phase.**
+  `DoorsDemo_PlayerCollisionBox_KeepsItsAuthoredOffsetAndSize` set `Y = 100f` by hand, because
+  nothing applied the entity's authored `Y = -230`. That is no longer a stand-in but a conflict, so
+  the test now lets the fixture drive position and asserts the composed result — which makes it a
+  stronger test than before.
+- **An unknown converter name has to fail, not fall through.** `Minutes:Seconds` reaching default
+  formatting renders 125 as `"125"` instead of `"2:05"` — wrong in a way that reads as working.
+  Rejecting unrecognised names is the difference between a warning and a silent corruption.
+- **`GlueObjectBuilder`'s reflection moved into `GlueMemberWriter`.** Two callers now reflect over
+  Glue-built objects, and having two sets of `DynamicDependency` attributes to keep in sync is the
+  setup for Phase 2's defect 1 happening again. One class now owns the rooted list.
+
+### What Phase 7 picks up
+
+A state is "for each included variable, set it to the state's instruction or else the variable's own
+default" — which is `GlueVariableApplier.Apply` with a different value source. Reuse it rather than
+writing a parallel path; the ordering and coercion rules are identical.

@@ -18,30 +18,6 @@ namespace FlatRedBall2.Glue;
 /// </remarks>
 public sealed class GlueObjectBuilder
 {
-    /// <summary>
-    /// Glue member names that do not match the FRB2 property they set. Relative position is not
-    /// listed here because it depends on attachment — see <see cref="ResolveMemberName"/>.
-    /// </summary>
-    private static readonly Dictionary<string, string> MemberAliases = new(StringComparer.Ordinal)
-    {
-        ["Visible"] = "IsVisible",
-    };
-
-    /// <summary>
-    /// What the trimmer must keep on every constructible type: the properties instructions assign,
-    /// and the parameterless constructor <see cref="Activator.CreateInstance(Type)"/> needs.
-    /// </summary>
-    /// <remarks>
-    /// Rooting properties alone is not enough and fails silently. Without the constructor, a trimmed
-    /// or AOT publish throws <see cref="MissingMethodException"/> inside
-    /// <see cref="Activator.CreateInstance(Type)"/>, every <c>Create</c> returns null, and every
-    /// screen loads completely empty — while an ordinary <c>dotnet build</c> stays clean, because
-    /// the IL2067 that would flag it is only reported at publish time.
-    /// </remarks>
-    private const DynamicallyAccessedMemberTypes Rooted =
-        DynamicallyAccessedMemberTypes.PublicProperties |
-        DynamicallyAccessedMemberTypes.PublicParameterlessConstructor;
-
     private readonly ICollection<GlueLoadDiagnostic> _diagnostics;
 
     /// <summary>Creates a builder that reports what it cannot handle into <paramref name="diagnostics"/>.</summary>
@@ -132,31 +108,15 @@ public sealed class GlueObjectBuilder
         }
     }
 
-    /// <remarks>
-    /// The reflected set is closed — it is exactly what <see cref="GlueTypeMap"/> can construct — so
-    /// the properties are rooted explicitly rather than the warning being suppressed and hoped over.
-    /// <para><b>Adding a type to <see cref="GlueTypeMap"/> means adding a matching
-    /// <see cref="DynamicDependencyAttribute"/> here</b>, or its properties get trimmed away and
-    /// every value assignment on it silently does nothing in a published AOT build.</para>
-    /// </remarks>
-    [DynamicDependency(Rooted, typeof(Collision.AARect))]
-    [DynamicDependency(Rooted, typeof(Collision.Circle))]
-    [DynamicDependency(Rooted, typeof(Collision.Polygon))]
-    [DynamicDependency(Rooted, typeof(Rendering.Sprite))]
-    [UnconditionalSuppressMessage("Trimming", "IL2075",
-        Justification = "Every reflected type is rooted by the DynamicDependency attributes above, " +
-                        "which cover exactly the closed set GlueTypeMap can construct.")]
     private void ApplyInstructions(object instance, NamedObjectSave save, string? elementName)
     {
-        Type type = instance.GetType();
-
         foreach (var instruction in save.InstructionSaves)
         {
             if (string.IsNullOrEmpty(instruction.Member))
                 continue;
 
-            string memberName = ResolveMemberName(instruction.Member);
-            var property = type.GetProperty(memberName, BindingFlags.Public | BindingFlags.Instance);
+            string memberName = GlueMemberWriter.ResolveMemberName(instruction.Member);
+            var property = GlueMemberWriter.FindProperty(instance, memberName);
 
             if (property is null || !property.CanWrite)
             {
@@ -175,28 +135,6 @@ public sealed class GlueObjectBuilder
 
             property.SetValue(instance, converted);
         }
-    }
-
-    /// <summary>
-    /// Maps a Glue member name onto the FRB2 property it sets.
-    /// </summary>
-    /// <remarks>
-    /// Position is the interesting case, and it resolves more simply than it first appears. FRB1
-    /// gives an attached object both an absolute <c>X</c> and a <c>RelativeX</c>, and its codegen
-    /// picks between them at assignment time — it emits
-    /// <c>if (obj.Parent == null) obj.X = v; else obj.RelativeX = v;</c> whenever the member has a
-    /// relative counterpart. FRB2's <c>X</c> already <em>is</em> that branch: an offset from
-    /// <c>Parent</c> when one is set, world space when not.
-    /// <para>So both Glue members map to the same FRB2 property regardless of attachment, and no
-    /// value is dropped. Dropping absolute values would misplace real authored content: DoorsDemo's
-    /// player collision box and every Beefball score label are authored exactly this way.</para>
-    /// </remarks>
-    private static string ResolveMemberName(string glueMember)
-    {
-        if (glueMember is "RelativeX" or "RelativeY" or "RelativeZ")
-            return glueMember["Relative".Length..];
-
-        return MemberAliases.TryGetValue(glueMember, out string? alias) ? alias : glueMember;
     }
 
     private void Warn(string message, string? elementName) =>

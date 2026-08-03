@@ -33,6 +33,61 @@ public class GlueModelTests
             GlueJsonContext.Default.EntitySave)!;
 
     [Fact]
+    public void Deserialize_CustomVariableBagBackedMembers_ReadThroughProperties()
+    {
+        // Beefball's ScoreHud.Score1 shape: the variable is declared string but exposed as int, with
+        // a converter between them. All three live in the bag, and CreatesProperty's key is plural.
+        string json = @"{
+            ""Name"": ""Score1"",
+            ""Properties"": [
+                { ""Name"": ""Type"", ""Value"": ""string"" },
+                { ""Name"": ""OverridingPropertyType"", ""Value"": ""int"" },
+                { ""Name"": ""TypeConverter"", ""Value"": ""<default>"" },
+                { ""Name"": ""CreatesProperties"", ""Value"": true }
+            ]
+        }";
+
+        var variable = JsonSerializer.Deserialize(json, GlueJsonContext.Default.CustomVariable)!;
+
+        variable.Type.ShouldBe("string");
+        variable.OverridingPropertyType.ShouldBe("int");
+        variable.TypeConverter.ShouldBe("<default>");
+        variable.CreatesProperty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Deserialize_CustomVariableOmittingDefaultValue_ReportsNoAuthoredValue()
+    {
+        // 423 of FRB1's 590 CustomVariables have no DefaultValue, including X/Y/Z on every Beefball
+        // entity. FRB1 skips those entirely; treating absent as 0 would move every entity to origin.
+        string json = @"{ ""Name"": ""X"", ""SetByDerived"": true }";
+
+        var variable = JsonSerializer.Deserialize(json, GlueJsonContext.Default.CustomVariable)!;
+
+        variable.HasAuthoredValue.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Deserialize_CustomVariableWithNoneSentinel_NormalizesToNull()
+    {
+        // FRB1 maps "<NONE>" in its property setters, which Newtonsoft runs and STJ does not. Left
+        // literal, this tunnels to an object named "<NONE>".
+        string json = @"{
+            ""Name"": ""Thing"",
+            ""SourceObject"": ""<NONE>"",
+            ""SourceObjectProperty"": ""<NONE>"",
+            ""DefaultValue"": ""<NONE>""
+        }";
+
+        var variable = JsonSerializer.Deserialize(json, GlueJsonContext.Default.CustomVariable)!;
+
+        variable.SourceObject.ShouldBeNull();
+        variable.SourceObjectProperty.ShouldBeNull();
+        variable.IsTunneling.ShouldBeFalse();
+        variable.HasAuthoredValue.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Deserialize_DerivedScreen_RetainsOwnObjectsWithDefinedByBase()
     {
         // Level1 derives from GameScreen and redeclares four of its objects with DefinedByBase set.

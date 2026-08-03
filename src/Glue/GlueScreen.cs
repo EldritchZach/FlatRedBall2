@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using FlatRedBall2.Glue.Model;
 
 namespace FlatRedBall2.Glue;
@@ -18,6 +20,7 @@ namespace FlatRedBall2.Glue;
 public class GlueScreen : Screen
 {
     private readonly Dictionary<string, object> _objects = new();
+    private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
     /// <summary>
@@ -38,12 +41,24 @@ public class GlueScreen : Screen
     /// <summary>What could not be built, and why. Warnings here are expected, not failures.</summary>
     public IReadOnlyList<GlueLoadDiagnostic> BuildDiagnostics => _buildDiagnostics;
 
+    /// <summary>
+    /// Reads an authored <c>CustomVariable</c> by its Glue name, whether it reached an object, a
+    /// property on this screen, or the name/value bag.
+    /// </summary>
+    /// <remarks>
+    /// <typeparamref name="T"/> drives the read — a variable's declared type is often not a CLR type
+    /// at all. An unknown name yields <c>default</c> rather than throwing.
+    /// </remarks>
+    public T? Get<T>(string name) =>
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+
     /// <inheritdoc />
     public override void CustomInitialize() => BuildObjects();
 
     /// <summary>
-    /// Builds every object in <see cref="Save"/> and registers it on this screen. Called by
-    /// <see cref="CustomInitialize"/>; safe to call directly in tests, where no engine is running.
+    /// Builds every object in <see cref="Save"/>, registers it on this screen, and applies the
+    /// element's variables. Called by <see cref="CustomInitialize"/>; safe to call directly in
+    /// tests, where no engine is running.
     /// </summary>
     public void BuildObjects()
     {
@@ -56,6 +71,7 @@ public class GlueScreen : Screen
         }
 
         _objects.Clear();
+        _variables.Clear();
         _buildDiagnostics.Clear();
 
         if (Save is null)
@@ -63,6 +79,11 @@ public class GlueScreen : Screen
 
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
             addSingle: (builder, save) => builder.AddTo(this, save, Save.Name));
+
+        // Variables run after objects, and after those objects' own instructions, because that is
+        // the order FRB1 assigns in — an element variable is expected to win over an instruction.
+        GlueVariableApplier.Apply(
+            Save.CustomVariables, this, _objects, _variables, Save.Name, _buildDiagnostics);
     }
 
     /// <inheritdoc />
@@ -76,6 +97,7 @@ public class GlueScreen : Screen
 public class GlueEntity : Entity
 {
     private readonly Dictionary<string, object> _objects = new();
+    private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
     /// <summary>The entity data this was built from. Assign it before <c>CustomInitialize</c> runs.</summary>
@@ -90,12 +112,24 @@ public class GlueEntity : Entity
     /// <summary>What could not be built, and why. Warnings here are expected, not failures.</summary>
     public IReadOnlyList<GlueLoadDiagnostic> BuildDiagnostics => _buildDiagnostics;
 
+    /// <summary>
+    /// Reads an authored <c>CustomVariable</c> by its Glue name, whether it reached a contained
+    /// object, a property on this entity, or the name/value bag.
+    /// </summary>
+    /// <remarks>
+    /// <typeparamref name="T"/> drives the read — a variable's declared type is often not a CLR type
+    /// at all. An unknown name yields <c>default</c> rather than throwing.
+    /// </remarks>
+    public T? Get<T>(string name) =>
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+
     /// <inheritdoc />
     public override void CustomInitialize() => BuildObjects();
 
     /// <summary>
-    /// Builds every object in <see cref="Save"/>, attaching those authored to attach. Called by
-    /// <see cref="CustomInitialize"/>; safe to call directly in tests.
+    /// Builds every object in <see cref="Save"/>, attaching those authored to attach, then applies
+    /// the element's variables. Called by <see cref="CustomInitialize"/>; safe to call directly in
+    /// tests.
     /// </summary>
     public void BuildObjects()
     {
@@ -107,6 +141,7 @@ public class GlueEntity : Entity
         }
 
         _objects.Clear();
+        _variables.Clear();
         _buildDiagnostics.Clear();
 
         if (Save is null)
@@ -114,6 +149,9 @@ public class GlueEntity : Entity
 
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
             addSingle: (builder, save) => builder.AddTo(this, save, Save.Name));
+
+        GlueVariableApplier.Apply(
+            Save.CustomVariables, this, _objects, _variables, Save.Name, _buildDiagnostics);
     }
 
     /// <inheritdoc />

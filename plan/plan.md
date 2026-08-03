@@ -57,8 +57,8 @@ via reflection. No codegen step.
 |---|---|---|
 | 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | Implemented |
 | 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
-| 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Next — planned |
-| 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Planned |
+| 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Implemented |
+| 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Next — planned |
 | 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Planned |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Planned |
@@ -70,14 +70,15 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
 
-**Status of the epic: 2 of 14 phases implemented, 14 of 14 planned.** A project loads and its shapes
-and sprites appear at the authored size and position. Sprites have no textures yet (Phase 4),
-variables are not applied (Phase 3), and derived screens do not merge their base (Phase 6) — so a
-real game does not play yet.
+**Status of the epic: 3 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
+sprites appear at the authored size and position, and the values an author tuned in Glue's variable
+grid are applied — including those that tunnel into a contained object. Sprites still have no
+textures (Phase 4) and derived screens do not merge their base (Phase 6), so a real game does not
+play yet.
 
-**The shortest path to a playable DoorsDemo is 3 → 4 → 6 → 10 → 12**, in that order: values, then
-textures, then the base-screen merge (its start-up screen is derived), then the tile map, then
-platformer movement. Phase 9 makes it interactive; Phase 13 makes it the right size.
+**The shortest path to a playable DoorsDemo is 4 → 6 → 10 → 12**, in that order: textures, then the
+base-screen merge (its start-up screen is derived), then the tile map, then platformer movement.
+Phase 9 makes it interactive; Phase 13 makes it the right size.
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated
