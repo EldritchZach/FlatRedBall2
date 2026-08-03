@@ -26,6 +26,9 @@ public class NamedObjectSave
         GenerateTimedEmit = true;
     }
 
+    private string? _sourceClassGenericType;
+    private string? _currentState;
+
     /// <summary>The member name this object is addressed by within its element.</summary>
     public string? InstanceName { get; set; }
 
@@ -39,6 +42,20 @@ public class NamedObjectSave
 
     /// <summary>Which kind of thing <see cref="SourceClassType"/> names.</summary>
     public SourceType SourceType { get; set; }
+
+    /// <summary>
+    /// The element type a list holds — the argument <see cref="SourceClassType"/> leaves as a
+    /// literal <c>&lt;T&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// This sibling field, not the type string, is where a list's real element type lives
+    /// (<c>Entities\Player</c>). Parsing <see cref="SourceClassType"/> alone can never resolve it.
+    /// </remarks>
+    public string? SourceClassGenericType
+    {
+        get => _sourceClassGenericType;
+        set => _sourceClassGenericType = GlueSentinel.NullIfUnset(value);
+    }
 
     /// <summary>The asset or element this object is sourced from, when applicable.</summary>
     public string? SourceFile { get; set; }
@@ -68,6 +85,47 @@ public class NamedObjectSave
         SourceType == SourceType.FlatRedBallType &&
         GlueTypeName.Parse(SourceClassType).OpenTypeName is
             "PositionedObjectList" or "FlatRedBall.Math.PositionedObjectList";
+
+    /// <summary>
+    /// Whether the object has enough information to be built. Computed the way FRB1 computes it, and
+    /// never bound to JSON.
+    /// </summary>
+    /// <remarks>
+    /// A file-sourced object needs both a file and a member; a list needs its element type; anything
+    /// else needs a type name. FRB1 suppresses generation for an object that fails this, so a build
+    /// that ignores it tries to construct half-authored objects.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsFullyDefined => SourceType switch
+    {
+        SourceType.File => !string.IsNullOrEmpty(SourceFile) && !string.IsNullOrEmpty(SourceName),
+        SourceType.FlatRedBallType when IsList => !string.IsNullOrEmpty(SourceClassGenericType),
+        SourceType.FlatRedBallType or SourceType.Entity => !string.IsNullOrEmpty(SourceClassType),
+        _ => true,
+    };
+
+    /// <summary>
+    /// The state this instance starts in. Only ever names an <em>uncategorized</em> state — Glue has
+    /// no per-instance categorized state. Applied in Phase 7.
+    /// </summary>
+    public string? CurrentState
+    {
+        get => _currentState;
+        set => _currentState = GlueSentinel.NullIfUnset(value);
+    }
+
+    /// <summary>Whether the author disabled this object, which suppresses building it entirely.</summary>
+    public bool IsDisabled { get; set; }
+
+    /// <summary>Whether the containing element assigns this object rather than creating it.</summary>
+    public bool SetByContainer { get; set; }
+
+    /// <summary>
+    /// Whether this object <em>is</em> its element — the pattern Glue uses when an entity derives
+    /// from an engine type. Stored in <see cref="Properties"/>, not as a JSON member.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsContainer => Properties.GetValue<bool>(nameof(IsContainer));
 
     /// <summary>Whether this object is attached to its container, and follows it.</summary>
     /// <remarks>Deliberately not defaulted true — matches FRB1, which writes it explicitly.</remarks>

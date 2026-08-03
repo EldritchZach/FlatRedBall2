@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §9. `SetByContainer` and engine-type bases deliberately out of scope. |
 | **Depends on** | Phase 2 (objects), Phase 3 (variables) |
 | **Blocks** | Phase 5 (inherited Gum screens), Phase 8 (abstract entities get no factory) |
 | **Suggested branch** | `804-phase-6-inheritance` |
@@ -258,62 +258,73 @@ Test-first throughout.
 
 ### 6.0 — Model audit (do this first)
 
-- [ ] **Audit every member of `src/Glue/Model/` against FRB1's `[JsonIgnore]` attributes.** Three
-      phases have now independently found a member modelled on the wrong side (G60, Phase 4 G40,
-      Phase 7 G73). Do it once, systematically, and record the result.
-- [ ] Failing test: `ImplementsICollidable` reads `true` from a fixture entity (G60).
-- [ ] Add `SourceClassGenericType`, with `"<NONE>"` → null (G67).
-- [ ] Add `IsDisabled`, `SetByContainer`, bag-backed `IsContainer`, `CustomVariable.DefinedByBase`.
-- [ ] Add computed `BaseElement` and computed `IsAbstract` — **never JSON-bound** (G61, G63).
+- [x] **Audit every member of `src/Glue/Model/` against FRB1's `[JsonIgnore]` attributes.** Done
+      mechanically rather than by eye — see §9 for the result and the method.
+- [x] Failing test: `ImplementsICollidable` reads `true` from a fixture entity (G60).
+- [x] Add `SourceClassGenericType`, with `"<NONE>"` → null (G67).
+- [x] Add `IsDisabled`, `SetByContainer`, bag-backed `IsContainer`, computed `IsFullyDefined`, and
+      `CurrentState` (Phase 7's, added here because the audit was open).
+      `CustomVariable.DefinedByBase` landed in Phase 3.
+- [x] Add computed `BaseElement` and computed `IsAbstract` — **never JSON-bound** (G61, G63).
 
 ### 6.1 — Chain resolution
 
-- [ ] Failing test: `Level1` resolves a chain of `[GameScreen, Level1]`, most-base first.
-- [ ] Failing test: a three-level chain resolves in order.
-- [ ] Failing test: a `BaseScreen` naming a missing element warns and loads the element alone.
-- [ ] Failing test: a cycle terminates with an error rather than hanging.
+- [x] Failing test: `Level1` resolves against `GameScreen`.
+- [x] Failing test: a three-level chain resolves most-base first.
+- [x] Failing test: a `BaseScreen` naming a missing element warns and loads the element alone.
+- [x] Failing test: a cycle terminates with an error rather than hanging.
 
 ### 6.2 — NamedObject merge
 
-- [ ] Failing test: `Level1` ends with **nine** objects, not four.
-- [ ] Failing test: each row of §4's merge table, as its own test.
-- [ ] Failing test: `Level1`'s `Map` uses `Level1Map.tmx`, not the base's placeholder (G62).
-- [ ] Failing test: `CloudCollision`'s derived `RepositionUpdateStyle` instruction applies on top of
-      the base's definition.
-- [ ] Failing test: `PlayerList` is instantiated once, by the base, with the derived contributing
-      only its contained objects.
-- [ ] Failing test: an unstripped pre-version-38 file merges identically to a stripped one.
+- [x] Failing test: `Level1` ends with **nine** objects, not four.
+- [x] Failing test: `Level1`'s `Map` uses `Level1Map.tmx`, not the base's placeholder (G62).
+- [x] Failing test: `CloudCollision` keeps both its base's authored properties and the derived
+      instruction.
+- [ ] **Not needed — the merge table collapsed.** §4's five-row definition-vs-delta table assumed a
+      derived entry is a *delta*. It is not: Glue strips a redeclared entry unless it differs, so an
+      entry that survives to disk carries its complete state. DoorsDemo's `CloudCollision` is
+      byte-identical in both files apart from the derived flags. The merge is therefore
+      replace-wholesale, and the flags do not need to be consulted at all. Recorded in §9.
+- [ ] **Deferred:** an unstripped pre-version-38 file. Same shape (full copies), so
+      replace-wholesale handles it by construction — but no fixture exists below the gate to prove
+      it, and the epic's ground rule is latest-version-only.
 
 ### 6.3 — CustomVariable merge
 
-- [ ] Failing test: a `DefinedByBase` variable with no `DefaultValue` inherits (G68).
-- [ ] Failing test: one with a `DefaultValue` overrides.
-- [ ] Failing test: base-first ordering — the derived wins on conflict.
-- [ ] Failing test: an un-flagged duplicate resolves derived-wins with a diagnostic (G64).
+- [x] Failing test: a `DefinedByBase` variable with no `DefaultValue` inherits (G68).
+- [x] Failing test: one with a `DefaultValue` overrides.
+- [ ] **Not implemented:** a diagnostic for an un-flagged duplicate (G64). `Level1`'s `DefaultLayer`
+      is exactly this case and resolves derived-wins silently. Warning on it would fire for a shape
+      Glue produces routinely, so it needs a way to tell "redeclared identically" from "genuinely
+      conflicting" first.
 
 ### 6.4 — Abstract
 
-- [ ] Failing test: an element with a `SetByDerived` NamedObject is abstract and refuses to
-      instantiate.
-- [ ] Failing test: `SetByDerived` on a *variable* does **not** make it abstract — `Player` has six
-      and is concrete (G63).
-- [ ] Failing test: the computed value is used even when the serialized `"IsAbstract"` disagrees.
+- [x] Failing test: `IsAbstract` is computed from `SetByDerived` objects, and `GameScreen` is
+      abstract while `Level1` is not.
+- [x] Failing test: `SetByDerived` on a *variable* does **not** make it abstract (G63).
+- [ ] **Deferred to Phase 8/14:** refusing to *instantiate* an abstract element. Nothing constructs
+      an element by name yet — `GlueScreen.Save` is assigned directly — so there is no chokepoint to
+      enforce it at. Phase 8 (no factory for an abstract entity) and Phase 14 (`MoveToScreen`) are
+      where it becomes reachable, and both docs already carry it.
 
 ### 6.5 — Files, states, events
 
-- [ ] Failing test: `Level1` inherits `GameScreenGum.gusx` (unblocks Phase 5 G53).
-- [ ] Failing test: `Level1` inherits the `PlayerVsDoorCollided` event.
-- [ ] Failing test: inherited states are prepended, base-first.
+- [x] Failing test: `Level1` inherits `GameScreenGum.gusx` (unblocks Phase 5 G53).
+- [x] Inherited states and categories merge base-first, via the same helper.
+- [ ] **Blocked on Phase 9:** inheriting the `PlayerVsDoorCollided` event. `GlueElement` has no
+      `Events` list yet — Phase 9 G97 owns adding it. The merge will pick it up for free once it
+      exists.
 
 ### 6.6 — Fixtures and wrap-up
 
-- [ ] Vendor from `Tests/TestProjectDesktopNet6`: `Entities/BaseEntity.glej` +
-      `Entities/DerivedEntity.glej` (every flag combination in one pair), and the
-      `BaseScreen → DerivedScreen → DerivedOfDerivedScreen` chain. **Note the short-form
-      `SourceClassType` caveat** in `plan/plan.md` — the type map must accept short names first, or
-      hand-edit the vendored copies and say so in the fixtures README.
-- [ ] Failing test: `BaseEntity: "FlatRedBall.Sprite"` produces one clear diagnostic (G65).
-- [ ] XML docs; update this document and `plan/plan.md`.
+- [ ] **Not needed for this phase.** DoorsDemo covers screen inheritance end to end, and the
+      entity/three-level/cycle cases are covered by in-memory fixtures through the read seam —
+      matching Phase 1's deviation, which found the same trade favourable. Vendoring
+      `TestProjectDesktopNet6` still matters for Phases 7, 8 and 11, and the short-form
+      `SourceClassType` caveat in `plan/plan.md` still applies to them.
+- [x] Failing test: `BaseEntity: "FlatRedBall.Sprite"` produces one clear diagnostic (G65).
+- [x] XML docs; update this document and `plan/plan.md`.
 
 ---
 
@@ -330,11 +341,72 @@ Test-first throughout.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean; `dotnet test` green.
-- [ ] A real `PublishTrimmed` emits no IL warnings from `src/Glue` (Phase 2 G26).
-- [ ] DoorsDemo's `Level1` — the project's **start-up screen** — builds all nine of its objects and
+- [x] `dotnet build` clean; `dotnet test` green (**1326**).
+- [x] A real `PublishTrimmed` emits no IL warnings from `src/Glue`, and the trimmed binary runs
+      correctly (Phase 2 G26).
+- [x] DoorsDemo's `Level1` — the project's **start-up screen** — carries all nine of its objects and
       uses its own map.
-- [ ] The §6.0 model audit is complete and its result recorded here.
-- [ ] A three-level chain merges correctly.
-- [ ] Every row of §4's merge table has a test.
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] The §6.0 model audit is complete and its result recorded in §9.
+- [x] A three-level chain merges correctly.
+- [x] §4's merge table is superseded rather than tested row by row — see §6.2 and §9 for why.
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+11 new tests, full suite **1326 green**, no new build warnings, trimmed publish verified by running
+it.
+
+| Piece | File |
+|---|---|
+| Chain resolution and the merge | `src/Glue/GlueInheritanceResolver.cs` |
+| Computed `BaseElement`, `IsAbstract`, `AllNamedObjects` | `src/Glue/Model/GlueElement.cs` |
+| Bag-backed `ImplementsICollidable` | `src/Glue/Model/EntitySave.cs` |
+| `SourceClassGenericType`, `IsFullyDefined`, `IsDisabled`, `SetByContainer`, `IsContainer`, `CurrentState` | `src/Glue/Model/NamedObjectSave.cs` |
+
+**The payoff:** DoorsDemo's start-up screen is no longer missing two thirds of itself. `Level1`
+arrives with all nine objects — the door list, three collision relationships and the camera it
+inherits, plus its own map pointing at its own `.tmx`.
+
+### The merge is far simpler than planned, and that is a finding
+
+§4 specified a five-row table deciding, per object, whether the base or the derived side owns it and
+what the other contributes. **That table was unnecessary.** Glue's save-time strip pass removes a
+redeclared entry from the derived file *unless it differs from the base*, so any entry that survives
+to disk is a complete redeclaration rather than a delta. `CloudCollision` appears in both DoorsDemo
+files byte-identical apart from the derived flags.
+
+So the merge is: base entries in order, each replaced wholesale by the derived entry of the same
+name, then whatever the derived element adds. `DefinedByBase`, `InstantiatedByBase` and
+`ExposedInDerived` never need to be consulted — including G62's re-instantiate rule, which falls out
+for free because the derived `Map` simply replaces the base's placeholder.
+
+The one exception is variables, where Glue *does* write a genuine stub: it nulls `DefaultValue` to
+mean "inherit" (G68). That is the single `keepBase` predicate in the implementation.
+
+### Found while building
+
+- **The audit script was wrong on its first run and said the codebase was clean.** It reported zero
+  mismatches while `ImplementsICollidable` — a known bug — sat right there. FRB1 puts the opening
+  brace on the line *after* the declaration, which the regex required. A tool that agrees with your
+  hopes deserves to be tested against a defect you already know about before you trust its silence.
+  With that fixed it found exactly one mismatch, which is now fixed.
+- **Phase 6 raises the unmapped-type count rather than lowering it: 13 → 18.** That is progress, not
+  regression. `Level1` previously declared four objects and now carries all nine it inherits, so the
+  unmapped ones are honestly counted in both screens. The pinned test records the reason.
+- **Two existing tests were encoding the absence of this phase.** `GlueScreenTests` asserted that
+  booting a derived screen un-merged "is correct only because this phase builds empty screens"; it
+  now asserts the nine merged objects. The Phase 1 model test that pins `Level1`'s own four objects
+  still passes untouched, because it deserializes the file directly — the mirror stays faithful to
+  disk and only the loader flattens.
+
+### Deliberately not done
+
+- **`SetByContainer`** (G66) is modelled but not implemented. Four occurrences repo-wide, all in
+  FRB1's test project, and no XML doc in FRB1 to pin the semantics.
+- **Engine-type bases** (G65) are diagnosed, not resolved — D62.
+- **Refusing to instantiate an abstract element** has no chokepoint until Phase 8 or 14; both docs
+  carry it.
+- **Event inheritance** waits on Phase 9 adding `GlueElement.Events`; the merge will pick it up
+  without further change.

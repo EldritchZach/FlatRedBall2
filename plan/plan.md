@@ -60,7 +60,7 @@ via reflection. No codegen step.
 | 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Implemented |
 | 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Next — planned |
 | 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
-| 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Planned |
+| 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Planned |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Planned |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
@@ -70,15 +70,14 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
 
-**Status of the epic: 3 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
-sprites appear at the authored size and position, and the values an author tuned in Glue's variable
-grid are applied — including those that tunnel into a contained object. Sprites still have no
-textures (Phase 4) and derived screens do not merge their base (Phase 6), so a real game does not
-play yet.
+**Status of the epic: 4 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
+sprites appear at the authored size and position, the values an author tuned in Glue's variable grid
+are applied — including those that tunnel into a contained object — and a derived element arrives as
+the union of its inheritance chain. Sprites still have no textures (Phase 4), so a real game does
+not play yet.
 
-**The shortest path to a playable DoorsDemo is 4 → 6 → 10 → 12**, in that order: textures, then the
-base-screen merge (its start-up screen is derived), then the tile map, then platformer movement.
-Phase 9 makes it interactive; Phase 13 makes it the right size.
+**The shortest path to a playable DoorsDemo is 4 → 10 → 12**, in that order: textures, then the tile
+map, then platformer movement. Phase 9 makes it interactive; Phase 13 makes it the right size.
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated
@@ -92,11 +91,11 @@ work into an existing one.
 - **Decisions are numbered `D<n>`** in the same scheme: D1–D14 for Phases 1–2, then D30+ per phase.
 - **Each phase doc carries a progress metric.** The unmapped-type warning count is pinned by a test
   (`tests/FlatRedBall2.Tests/Glue/GlueTypeMapTests.cs:68`), and each phase records what it drives the
-  count down to. Current: DoorsDemo **13**, Beefball **15**. Attribution — DoorsDemo: Tiled 6,
-  collision 3, the list type-map row 3, camera 1. Beefball: collision 6, `Text`/`ShapeCollection` 5,
-  lists 4.
+  count down to. Current: DoorsDemo **18**, Beefball **15**. Note Phase 6 *raised* DoorsDemo's from 13:
+  its derived start-up screen now honestly carries the nine objects it inherits rather than the four
+  its own file declares, so the unmapped ones are counted in both screens.
 
-### Fixture caveat that affects Phases 6, 7 and 11
+### Fixture caveat that affects Phases 7, 8 and 11
 
 The richest FRB1 reference data is **not** in `Samples/` — it is `Tests/TestProjectDesktopNet6/`,
 which carries 44 derived elements (including three-level chains), categorized states, pooled/

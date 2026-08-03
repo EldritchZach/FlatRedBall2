@@ -47,9 +47,10 @@ public class GlueScreenTests
 
         result.StartUpScreen.ShouldNotBeNull();
         result.StartUpScreen.Name.ShouldBe(@"Screens\Level1");
-        // Level1 derives from GameScreen. Booting it un-merged is correct only because this phase
-        // builds empty screens; Phase 6 has to apply the base before anything is constructed.
         result.StartUpScreen.BaseScreen.ShouldBe(@"Screens\GameScreen");
+        // The start-up screen is derived, so it arrives already merged with its base — nine objects
+        // rather than the four its own file declares.
+        result.StartUpScreen.NamedObjects.Count.ShouldBe(9);
     }
 
     [Fact]

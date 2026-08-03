@@ -88,6 +88,66 @@ public class GlueModelTests
     }
 
     [Fact]
+    public void Deserialize_DerivedElement_ComputesIsAbstractAndBaseElement()
+    {
+        // Both are computed in FRB1. IsAbstract is get-only yet still written to disk, so the
+        // serialized value must not be trusted; BaseElement is written by screens and never by
+        // entities, so binding it would make the two disagree.
+        var gameScreen = LoadScreen("DoorsDemo", "GameScreen.glsj");
+        var level1 = LoadScreen("DoorsDemo", "Level1.glsj");
+
+        // GameScreen leaves Map, SolidCollision and CloudCollision for a derived screen to supply.
+        gameScreen.IsAbstract.ShouldBeTrue();
+        level1.IsAbstract.ShouldBeFalse();
+        level1.BaseElement.ShouldBe(@"Screens\GameScreen");
+    }
+
+    [Fact]
+    public void Deserialize_EntityImplementsICollidable_ReadsThroughTheBag()
+    {
+        // FRB1 declares this one [JsonIgnore] over Properties while its three siblings are plain
+        // members. Bound as a plain member it reads false for every project that sets it.
+        var player = LoadEntity("DoorsDemo", "Player.glej");
+
+        player.ImplementsICollidable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Deserialize_EntityWithBaseEntity_ExposesItAsBaseElement()
+    {
+        // Entities write only BaseEntity — EntitySave.BaseElement is [JsonIgnore] in FRB1.
+        string json = @"{ ""Name"": ""Entities\\Derived"", ""BaseEntity"": ""Entities\\Base"" }";
+
+        var entity = JsonSerializer.Deserialize(json, GlueJsonContext.Default.EntitySave)!;
+
+        entity.BaseElement.ShouldBe(@"Entities\Base");
+    }
+
+    [Fact]
+    public void Deserialize_ListNamedObject_ExposesItsElementTypeAndFullDefinition()
+    {
+        // SourceClassType is the literal "PositionedObjectList<T>" with an unresolved argument; the
+        // real element type lives in a sibling field, which nothing read until now.
+        var gameScreen = LoadScreen("DoorsDemo", "GameScreen.glsj");
+
+        var playerList = gameScreen.NamedObjects.Single(o => o.InstanceName == "PlayerList");
+
+        playerList.SourceClassGenericType.ShouldBe(@"Entities\Player");
+        playerList.IsFullyDefined.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Deserialize_NamedObjectOmittingIsDisabled_DefaultsToEnabled()
+    {
+        string json = @"{ ""InstanceName"": ""Thing"" }";
+
+        var namedObject = JsonSerializer.Deserialize(json, GlueJsonContext.Default.NamedObjectSave)!;
+
+        namedObject.IsDisabled.ShouldBeFalse();
+        namedObject.CurrentState.ShouldBeNull();
+    }
+
+    [Fact]
     public void Deserialize_DerivedScreen_RetainsOwnObjectsWithDefinedByBase()
     {
         // Level1 derives from GameScreen and redeclares four of its objects with DefinedByBase set.

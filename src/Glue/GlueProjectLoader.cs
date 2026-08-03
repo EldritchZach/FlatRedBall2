@@ -64,6 +64,10 @@ public static class GlueProjectLoader
         project.ScreenReferences.Clear();
         project.EntityReferences.Clear();
 
+        // Before anything inspects an element, make it whole. A derived file on its own is badly
+        // incomplete, and nothing downstream can reach its base to find out what is missing.
+        GlueInheritanceResolver.Flatten(project, diagnostics);
+
         ReportUnbuildableTypes(project, diagnostics, options);
 
         return new GlueLoadResult(project, diagnostics, ResolveStartUpScreen(project, diagnostics, options));
