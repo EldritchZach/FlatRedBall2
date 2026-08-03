@@ -44,10 +44,6 @@ Repro is mobile Solitaire; confirm the fix on at least one Android Chrome and on
 
 Initial load is slow on the BlazorGL/KNI target when a `.gumx` references many components — fonts, control templates, generated runtime types all compile/initialize on the main thread before the first frame draws. Need to (a) measure where the time actually goes (Gum project load vs. runtime registration via `RegisterRuntimeType` module initializers vs. asset decode), (b) decide whether the fix is engine-side (lazy/deferred runtime registration, parallel asset decode) or Gum-side (incremental project load), and (c) confirm WASM-specific costs separate from the same load on desktop. Solitaire's `.gumx` is the readily-available large project to profile against.
 
-## Multiple Gum screens and transitions
-
-Today a screen calls `this.Add(new GameScreenGum())` once in `CustomInitialize` and that visual lives until the FRB Screen tears down. There's no first-class story for (a) hosting multiple Gum screens within one FRB Screen with a current/next swap, or (b) cross-fading / sliding between them. Game code can hand-roll this with two `FrameworkElement`s and a tween on alpha/position, but the absence of an idiomatic pattern means every consumer reinvents it. Decide: is this a sample-level recipe (document the tween-between-two-roots pattern), a Gum-level Forms feature (a `ScreenHost` control), or an FRB-level helper (`Screen.PushGumScreen` / `PopGumScreen` with a built-in transition arg)?
-
 ## SVG and Lottie support in Gum
 
 Gum currently ships with raster-only visuals (`Sprite`, `NineSlice`, `ColoredRectangle`). Vector / animated-vector formats — SVG for static UI art, Lottie for animated UI (the After Effects → Bodymovin export pipeline) — would close a real gap for UI-heavy games. Open questions: Does this belong in Gum (new runtime types alongside `Sprite`) or in FRB2 (an `IRenderable` wrapper that hosts an SVG/Lottie renderer)? Which third-party renderer? — `Svg.Skia` and `SkiaSharp.Skottie` are the obvious starting points but pull SkiaSharp into the dependency graph, which has its own desktop/WASM size implications. Confirm WASM viability before committing.
