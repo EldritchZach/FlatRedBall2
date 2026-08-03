@@ -70,8 +70,8 @@ public sealed class GlueObjectBuilder
         if (instance is Collision.Polygon { Points.Count: < 2 })
         {
             Warn($"'{save.InstanceName}' is a Polygon with fewer than two points, so it will not " +
-                 "render. Glue stores polygon points outside the instruction list; reading them is " +
-                 "not supported yet.", elementName);
+                 "render. Glue authors the geometry as a 'Points' instruction whose value is an " +
+                 "array of \"x, y\" strings; decoding that shape is not supported yet.", elementName);
         }
 
         return instance;
@@ -182,10 +182,11 @@ public sealed class GlueObjectBuilder
     /// </summary>
     /// <remarks>
     /// Position is the interesting case, and it resolves more simply than it first appears. FRB1
-    /// gives an attached object both an absolute <c>X</c> and a <c>RelativeX</c>, but Glue's codegen
-    /// emits <c>CopyAbsoluteToRelative()</c> — literally <c>RelativePosition = Position</c> — just
-    /// before attaching, so an authored absolute value *becomes* the offset. FRB2's <c>X</c> already
-    /// means that offset whenever a parent is set.
+    /// gives an attached object both an absolute <c>X</c> and a <c>RelativeX</c>, and its codegen
+    /// picks between them at assignment time — it emits
+    /// <c>if (obj.Parent == null) obj.X = v; else obj.RelativeX = v;</c> whenever the member has a
+    /// relative counterpart. FRB2's <c>X</c> already <em>is</em> that branch: an offset from
+    /// <c>Parent</c> when one is set, world space when not.
     /// <para>So both Glue members map to the same FRB2 property regardless of attachment, and no
     /// value is dropped. Dropping absolute values would misplace real authored content: DoorsDemo's
     /// player collision box and every Beefball score label are authored exactly this way.</para>

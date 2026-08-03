@@ -57,24 +57,54 @@ via reflection. No codegen step.
 |---|---|---|
 | 1 | [Foundations + Screens/Entities skeleton](804-glue-project-loader/phase-01-foundations.md) | Implemented |
 | 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
-| 3 | CustomVariables | Next — not written |
-| 4 | Referenced files / assets | Not written |
-| 5 | Gum integration | Not written |
-| 6 | Inheritance | Not written |
-| 7 | States & categories | Not written |
-| 8 | Factories / spawning | Not written |
-| 9 | Collision relationships | Not written |
-| 10 | Tiled (TMX) | Not written |
-| 11 | Top-down movement | Not written |
-| 12 | Platformer movement | Not written |
-| 13 | Camera / display setup | Not written |
-| 14 | Name-based Screen navigation and Entity instantiation API | Not written |
+| 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Next — planned |
+| 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Planned |
+| 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
+| 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Planned |
+| 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Planned |
+| 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Planned |
+| 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
+| 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Planned |
+| 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
+| 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
+| 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
+| 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
 
-**Status of the epic: 2 of 14 phases implemented.** A project loads and its shapes and sprites
-appear at the authored size and position. Sprites have no textures yet (Phase 4), variables are not
-applied (Phase 3), and derived screens do not merge their base (Phase 6) — so a real game does not
-play yet. Phases 3, 4 and 6 together are the next milestone worth demonstrating.
+**Status of the epic: 2 of 14 phases implemented, 14 of 14 planned.** A project loads and its shapes
+and sprites appear at the authored size and position. Sprites have no textures yet (Phase 4),
+variables are not applied (Phase 3), and derived screens do not merge their base (Phase 6) — so a
+real game does not play yet.
 
-The phase list above mirrors issue #804 and **is not exhaustive** — expect it to grow as
-implementation surfaces schema corners the issue did not anticipate. Add new phases rather than
-cramming unrelated work into an existing one.
+**The shortest path to a playable DoorsDemo is 3 → 4 → 6 → 10 → 12**, in that order: values, then
+textures, then the base-screen merge (its start-up screen is derived), then the tile map, then
+platformer movement. Phase 9 makes it interactive; Phase 13 makes it the right size.
+
+The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
+surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated
+work into an existing one.
+
+### Conventions inside this initiative
+
+- **Gotchas are numbered `G<n>` and never renumbered.** Ranges are reserved per phase — Phase 1 owns
+  G1–G19, Phase 2 G21–G26, then G30–G39 for Phase 3, G40–G49 for Phase 4, and so on to G140–G149 for
+  Phase 14. Cross-phase references are common and must stay stable.
+- **Decisions are numbered `D<n>`** in the same scheme: D1–D14 for Phases 1–2, then D30+ per phase.
+- **Each phase doc carries a progress metric.** The unmapped-type warning count is pinned by a test
+  (`tests/FlatRedBall2.Tests/Glue/GlueTypeMapTests.cs:68`), and each phase records what it drives the
+  count down to. Current: DoorsDemo **13**, Beefball **15**. Attribution — DoorsDemo: Tiled 6,
+  collision 3, the list type-map row 3, camera 1. Beefball: collision 6, `Text`/`ShapeCollection` 5,
+  lists 4.
+
+### Fixture caveat that affects Phases 6, 7 and 11
+
+The richest FRB1 reference data is **not** in `Samples/` — it is `Tests/TestProjectDesktopNet6/`,
+which carries 44 derived elements (including three-level chains), categorized states, pooled/
+not-pooled factory combinations, and the only top-down entities in the repo. Issue #804 states that
+no sample uses `BaseEntity` and suggests authoring a fixture; that is true of `Samples/` and wrong
+repo-wide.
+
+**The catch:** that project is `FileVersion` 54 and writes `SourceClassType` in **short form**
+(`Sprite`, `Circle`, `PositionedObjectList<T>`) in 111 files, while `GlueTypeMap` keys only on the
+fully-qualified form. It mixes both forms, so it is not a clean version gate. Any phase vendoring
+from it must either teach the type map to accept short names or hand-edit the vendored copies and
+record that in the fixtures README.

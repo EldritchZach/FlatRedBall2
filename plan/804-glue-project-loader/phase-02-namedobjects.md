@@ -99,11 +99,22 @@ Carried forward from Phase 1 where still live; new ones numbered from G21.
 Glue can author an `X` instruction on an object that also has `AttachToContainer = true`. It is
 tempting to treat that as ambiguous, or to assume attachment overwrites it. Both readings are wrong.
 
-Glue's own code generator emits `instance.CopyAbsoluteToRelative()` immediately before attaching
-(`NamedObjectSaveCodeGenerator.cs:1148`), and `CopyAbsoluteToRelative` is literally
-`RelativePosition = Position` (`PositionedObject.cs:1607`). So the authored absolute value *becomes*
-the relative offset. FRB2's `X` already means that offset once a parent is set, so **both Glue members
-map to the same FRB2 property, and nothing is dropped.**
+Glue's code generator picks between the two **at assignment time**. For any member with a relative
+counterpart, it emits a branch (`CustomVariableCodeGenerator.cs:1536`, `:1551`, `:1587`):
+
+```csharp
+if (obj.Parent == null) obj.X = value; else obj.RelativeX = value;
+```
+
+FRB2's `X` **is** that branch — an offset from `Parent` when one is set, world space when not
+(`src/IAttachable.cs`). So **both Glue members map to the same FRB2 property, and nothing is
+dropped.**
+
+*Corrected 2026-08-02:* this gotcha originally credited `CopyAbsoluteToRelative()`
+(`NamedObjectSaveCodeGenerator.cs:1129`) for the behaviour. That call is real, but it runs at attach
+time inside `PostInitialize` — **before** any authored value is assigned — so it copies zeros and
+explains nothing. The conclusion was right for the wrong reason; the real mechanism above is a
+stronger justification, because it is FRB2's own semantics expressed in FRB1's generated C#.
 
 **How we tackle it.** `X` and `RelativeX` both resolve to `X`, regardless of attachment.
 
@@ -308,12 +319,36 @@ that is the durable lesson, and it applies to every phase after this one.
 - Decide whether `Objects` stays an `IReadOnlyDictionary<string, object>` or becomes the indexer
   Phase 14 sketches (`entity["Health"]`). Deliberately not pre-decided here.
 
+### A sixth defect, found while planning Phases 3–14
+
+**`Instantiate` and `AddToManagers` are parsed and then never consulted** — neither is referenced
+anywhere in `src/Glue/` outside the model POCO. In FRB1:
+
+- `Instantiate == false` means *declare the field, do not construct it* — something else will
+  (`NamedObjectSaveCodeGenerator.cs:2016`, `:2084`, `:2183`).
+- `AddToManagers == false` means *construct it, do not register it* (`:527`).
+
+Zero occurrences across the three vendored fixtures, which is exactly why nothing caught it; five
+files in `Tests/TestProjectDesktopNet6/` use them. **This is G24 for the third time** — a flag that is
+dead on the current fixture set and live on real projects.
+
+Three more `NamedObjectSave` members are missing from the mirror entirely and gate the same code
+paths in FRB1: `IsDisabled` (a real field, `NamedObjectSave.cs:527`), `IsFullyDefined` (computed —
+must **not** be JSON-bound), and `SourceClassGenericType`, which holds a list's element type and is
+present on every list in the live fixtures. Phase 6 §6.0 owns the fix and the wider model audit.
+
 ### Known gaps left open
 
 - `ShapeCollection` and `Text` are still unbuildable (D12) — FRB2 has neither type.
 - `Sprite.CurrentChainName` has no FRB2 property; the equivalent is the method `PlayAnimation(string)`,
   which property reflection cannot reach. Phase 4 needs a member-to-action hook, not just a setter.
 - `Sprite.AnimationChains` names an asset, so it needs Phase 4.
-- Polygon geometry is stored outside the instruction list; a constructed polygon has no points and
-  warns that it will not render.
+- **Polygon geometry is decodable and this document previously said it was not.** Points are an
+  ordinary `InstructionSaves` entry — `Member: "Points"`, `Type: "List<Vector2>"`, value an array of
+  `"x, y"` **strings** (`Tests/TestProjectDesktopNet6/.../Entities/PolygonEntity.glej`). FRB1 reads
+  it from exactly there (`NamedObjectSaveCodeGenerator.cs:2231`) and falls back to a hardcoded
+  4-point shape when absent (`:2254-2258`) — so a Glue polygon with no authored points is *not*
+  invisible in FRB1. `GlueValueConverter` handles no array shape, which is the real reason it fails.
+  The warning text has been corrected; Phase 3 §6.4 owns the decoder, shared with `List<Vector2>`
+  CustomVariables.
 - Nobody has watched any of this draw. That needs a display and a real game loop.
