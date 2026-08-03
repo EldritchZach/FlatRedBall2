@@ -21,6 +21,8 @@ public sealed class GlueObjectBuilder
 {
     private readonly ICollection<GlueLoadDiagnostic> _diagnostics;
     private readonly GlueContentSource? _content;
+    private readonly GlueProject? _project;
+    private readonly Screen? _owningScreen;
 
     /// <summary>Creates a builder that reports what it cannot handle into <paramref name="diagnostics"/>.</summary>
     /// <remarks>
@@ -28,10 +30,15 @@ public sealed class GlueObjectBuilder
     /// values are reported and skipped rather than failing the build.
     /// </remarks>
     public GlueObjectBuilder(
-        ICollection<GlueLoadDiagnostic> diagnostics, GlueContentSource? content = null)
+        ICollection<GlueLoadDiagnostic> diagnostics,
+        GlueContentSource? content = null,
+        GlueProject? project = null,
+        Screen? owningScreen = null)
     {
         _diagnostics = diagnostics;
         _content = content;
+        _project = project;
+        _owningScreen = owningScreen;
     }
 
     /// <summary>
@@ -41,6 +48,11 @@ public sealed class GlueObjectBuilder
     public object? Create(NamedObjectSave save, string? elementName = null)
     {
         var typeName = GlueTypeName.Parse(save.SourceClassType);
+
+        // An object whose type names another element is a nested entity — built from that element's
+        // own data rather than constructed from a CLR type.
+        if (typeName.IsElementReference)
+            return CreateNestedEntity(save, elementName);
 
         if (!GlueTypeMap.TryCreate(typeName, out object? instance))
         {
@@ -157,6 +169,47 @@ public sealed class GlueObjectBuilder
         }
     }
 
+
+
+    /// <summary>
+    /// Builds a nested entity instance from the element its <c>SourceClassType</c> names.
+    /// </summary>
+    /// <remarks>
+    /// Needs both a project (to find the element) and a screen (to own the instance). Without
+    /// either, this reports and skips — which is what every build did before a project context
+    /// existed.
+    /// </remarks>
+    private object? CreateNestedEntity(NamedObjectSave save, string? elementName)
+    {
+        if (_project is null || _owningScreen is null)
+        {
+            Warn($"'{save.InstanceName}' is an instance of '{save.SourceClassType}', which needs a " +
+                 "loaded project to resolve; it was skipped.", elementName);
+            return null;
+        }
+
+        var referenced = _project.FindEntity(save.SourceClassType ?? string.Empty);
+
+        if (referenced is null)
+        {
+            Warn($"'{save.InstanceName}' is an instance of '{save.SourceClassType}', which is not " +
+                 "in this project.", elementName);
+            return null;
+        }
+
+        if (referenced.IsAbstract)
+        {
+            Warn($"'{save.InstanceName}' is an instance of '{save.SourceClassType}', which is " +
+                 "abstract and cannot be created on its own.", elementName);
+            return null;
+        }
+
+        var entity = _project.CreateEntity(referenced.Name!, _owningScreen);
+
+        // The instance's own instructions layer on top of the entity's authored values.
+        ApplyInstructions(entity, save, elementName);
+        return entity;
+    }
 
     /// <summary>
     /// Applies a Glue member whose FRB2 equivalent is a method call rather than a property.

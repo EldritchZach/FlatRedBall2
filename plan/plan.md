@@ -62,13 +62,13 @@ via reflection. No codegen step.
 | 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
-| 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Planned |
+| 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
-| 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
+| 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
 
 **Status of the epic: 6 of 14 phases implemented, plus tile maps, 14 of 14 planned.** A project loads, its shapes and
 sprites appear at the authored size and position, the values an author tuned in Glue's variable grid

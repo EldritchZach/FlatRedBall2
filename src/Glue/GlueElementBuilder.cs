@@ -22,9 +22,11 @@ internal static class GlueElementBuilder
         List<GlueLoadDiagnostic> diagnostics,
         Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle,
         GlueContentSource? content,
-        Action<object> register)
+        Action<object> register,
+        GlueProject? project = null,
+        Screen? owningScreen = null)
     {
-        var builder = new GlueObjectBuilder(diagnostics, content);
+        var builder = new GlueObjectBuilder(diagnostics, content, project, owningScreen);
         BuildInto(namedObjects, builder, elementName, objects, diagnostics, addSingle);
 
         // Tile objects come last and in their own order: a map is loaded from a file, and a

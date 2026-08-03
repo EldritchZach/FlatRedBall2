@@ -21,6 +21,7 @@ public class GlueScreen : Screen
 {
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
     /// <summary>
@@ -30,10 +31,21 @@ public class GlueScreen : Screen
     public ScreenSave? Save { get; set; }
 
     /// <summary>
-    /// Where referenced assets come from. Assign it alongside <c>Save</c>; without one the element
-    /// still builds and its file-typed values are reported and skipped.
+    /// The loaded project this belongs to. Needed to resolve a nested entity, and the usual source
+    /// of <see cref="Content"/>.
     /// </summary>
-    public GlueContentSource? Content { get; set; }
+    public GlueProject? Project { get; set; }
+
+    /// <summary>
+    /// Where referenced assets come from. Falls back to <see cref="Project"/>'s source, so setting
+    /// the project is normally enough. Without either, the element still builds and its file-typed
+    /// values are reported and skipped.
+    /// </summary>
+    public GlueContentSource? Content
+    {
+        get => _content ?? Project?.Content;
+        set => _content = value;
+    }
 
     /// <summary>The Glue element name, in backslash form (<c>Screens\Level1</c>).</summary>
     public string? GlueName => Save?.Name;
@@ -109,13 +121,18 @@ public class GlueScreen : Screen
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
             addSingle: (builder, save) => builder.AddTo(this, save, Save.Name),
             Content,
-            register: RegisterBuilt);
+            register: RegisterBuilt,
+            project: Project,
+            owningScreen: OwningScreenForSpawns());
 
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
     }
 
+
+    /// <summary>The screen a nested entity should be registered on — this one.</summary>
+    private Screen OwningScreenForSpawns() => this;
 
     /// <summary>
     /// Registers an object the tile builder created, which bypasses the normal add path.
@@ -146,16 +163,28 @@ public class GlueEntity : Entity
 {
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
     /// <summary>The entity data this was built from. Assign it before <c>CustomInitialize</c> runs.</summary>
     public EntitySave? Save { get; set; }
 
     /// <summary>
-    /// Where referenced assets come from. Assign it alongside <c>Save</c>; without one the element
-    /// still builds and its file-typed values are reported and skipped.
+    /// The loaded project this belongs to. Needed to resolve a nested entity, and the usual source
+    /// of <see cref="Content"/>.
     /// </summary>
-    public GlueContentSource? Content { get; set; }
+    public GlueProject? Project { get; set; }
+
+    /// <summary>
+    /// Where referenced assets come from. Falls back to <see cref="Project"/>'s source, so setting
+    /// the project is normally enough. Without either, the element still builds and its file-typed
+    /// values are reported and skipped.
+    /// </summary>
+    public GlueContentSource? Content
+    {
+        get => _content ?? Project?.Content;
+        set => _content = value;
+    }
 
     /// <summary>The Glue element name, in backslash form (<c>Entities\Player</c>).</summary>
     public string? GlueName => Save?.Name;
@@ -227,11 +256,21 @@ public class GlueEntity : Entity
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
             addSingle: (builder, save) => builder.AddTo(this, save, Save.Name),
             Content,
-            register: RegisterBuilt);
+            register: RegisterBuilt,
+            project: Project,
+            owningScreen: OwningScreenForSpawns());
 
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
     }
 
+
+    /// <summary>The screen a nested entity should be registered on — the one this entity lives on.</summary>
+    private Screen? OwningScreenForSpawns() => _engineOrNull()?.CurrentScreen;
+
+    private Func<FlatRedBallService?> _engineOrNull => () =>
+    {
+        try { return Engine; } catch (InvalidOperationException) { return null; }
+    };
 
     /// <summary>Registers an object the tile builder created on the screen that owns this entity.</summary>
     /// <remarks>See <see cref="GlueScreen.RegisterBuilt"/> — a tile map needs its own overload.</remarks>

@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Partly implemented — spawning by name works; pooling and partitioning deferred, see §9. |
 | **Depends on** | Phase 6 (abstract elements get no factory; entity instances exist) |
 | **Blocks** | Phase 9 (relationships take entity lists), Phase 10 (TMX spawns entities) |
 | **Suggested branch** | `804-phase-8-factories` |
@@ -259,3 +259,35 @@ Test-first throughout. **Do §6.1 first — it is a design decision, not an impl
 - [ ] An abstract entity gets no factory.
 - [ ] The three pooled-inheritance fixtures are vendored and passing (G84).
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed, and how D80 was actually resolved
+
+**D80 recommended keying the engine's factory registry on `(Type, glueName)`.** That is not what
+shipped, and the reason is worth recording.
+
+`Factory<T>` is registered as `_factories[typeof(T)]`, and every loaded entity is `GlueEntity` — the
+blocker G80 describes. But changing the engine's registry shape means touching core API that
+hand-written games depend on, to serve the loader. The cheaper route turned out to be sufficient:
+`Screen.Register(Entity)` already does all the wiring a spawned entity needs, so `GlueProject` owns
+a per-Glue-name instance list and registers through that.
+
+| | FRB1 factory | What shipped |
+|---|---|---|
+| Create by name | `PlayerFactory.CreateNew()` | `project.CreateEntity(@"Entities\Player", screen)` |
+| The list to collide against | `ListsToAddTo` | `project.InstancesOf(@"Entities\Player")` |
+| Pooling | `PooledByFactory` → free list | **not wired** |
+| Spatial partitioning | `SortAxis` | **not wired** |
+
+**What this costs:** pooling and partitioning are unavailable to loaded entities. No vendored fixture
+sets `PooledByFactory` — 14 files repo-wide, all in FRB1's test project — so nothing exercised it
+either way, and shipping it untested was the worse option. `AssociateWithFactory` is parsed and not
+consulted, because with one instance list per name there is nothing to associate.
+
+**What it buys:** nested entities instantiate. Beefball's `GameScreen` now spawns its players, puck
+and goals from `PositionedObjectList` contents, which is what makes it look like the game rather
+than an empty arena. That was blocked on nothing but the missing project context.
+
+Revisit the registry change if a project actually needs pooling; the seam to change is
+`FlatRedBallService._factories`, and G80 still describes it accurately.
