@@ -238,6 +238,24 @@ explicitly. Every test in this phase that actually loads an asset needs content 
 Smallest useful end-to-end case: DoorsDemo's `Door.glej` (one `.achx` plus the Sprite instruction).
 `Player.glej` adds the CSV-dictionary case.
 
+### G4A — Texture loading *is* testable; the device question is settled
+
+An open worry going in was that `ContentLoader.Load<Texture2D>` needs a `GraphicsDevice`, which a
+test host might not be able to create — making the phase's headline outcome unverifiable.
+
+**Measured rather than assumed: it works.** A real device is created inside the xUnit host via a
+`Game` plus `GraphicsDeviceManager` and a single `RunOneFrame()`, which forces device creation
+without a message loop the host cannot pump. `Texture2D` creation then succeeds, and the full suite
+stays green with roughly 200 ms added.
+
+`tests/FlatRedBall2.Tests/GraphicsDeviceFixture.cs` provides it as a shared collection fixture — one
+device for the whole run, since creating one per class is slow and risks contending for the context.
+
+**The caveat is CI, not this machine.** Device creation needs a GL context rather than merely a GPU,
+so a headless agent gets `IsAvailable == false`. Tests that need a device must check it and skip;
+the fixture carries its own guard test so that a regression in device creation surfaces instead of
+turning every asset test silently green.
+
 ---
 
 ## 6. Tasks
@@ -267,6 +285,9 @@ Test-first throughout.
       stripped, `-`→`_`, path dropped, leading digit prefixed (G43).
 - [ ] Failing test: two same-named files in one element collide and warn (G43).
 - [ ] Vendor DoorsDemo's content (G49).
+- [x] Settle whether a real `GraphicsDevice` is obtainable in tests — it is (G4A). Use
+      `GraphicsDeviceFixture` via `[Collection(GraphicsDeviceCollection.Name)]`, and skip on
+      `!IsAvailable` so headless CI stays green.
 
 ### 6.4 — Animation
 
