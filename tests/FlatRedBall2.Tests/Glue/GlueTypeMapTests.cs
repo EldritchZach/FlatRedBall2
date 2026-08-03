@@ -68,7 +68,7 @@ public class GlueTypeMapTests
         var result = GlueProjectLoader.Load(glujPath);
 
         result.HasErrors.ShouldBeFalse();
-        result.Diagnostics.Count(d => d.Message.Contains("cannot be built by this build")).ShouldBe(18);
+        result.Diagnostics.Count(d => d.Message.Contains("cannot be built by this build")).ShouldBe(6);
     }
 
     [Fact]

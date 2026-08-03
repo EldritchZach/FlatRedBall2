@@ -32,6 +32,11 @@ internal static class GlueElementBuilder
         // Tile objects come last and in their own order: a map is loaded from a file, and a
         // collection is derived from a map, so neither fits the construct-and-configure pass.
         GlueTileBuilder.Build(namedObjects, elementName, objects, diagnostics, content, register);
+
+        // Relationships reference other objects by name, so they come last. FRB1 codifies the same
+        // ordering rather than relying on declaration order.
+        GlueCollisionBuilder.Build(
+            namedObjects, elementName, objects, diagnostics, project, owningScreen);
     }
 
     /// <remarks>
@@ -50,8 +55,12 @@ internal static class GlueElementBuilder
     {
         foreach (var save in namedObjects)
         {
-            if (string.IsNullOrEmpty(save.InstanceName) || GlueTileBuilder.IsTileObject(save))
+            if (string.IsNullOrEmpty(save.InstanceName)
+                || GlueTileBuilder.IsTileObject(save)
+                || GlueCollisionBuilder.IsRelationship(save))
+            {
                 continue;
+            }
 
             object? built = save.IsList
                 ? BuildList(builder, save, elementName, diagnostics)

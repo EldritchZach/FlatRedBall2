@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §10. Damage model, soft collision and always-colliding deliberately out. |
 | **Depends on** | Phase 2 (objects exist), Phase 6 (entity instances exist to collide), Phase 10 for the tile variants |
 | **Blocks** | Nothing — but nothing in a real project *behaves* until this lands |
 | **Suggested branch** | `804-phase-9-collision-relationships` |
@@ -350,3 +350,46 @@ Test-first throughout.
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
 - [ ] The variant is derived from instance names — verified by a test that would fail under a
       string match on `SourceClassType`.
+
+---
+
+## 10. What landed
+
+10 new tests, full suite **1366 green**. DoorsDemo's unmapped-type count fell from 18 to **6** across
+this phase and Phase 10 together.
+
+| Piece | File |
+|---|---|
+| Recognition, variant selection, registration | `src/Glue/GlueCollisionBuilder.cs` |
+| Settings decoding with Glue's own defaults | `src/Glue/GlueCollisionSettings.cs` |
+
+**The variant is derived, never read from the type string** — G91 held up, and the implementation
+switches on what the two named objects actually *are* plus `CollisionType`. A project last saved by
+an older Glue carries a stale `SourceClassType`, and LadderDemo has one whose `SourceFile` names a
+different relationship class again.
+
+The three inverted defaults (G93) are each covered by a test asserting against a bag that omits the
+key: absent `CollisionType` is event-only, absent masses and elasticity are `1` rather than `0`, and
+an absent active flag means active. Any of them read the obvious way is silent and severe.
+
+### Reported rather than silently dropped
+
+Each of these warns by name, because the alternative is a relationship that looks configured and
+does nothing:
+
+- **Always-colliding** (no second side) — FRB2's relationship is inherently two-sided.
+- **`IsCollisionActive: false`** — FRB2 has no per-relationship enable flag, so "inactive" can only
+  mean "never registered", which game code cannot switch back on. Worth saying out loud rather than
+  quietly matching the first half of the behaviour.
+- **Stacking, soft and delegate collision** — no FRB2 equivalent; the relationship still reports
+  overlaps but applies no physics.
+- **A side this build did not create** — Glue's own four editor-side validations, ported so a
+  malformed relationship reports at load instead of failing to compile as it would in FRB1.
+
+### Deliberately out of scope
+
+The damage model (`IsDealDamageChecked` and friends) is a gameplay framework rather than a loader
+concern — D93 stands. `CollisionLimit`, `FrameSkip` and manual physics have no FRB2 equivalent and no
+fixture. Sub-collision *is* implemented, resolving the named shape through the entity's `Objects`;
+only DialogBoxDemo exercises it and that fixture is not vendored, so it is code-verified rather than
+data-verified.

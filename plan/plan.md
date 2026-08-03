@@ -63,7 +63,7 @@ via reflection. No codegen step.
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |
-| 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
+| 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Implemented |
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
@@ -94,9 +94,9 @@ work into an existing one.
 - **Decisions are numbered `D<n>`** in the same scheme: D1–D14 for Phases 1–2, then D30+ per phase.
 - **Each phase doc carries a progress metric.** The unmapped-type warning count is pinned by a test
   (`tests/FlatRedBall2.Tests/Glue/GlueTypeMapTests.cs:68`), and each phase records what it drives the
-  count down to. Current: DoorsDemo **18**, Beefball **15**. Note Phase 6 *raised* DoorsDemo's from 13:
-  its derived start-up screen now honestly carries the nine objects it inherits rather than the four
-  its own file declares, so the unmapped ones are counted in both screens.
+  count down to. Current: DoorsDemo **6**, down from 13 at Phase 2. Note Phase 6 *raised* it to 18
+  first — its derived start-up screen began honestly carrying all nine objects it inherits — and
+  Phases 10 and 9 then took it to 6. What remains is the camera controller, which Phase 13 owns.
 
 ### Fixture caveat that affects Phases 7, 8 and 11
 

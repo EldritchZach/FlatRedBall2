@@ -121,7 +121,7 @@ public class GlueElementBuildTests
             Save = Screen(@"{
                 ""Name"": ""Screens\\Test"",
                 ""NamedObjects"": [
-                    { ""InstanceName"": ""Rel"", ""SourceClassType"": ""FlatRedBall.Math.Collision.ListVsListRelationship<Entities.A, Entities.B>"" },
+                    { ""InstanceName"": ""Label"", ""SourceClassType"": ""FlatRedBall.Graphics.Text"" },
                     { ""InstanceName"": ""Ok"", ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"" }
                 ]
             }"),
@@ -131,9 +131,9 @@ public class GlueElementBuildTests
 
         screen.Objects.Count.ShouldBe(1);
         screen.Objects.ShouldContainKey("Ok");
-        // Tile types are no longer in this set — Phase 10 builds them. Collision relationships
-        // are still owned by Phase 9.
-        screen.BuildDiagnostics.ShouldContain(d => d.Message.Contains("ListVsListRelationship"));
+        // Tile types and collision relationships are no longer in this set — Phases 10 and 9
+        // build them. Text still has no FRB2 type at all (D12).
+        screen.BuildDiagnostics.ShouldContain(d => d.Message.Contains("FlatRedBall.Graphics.Text"));
         screen.BuildDiagnostics.ShouldNotContain(d => d.Severity == GlueDiagnosticSeverity.Error);
     }
 
