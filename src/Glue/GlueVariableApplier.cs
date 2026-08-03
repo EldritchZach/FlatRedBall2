@@ -27,34 +27,67 @@ internal static class GlueVariableApplier
     /// it, so the list must never be sorted.
     /// </remarks>
     internal static void Apply(
-        List<CustomVariable> variables,
+        GlueElement save,
+        object element,
+        IReadOnlyDictionary<string, object> objects,
+        Dictionary<string, JsonElement> bag,
+        List<GlueLoadDiagnostic> diagnostics)
+    {
+        foreach (var variable in save.CustomVariables)
+        {
+            if (string.IsNullOrEmpty(variable.Name) || !variable.HasAuthoredValue)
+                continue;
+
+            // A variable whose declared type names a state selects that state rather than holding a
+            // value. It applies here, in list order, so a later variable can still override what the
+            // state assigned — which a real project relies on.
+            if (GlueStateApplier.IsStateVariable(variable, save))
+            {
+                string? stateName = variable.DefaultValue.ValueKind == JsonValueKind.String
+                    ? variable.DefaultValue.GetString()
+                    : null;
+
+                if (!string.IsNullOrEmpty(stateName))
+                {
+                    GlueStateApplier.Apply(
+                        save, GlueStateApplier.FindCategory(variable, save)?.Name, stateName,
+                        element, objects, bag, diagnostics);
+                }
+
+                continue;
+            }
+
+            ApplyOne(variable, element, objects, bag, save.Name, diagnostics);
+        }
+    }
+
+    /// <summary>Applies one variable to whichever of the three destinations it resolves to.</summary>
+    internal static void ApplyOne(
+        CustomVariable variable,
         object element,
         IReadOnlyDictionary<string, object> objects,
         Dictionary<string, JsonElement> bag,
         string? elementName,
         List<GlueLoadDiagnostic> diagnostics)
     {
-        foreach (var variable in variables)
+        if (string.IsNullOrEmpty(variable.Name) || !variable.HasAuthoredValue)
+            return;
+
+        if (IsUnsetNumericOrBool(variable))
+            return;
+
+        if (variable.IsShared)
         {
-            if (string.IsNullOrEmpty(variable.Name) || !variable.HasAuthoredValue)
-                continue;
-
-            if (IsUnsetNumericOrBool(variable))
-                continue;
-
-            if (variable.IsShared)
-            {
-                Warn(diagnostics, elementName,
-                    $"'{variable.Name}' is shared (static in Glue), which has no data-driven " +
-                    "equivalent; its value was not applied.");
-                continue;
-            }
-
-            if (variable.IsTunneling)
-                ApplyTunneled(variable, objects, elementName, diagnostics);
-            else if (!TryWriteTo(element, variable, elementName, diagnostics))
-                bag[variable.Name] = variable.DefaultValue;
+            Warn(diagnostics, elementName,
+                $"'{variable.Name}' is shared (static in Glue), which has no data-driven " +
+                "equivalent; its value was not applied.");
+            return;
         }
+
+        if (variable.IsTunneling)
+            ApplyTunneled(variable, objects, elementName, diagnostics);
+        else if (!TryWriteTo(element, variable, elementName, diagnostics))
+            bag[variable.Name] = variable.DefaultValue;
     }
 
     /// <summary>

@@ -52,6 +52,26 @@ public class GlueScreen : Screen
     public T? Get<T>(string name) =>
         GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
 
+    /// <summary>Applies an uncategorized state by name.</summary>
+    public void SetState(string stateName) => SetState(null, stateName);
+
+    /// <summary>
+    /// Applies a named state, from <paramref name="categoryName"/> when one is given.
+    /// </summary>
+    /// <remarks>
+    /// A state assigns every variable it covers, resetting any it does not name to that variable's
+    /// own default — it is a snapshot, not a delta. What it covers comes from the category's
+    /// excluded-variable list.
+    /// </remarks>
+    public void SetState(string? categoryName, string stateName)
+    {
+        if (Save is null)
+            return;
+
+        GlueStateApplier.Apply(
+            Save, categoryName, stateName, this, _objects, _variables, _buildDiagnostics);
+    }
+
     /// <inheritdoc />
     public override void CustomInitialize() => BuildObjects();
 
@@ -82,8 +102,7 @@ public class GlueScreen : Screen
 
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
-        GlueVariableApplier.Apply(
-            Save.CustomVariables, this, _objects, _variables, Save.Name, _buildDiagnostics);
+        GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
     }
 
     /// <inheritdoc />
@@ -123,6 +142,26 @@ public class GlueEntity : Entity
     public T? Get<T>(string name) =>
         GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
 
+    /// <summary>Applies an uncategorized state by name.</summary>
+    public void SetState(string stateName) => SetState(null, stateName);
+
+    /// <summary>
+    /// Applies a named state, from <paramref name="categoryName"/> when one is given.
+    /// </summary>
+    /// <remarks>
+    /// A state assigns every variable it covers, resetting any it does not name to that variable's
+    /// own default — it is a snapshot, not a delta. What it covers comes from the category's
+    /// excluded-variable list.
+    /// </remarks>
+    public void SetState(string? categoryName, string stateName)
+    {
+        if (Save is null)
+            return;
+
+        GlueStateApplier.Apply(
+            Save, categoryName, stateName, this, _objects, _variables, _buildDiagnostics);
+    }
+
     /// <inheritdoc />
     public override void CustomInitialize() => BuildObjects();
 
@@ -150,8 +189,7 @@ public class GlueEntity : Entity
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
             addSingle: (builder, save) => builder.AddTo(this, save, Save.Name));
 
-        GlueVariableApplier.Apply(
-            Save.CustomVariables, this, _objects, _variables, Save.Name, _buildDiagnostics);
+        GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
     }
 
     /// <inheritdoc />

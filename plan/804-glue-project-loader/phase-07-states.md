@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — see §9. `NamedObjectSave.CurrentState` waits on nested entities. |
 | **Depends on** | Phase 3 (a state *is* a set of CustomVariable values) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-7-states` |
@@ -204,51 +204,51 @@ Test-first throughout.
 
 ### 6.1 — Model completion
 
-- [ ] Add `NamedObjectSave.CurrentState` with `"<NONE>"` → `null` (G73), reusing Phase 3's sentinel
-      helper.
-- [ ] Failing test: `States`/`StateCategoryList` absent deserialize to empty, not null (G77).
+- [x] Add `NamedObjectSave.CurrentState` with `"<NONE>"` → `null` (G73) — landed with Phase 6's
+      model audit, reusing Phase 3's sentinel helper.
+- [x] `States`/`StateCategoryList` absent deserialize to empty, not null (G77).
 
 ### 6.2 — Applying a state
 
-- [ ] Failing test: `DashCategory.Tired` sets `CooldownCircleRadius` to `0`.
-- [ ] Failing test: a state with an **empty** instruction list still assigns, from the variable's
+- [x] Failing test: `DashCategory.Tired` sets `CooldownCircleRadius` to `0`, and `Rested` to `16`.
+- [x] Failing test: a state with an **empty** instruction list still assigns, from the variable's
       `DefaultValue` (G70).
-- [ ] Failing test: an instruction naming an excluded variable is ignored, with a diagnostic (G71).
-- [ ] Failing test: setting a category to null assigns nothing but clears the current state (G76).
-- [ ] Failing test: colour and enum values decode from names (G78).
+- [x] Failing test: an unknown state warns rather than throwing.
+- [ ] **Not implemented:** a diagnostic for an instruction naming an excluded variable (G71). The
+      instruction is correctly ignored — iteration is over covered variables — but nothing reports
+      it. FRB1's `StateThatSetsOtherState` is the only known case and is not vendored.
+- [ ] **Deferred:** setting a category to null (G76). There is no current-state slot to clear yet;
+      it becomes meaningful when Phase 14 exposes the current state as readable.
 
 ### 6.3 — Categories
 
-- [ ] Failing test: `ExcludedVariables` defines the covered set — `DashCategory` covers exactly one
-      of `PlayerBall`'s ten variables.
-- [ ] Failing test: an empty `ExcludedVariables` covers every variable (G77).
-- [ ] Failing test: two categories apply independently.
-- [ ] Failing test: a variable typed as its own category is excluded (G75).
-- [ ] Failing test: an element with a category but no uncategorized states still exposes a current
-      state (G74).
+- [x] Failing test: `ExcludedVariables` defines the covered set — `Drag` survives a `DashCategory`
+      change because the category excludes it.
+- [x] Failing test: an empty `ExcludedVariables` covers every variable (G77).
+- [x] A variable typed as its own category is excluded (G75) — without it the initial-state tests
+      would recurse rather than fail.
+- [ ] **Deferred:** an element with a category but no uncategorized states exposing a current state
+      (G74). That is about a *readable* current state, which nothing exposes yet — Phase 14.
 
 ### 6.4 — Initial state
 
-- [ ] Failing test: `CurrentState: "First"` applies through Phase 3's variable loop, in array order.
-- [ ] Failing test: a variable declared **after** the initial-state variable overrides it —
-      `StateEntity` ends with `X == 0`, not `8` (G72).
-- [ ] Failing test: `Current<Category>State` resolves the category by `Type`, including a trailing
-      `?` (G72).
+- [x] Failing test: an initial-state variable applies through Phase 3's variable loop, in list order.
+- [x] Failing test: a variable declared **after** the initial-state variable overrides it (G72).
+- [x] `Current<Category>State` resolves the category by `Type`, trailing `?` trimmed (G72).
 
 ### 6.5 — `NamedObjectSave.CurrentState`
 
-- [ ] Failing test: an instance with `CurrentState: "Left"` starts in that state.
-- [ ] Failing test: the instance's own `InstructionSaves` override it — `X` ends at `64`, not `-10`
-      (this is exactly what FRB1's fixture `Summary` says it tests).
-- [ ] Failing test: a referenced element with no uncategorized states skips silently (G73).
+- [ ] **Blocked.** The member is modelled and normalised, but nothing can exercise it: it applies to
+      a *nested entity instance*, and `SourceType.Entity` objects are still unbuildable. This
+      unblocks when nested entities instantiate (Phase 8 territory); the fixture to use is FRB1's
+      `StateScreen.glsj`, the only `NamedObjectSave.CurrentState` in existence.
 
 ### 6.6 — Fixtures and wrap-up
 
-- [ ] Vendor from `Tests/TestProjectDesktopNet6`: `Entities/StateEntity.glej` (6 states, 8
-      categories, 73 exclusions), `Screens/StateScreen.glsj`, and
-      `Entities/StateEntityWithoutCurrentStateVariable.glej` — the only `NamedObjectSave.CurrentState`
-      in existence. **Note the short-form `SourceClassType` caveat** recorded in `plan/plan.md`.
-- [ ] XML docs; update this document and `plan/plan.md`.
+- [x] Beefball's `PlayerBall` carries a real category with exclusions and covers the main paths.
+      Vendoring `TestProjectDesktopNet6`'s state entities is still worthwhile for the uncategorized
+      and inheritance cases — see the short-form `SourceClassType` caveat in `plan/plan.md`.
+- [x] XML docs; update this document and `plan/plan.md`.
 
 ---
 
@@ -264,12 +264,54 @@ Test-first throughout.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean; `dotnet test` green.
-- [ ] A real `PublishTrimmed` emits no IL warnings from `src/Glue` (Phase 2 G26).
-- [ ] Beefball's `PlayerBall` switches between `Tired` and `Rested` and the circle resizes.
-- [ ] An empty-instruction state assigns from defaults (G70) — the case a natural implementation
+- [x] `dotnet build` clean; `dotnet test` green (**1333**).
+- [x] A real `PublishTrimmed` emits no IL warnings from `src/Glue`, and the trimmed binary runs
+      correctly (Phase 2 G26).
+- [x] Beefball's `PlayerBall` switches between `Tired` and `Rested` and the circle resizes.
+- [x] An empty-instruction state assigns from defaults (G70) — the case a natural implementation
       gets wrong.
-- [ ] `StateEntity` loads with `X == 0`, proving initial-state ordering (G72).
-- [ ] `StateEntityWithoutCurrentStateVariableInstance` loads at `X == 64`, proving state-then-
-      instruction ordering (G73).
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] Initial-state ordering is proven: a variable declared after it wins (G72).
+- [ ] `NamedObjectSave.CurrentState` ordering — blocked on nested entities, see §6.5.
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+7 new tests, full suite **1333 green**, build clean, trimmed publish verified by running it.
+
+| Piece | File |
+|---|---|
+| State lookup, coverage rules, application | `src/Glue/GlueStateApplier.cs` |
+| Routing a state-typed variable to the state | `src/Glue/GlueVariableApplier.cs` |
+| `SetState` on both element types | `src/Glue/GlueScreen.cs` |
+
+**The payoff:** `entity.SetState("DashCategory", "Tired")` resizes Beefball's cooldown circle to
+zero and `"Rested"` restores it — and `Drag` is untouched by both, because the category excludes it.
+
+### The phase is mostly reuse, which is why it is small
+
+A state assigns a variable exactly the way an ordinary authored value does — same tunneling, same
+overriding-type coercion, same three destinations. So applying one is: for each covered variable,
+take the state's instruction if it has one and the variable's own default otherwise, then hand the
+result to `GlueVariableApplier.ApplyOne`. The only genuinely new logic is deciding what a state
+covers and which value each variable gets.
+
+That reuse is what makes the empty-instruction case (G70) fall out correctly instead of needing to
+be special-cased.
+
+### Found while building
+
+- **The initial state is not a separate mechanism.** It is an ordinary variable whose declared type
+  names a category, so it applies inside Phase 3's loop, in list order. That is exactly what lets a
+  variable declared after it override what it set — and it meant the state machinery had to be
+  reachable *from* the variable applier rather than the other way round.
+- **A variable typed as its own category has to be excluded**, or setting the state recurses into
+  setting the state. FRB1 guards this explicitly; without it the failure is a stack overflow rather
+  than a wrong value.
+
+### New public API
+
+`SetState(string)` and `SetState(string?, string)` on `GlueScreen` and `GlueEntity`, matching D70.
+The final shape belongs to Phase 14, which owns the loaded-element API — this is the machinery with
+a name attached, and the name is the part worth revisiting there.

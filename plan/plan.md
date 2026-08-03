@@ -61,7 +61,7 @@ via reflection. No codegen step.
 | 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Next — planned |
 | 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
-| 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Planned |
+| 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Planned |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Planned |
@@ -70,11 +70,11 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
 
-**Status of the epic: 4 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
+**Status of the epic: 5 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
 sprites appear at the authored size and position, the values an author tuned in Glue's variable grid
 are applied — including those that tunnel into a contained object — and a derived element arrives as
-the union of its inheritance chain. Sprites still have no textures (Phase 4), so a real game does
-not play yet.
+the union of its inheritance chain. States apply, so an element can switch between authored
+snapshots. Sprites still have no textures (Phase 4), so a real game does not play yet.
 
 **The shortest path to a playable DoorsDemo is 4 → 10 → 12**, in that order: textures, then the tile
 map, then platformer movement. Phase 9 makes it interactive; Phase 13 makes it the right size.
