@@ -121,7 +121,7 @@ public class GlueElementBuildTests
             Save = Screen(@"{
                 ""Name"": ""Screens\\Test"",
                 ""NamedObjects"": [
-                    { ""InstanceName"": ""Map"", ""SourceClassType"": ""FlatRedBall.TileGraphics.LayeredTileMap"" },
+                    { ""InstanceName"": ""Rel"", ""SourceClassType"": ""FlatRedBall.Math.Collision.ListVsListRelationship<Entities.A, Entities.B>"" },
                     { ""InstanceName"": ""Ok"", ""SourceClassType"": ""FlatRedBall.Math.Geometry.Circle"" }
                 ]
             }"),
@@ -131,7 +131,9 @@ public class GlueElementBuildTests
 
         screen.Objects.Count.ShouldBe(1);
         screen.Objects.ShouldContainKey("Ok");
-        screen.BuildDiagnostics.ShouldContain(d => d.Message.Contains("LayeredTileMap"));
+        // Tile types are no longer in this set — Phase 10 builds them. Collision relationships
+        // are still owned by Phase 9.
+        screen.BuildDiagnostics.ShouldContain(d => d.Message.Contains("ListVsListRelationship"));
         screen.BuildDiagnostics.ShouldNotContain(d => d.Severity == GlueDiagnosticSeverity.Error);
     }
 

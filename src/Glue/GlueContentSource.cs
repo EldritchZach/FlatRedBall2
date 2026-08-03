@@ -26,6 +26,8 @@ public sealed class GlueContentSource
     private readonly Dictionary<string, object> _assets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _text = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<GlueElement> _loaded = new();
+    private readonly Dictionary<string, Tiled.TileMap> _maps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly GraphicsDevice? _graphicsDevice;
 
     /// <summary>
     /// Creates a source that resolves paths under <paramref name="contentRoot"/>.
@@ -39,10 +41,12 @@ public sealed class GlueContentSource
     /// than resolving; the failure is caught and reported per file, so the symptom is every asset
     /// warning "could not be loaded" rather than an exception.</para>
     /// </remarks>
-    public GlueContentSource(ContentLoader content, string contentRoot)
+    public GlueContentSource(
+        ContentLoader content, string contentRoot, GraphicsDevice? graphicsDevice = null)
     {
         _content = content;
         ContentRoot = contentRoot;
+        _graphicsDevice = graphicsDevice;
     }
 
     /// <summary>The directory holding the project file.</summary>
@@ -51,6 +55,44 @@ public sealed class GlueContentSource
     /// <summary>A loaded asset by its Glue instance name, or null if absent or of another type.</summary>
     public T? Get<T>(string instanceName) where T : class =>
         _assets.TryGetValue(instanceName, out object? asset) ? asset as T : null;
+
+    /// <summary>
+    /// Loads a tile map, caching by path so two elements referencing one map share it.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Get{T}"/> because a map is referenced by an object's own
+    /// <c>SourceFile</c> rather than through the instance-name table — it is file-sourced, not
+    /// named-asset-sourced.
+    /// </remarks>
+    internal Tiled.TileMap? LoadTileMap(
+        string relativePath, string? elementName, List<GlueLoadDiagnostic> diagnostics)
+    {
+        string path = Path.Combine(ContentRoot, "Content", relativePath).Replace('\\', '/');
+
+        if (_maps.TryGetValue(path, out var cached))
+            return cached;
+
+        if (_graphicsDevice is null)
+        {
+            Warn(diagnostics, elementName,
+                $"'{relativePath}' is a tile map, which needs a graphics device this content " +
+                "source was not given.");
+            return null;
+        }
+
+        try
+        {
+            var map = new Tiled.TileMap(path, _graphicsDevice);
+            _maps[path] = map;
+            return map;
+        }
+        catch (Exception e)
+        {
+            Warn(diagnostics, elementName,
+                $"'{relativePath}' could not be loaded ({e.GetType().Name}: {e.Message}).");
+            return null;
+        }
+    }
 
     /// <summary>A loaded text file — currently CSVs, whose rows Phases 11 and 12 parse.</summary>
     public string? GetText(string instanceName) =>

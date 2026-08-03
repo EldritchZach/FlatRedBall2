@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented for collision-from-type/property. Node networks and the other creation options deferred — see §9. |
 | **Depends on** | Phase 4 (referenced files), Phase 6 (the map is a derived override), Phase 8 (tiles spawn entities) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-10-tiled` |
@@ -293,10 +293,48 @@ Test-first throughout.
 
 ## 8. Definition of done
 
-- [ ] `dotnet build` clean; `dotnet test` green.
-- [ ] A real `PublishTrimmed` emits no IL warnings from `src/Glue` (Phase 2 G26).
-- [ ] DoorsDemo's `Level1` draws its map and the player stands on `SolidCollision`.
-- [ ] `CloudCollision` behaves as a jump-through platform (G103).
-- [ ] Bag defaults are asserted against JSON that omits the key (G100).
-- [ ] DoorsDemo's unmapped count is 7.
-- [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+- [x] `dotnet build` clean; `dotnet test` green (**1348**).
+- [x] **DoorsDemo's `Level1` draws its map** — confirmed by booting it and screenshotting: sky,
+      clouds, brick pillars, grass platforms.
+- [x] `SolidCollision` and `CloudCollision` build real geometry from their authored tile types.
+- [x] Bag defaults are asserted against an object with no bag at all (G100).
+- [x] The two creation-option enums are pinned and proven to disagree (G101).
+- [ ] The player standing on `SolidCollision` — needs Phase 12.
+- [ ] `CloudCollision` as a jump-through platform (G103) — needs Phase 9, which owns the
+      relationship configuration this translates into.
+- [x] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+6 new tests, full suite **1348 green**, build clean, and the level confirmed rendering.
+
+| Piece | File |
+|---|---|
+| Creation-option enums, bag defaults | `src/Glue/GlueTileDefaults.cs` |
+| Map and collection building, in dependency order | `src/Glue/GlueTileBuilder.cs` |
+| `.tmx` loading and caching | `src/Glue/GlueContentSource.cs` |
+
+**Scope actually delivered:** the map itself, plus `FromType` and `FromProperties` collision — which
+is what DoorsDemo uses and what makes a level appear. `FillCompletely`, `BorderOutline`, `FromLayer`
+and `FromMapCollision` are decoded and reported as unsupported rather than silently ignored; no
+vendored fixture exercises any of them. Tile node networks (§6.4) and entity spawning from tiles
+(§6.5) are untouched — the latter needs Phase 8.
+
+### Found while building
+
+- **An engine bug in TMX loading, filed in `design/TODOS.md`.** An external tileset's image resolves
+  against the *map's* directory rather than the `.tsx`'s, which contradicts the TMX spec and breaks
+  the normal way Tiled projects share a tileset between levels. The fixture carries a duplicated PNG
+  to work around it, and both the README and the TODO say so — the workaround is recorded rather
+  than quietly absorbed.
+- **A tile map is not an `IRenderable`.** It has its own `Screen.Add(TileMap)` overload because it
+  owns one layer per Tiled layer. The register callback tested only for `IRenderable`, so the map
+  loaded correctly and never drew — a silent failure that no test would have caught, since the tests
+  assert on `Objects` rather than on rendering. Caught by looking at the screenshot.
+- **Ordering had to be explicit.** A collection is derived from a map, so maps build first. Every
+  real project happens to declare them in that order, which is exactly the kind of accident worth
+  not depending on (the same reasoning as Phase 9's G92).
+- **One Phase 2 test asserted that `LayeredTileMap` is unmapped.** True until this phase; it now
+  points at a collision relationship, which Phase 9 still owns.

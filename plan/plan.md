@@ -64,13 +64,13 @@ via reflection. No codegen step.
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Planned |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Planned |
-| 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Planned |
+| 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Planned |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Planned |
 
-**Status of the epic: 6 of 14 phases implemented, 14 of 14 planned.** A project loads, its shapes and
+**Status of the epic: 6 of 14 phases implemented, plus tile maps, 14 of 14 planned.** A project loads, its shapes and
 sprites appear at the authored size and position, the values an author tuned in Glue's variable grid
 are applied — including those that tunnel into a contained object — and a derived element arrives as
 the union of its inheritance chain. States apply, so an element can switch between authored
@@ -78,8 +78,9 @@ snapshots, and sprites load their textures and animations. DoorsDemo's door rend
 `.glej` with no hand-written C#. What is left before a level plays is the tile map (Phase 10) and
 platformer movement (Phase 12).
 
-**The shortest path to a playable DoorsDemo is now 10 → 12**: the tile map, then platformer
-movement. Phase 9 makes it interactive; Phase 13 makes it the right size.
+DoorsDemo's `Level1` now draws its tile map with collision built from the authored tile types.
+**What remains before it plays is Phase 12** (platformer movement), with Phase 9 for the collision
+relationships and Phase 13 to frame the camera.
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated

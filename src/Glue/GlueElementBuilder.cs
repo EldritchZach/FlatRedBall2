@@ -21,10 +21,15 @@ internal static class GlueElementBuilder
         Dictionary<string, object> objects,
         List<GlueLoadDiagnostic> diagnostics,
         Func<GlueObjectBuilder, NamedObjectSave, object?> addSingle,
-        GlueContentSource? content = null)
+        GlueContentSource? content,
+        Action<object> register)
     {
         var builder = new GlueObjectBuilder(diagnostics, content);
         BuildInto(namedObjects, builder, elementName, objects, diagnostics, addSingle);
+
+        // Tile objects come last and in their own order: a map is loaded from a file, and a
+        // collection is derived from a map, so neither fits the construct-and-configure pass.
+        GlueTileBuilder.Build(namedObjects, elementName, objects, diagnostics, content, register);
     }
 
     /// <remarks>
@@ -43,7 +48,7 @@ internal static class GlueElementBuilder
     {
         foreach (var save in namedObjects)
         {
-            if (string.IsNullOrEmpty(save.InstanceName))
+            if (string.IsNullOrEmpty(save.InstanceName) || GlueTileBuilder.IsTileObject(save))
                 continue;
 
             object? built = save.IsList

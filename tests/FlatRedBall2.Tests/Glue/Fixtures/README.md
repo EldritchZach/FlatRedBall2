@@ -67,3 +67,14 @@ Re-copy from the same source path and update the commit hash and date above. Do 
 fixture by opening it in Glue: opening and saving does **not** raise `FileVersion` (only new
 projects get the current version), and hand-editing the version would make Glue show a version error
 to anyone opening that sample.
+
+## Vendored content
+
+`DoorsDemo/Content/` carries a focused slice of the sample's content — not the whole 1.4 MB folder:
+the door and player animation chains, the player texture, the platformer CSV, the level's `.tmx` and
+its two tilesets.
+
+**`Content/Screens/Level1/StandardTilesetIcons.png` is a deliberate duplicate** of the copy at
+`Content/`. It works around an engine bug where an external tileset's image resolves against the map's
+directory rather than the `.tsx`'s — see the entry in `design/TODOS.md`. Delete the duplicate to
+reproduce that bug, and delete it permanently once the bug is fixed.

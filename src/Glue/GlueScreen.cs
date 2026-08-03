@@ -107,11 +107,31 @@ public class GlueScreen : Screen
         Content?.Load(Save, _buildDiagnostics);
 
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
-            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name), Content);
+            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name),
+            Content,
+            register: RegisterBuilt);
 
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+    }
+
+
+    /// <summary>
+    /// Registers an object the tile builder created, which bypasses the normal add path.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="Tiled.TileMap"/> is not an <c>IRenderable</c> — it has its own overload, because
+    /// it owns a layer per Tiled layer. Testing only for <c>IRenderable</c> silently loads the map
+    /// and never draws it.
+    /// </remarks>
+    private void RegisterBuilt(object built)
+    {
+        switch (built)
+        {
+            case Tiled.TileMap map: Add(map); break;
+            case Rendering.IRenderable renderable: Add(renderable); break;
+        }
     }
 
     /// <inheritdoc />
@@ -205,9 +225,23 @@ public class GlueEntity : Entity
         Content?.Load(Save, _buildDiagnostics);
 
         GlueElementBuilder.Build(Save.NamedObjects, Save.Name, _objects, _buildDiagnostics,
-            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name), Content);
+            addSingle: (builder, save) => builder.AddTo(this, save, Save.Name),
+            Content,
+            register: RegisterBuilt);
 
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+    }
+
+
+    /// <summary>Registers an object the tile builder created on the screen that owns this entity.</summary>
+    /// <remarks>See <see cref="GlueScreen.RegisterBuilt"/> — a tile map needs its own overload.</remarks>
+    private void RegisterBuilt(object built)
+    {
+        switch (built)
+        {
+            case Tiled.TileMap map: Engine.CurrentScreen.Add(map); break;
+            case Rendering.IRenderable renderable: Engine.CurrentScreen.Add(renderable); break;
+        }
     }
 
     /// <inheritdoc />
