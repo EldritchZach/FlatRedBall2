@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Partly implemented — the CSV reader and value mapping landed; input wiring and the first-row default are deferred. |
 | **Depends on** | Phase 4 (the values are a referenced CSV file) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-11-topdown` |
@@ -292,3 +292,24 @@ Test-first throughout. §6.1 is shared with Phase 12 — build it once.
 - [ ] Both direction booleans are set explicitly (G111) and `UsesAcceleration` is honoured (G112).
 - [ ] The CSV reader handles every dialect case in §6.1 and lives outside `src/Glue/`.
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+The CSV reader (§6.1) and the value mapping (§6.2) are done and shared with Phase 12.
+`src/IO/CsvTable.cs` is a general reader in the engine rather than a loader-private one, per D110 —
+a game with its own data tables wants the same thing.
+
+Covered by tests: both `Name (...)` spellings, either order of `type` and `required`, whitespace
+stripped from member names before truncation, `#` and `//` comments, rows narrower or wider than the
+header, and quoted fields with embedded commas and doubled quotes.
+
+G111 and G112 are both implemented: the two direction booleans are read explicitly because they
+default the *opposite* way on the two sides, and `UsesAcceleration: False` zeroes both durations
+because FRB2 expresses "no easing" as a zero duration rather than a flag.
+
+**Deferred:** wiring the values onto `TopDownBehavior`, selecting CSV row 0 as the initial values,
+`DirectionSnap = FourWay`, and `InputDevice`. No vendored fixture is top-down — the only such
+entities live in FRB1's test project, which is `FileVersion` 54 and writes short-form
+`SourceClassType` (see `plan/plan.md`). Wiring it now would ship untested.

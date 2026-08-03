@@ -57,8 +57,68 @@ internal static class GlueVariableApplier
                 continue;
             }
 
+            // A movement slot names a CSV row rather than carrying a value.
+            if (TryApplyMovementSlot(variable, element, save, diagnostics))
+                continue;
+
             ApplyOne(variable, element, objects, bag, save.Name, diagnostics);
         }
+    }
+
+    /// <summary>
+    /// Fills a platformer movement slot from the CSV row its value names.
+    /// </summary>
+    /// <remarks>
+    /// Unlike top-down, which takes the first row, a platformer names three rows explicitly through
+    /// <c>GroundMovement</c>, <c>AirMovement</c> and <c>AfterDoubleJump</c>. A slot left unset
+    /// deliberately falls back to air movement, which is what FRB1 does.
+    /// </remarks>
+    private static bool TryApplyMovementSlot(
+        CustomVariable variable,
+        object element,
+        GlueElement save,
+        List<GlueLoadDiagnostic> diagnostics)
+    {
+        if (variable.Name is not ("GroundMovement" or "AirMovement" or "AfterDoubleJump"))
+            return false;
+
+        if (element is not GlueEntity entity)
+            return false;
+
+        string? reference = variable.DefaultValue.ValueKind == JsonValueKind.String
+            ? variable.DefaultValue.GetString()
+            : null;
+
+        if (!GlueMovementValues.TryParseRowReference(reference, out string row, out string file))
+            return true;
+
+        string? csv = entity.Content?.GetText(
+            System.IO.Path.GetFileNameWithoutExtension(file));
+
+        if (csv is null)
+        {
+            Warn(diagnostics, save.Name,
+                $"'{variable.Name}' reads row '{row}' from '{file}', which was not loaded.");
+            return true;
+        }
+
+        var values = GlueMovementValues.ReadPlatformer(csv);
+
+        if (!values.TryGetValue(row, out var movement))
+        {
+            Warn(diagnostics, save.Name,
+                $"'{variable.Name}' names row '{row}', which is not in '{file}'.");
+            return true;
+        }
+
+        switch (variable.Name)
+        {
+            case "GroundMovement": entity.Platformer.GroundMovement = movement; break;
+            case "AirMovement": entity.Platformer.AirMovement = movement; break;
+            case "AfterDoubleJump": entity.Platformer.AfterDoubleJump = movement; break;
+        }
+
+        return true;
     }
 
     /// <summary>Applies one variable to whichever of the three destinations it resolves to.</summary>

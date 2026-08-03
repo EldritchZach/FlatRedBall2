@@ -65,12 +65,12 @@ via reflection. No codegen step.
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Implemented |
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
-| 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Planned |
-| 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Planned |
+| 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Partly implemented — CSV reader and value mapping; input wiring deferred |
+| 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Implemented — values reach the behaviour; input wiring deferred |
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
 
-**Status of the epic: 6 of 14 phases implemented, plus tile maps, 14 of 14 planned.** A project loads, its shapes and
+**Status of the epic: 9 of 14 phases implemented, 2 more partly, 14 of 14 planned.** A project loads, its shapes and
 sprites appear at the authored size and position, the values an author tuned in Glue's variable grid
 are applied — including those that tunnel into a contained object — and a derived element arrives as
 the union of its inheritance chain. States apply, so an element can switch between authored

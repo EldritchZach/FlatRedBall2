@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Not started |
+| **Status** | Implemented — values reach the behaviour. Input wiring and climbing deferred, see §9. |
 | **Depends on** | Phase 4 (CSV files), Phase 11 (the CSV reader), Phase 3 (the slots are CustomVariables) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-12-platformer` |
@@ -298,3 +298,40 @@ Test-first throughout. The CSV reader comes from Phase 11.
 - [ ] Every unmappable column warns by name (G123, G124).
 - [ ] D120's choice is implemented **and commented in the code**, not only here.
 - [ ] Every gotcha in §5 is covered by a test or explicitly deferred.
+
+---
+
+## 9. What landed
+
+DoorsDemo's `Player` loads all six CSV rows and fills its ground and air movement slots from the
+`"<Row> in <File>.csv"` variable syntax. `AfterDoubleJump` has no value, which is deliberate — it
+falls back to air movement exactly as FRB1 does.
+
+| Piece | File |
+|---|---|
+| CSV → `PlatformerValues` / `TopDownValues` | `src/Glue/GlueMovementValues.cs` |
+| Slot filling from the row reference | `src/Glue/GlueVariableApplier.cs` |
+| `IPlatformerEntity` on the loaded entity | `src/Glue/GlueScreen.cs` |
+
+D121 resolved as recommended: `GlueEntity` implements `IPlatformerEntity` with a lazily created
+behavior. Every loaded entity shares one type, so a non-platformer entity would otherwise carry a
+behavior it never uses — but the interface promises non-null once registered, and collision
+dereferences it during ground-snap dispatch, so it materialises rather than returning null.
+
+Three mappings that are easy to get silently wrong, each with a test:
+
+- **Durations become `TimeSpan`.** Glue stores plain seconds.
+- **`DownhillMaxSpeedBoostPercentage` → `DownhillMaxSpeedMultiplier`** is renamed *and rescaled*:
+  50 becomes 1.5. D120 chose to honour the author's intent even though the columns are dead in FRB1;
+  the conversion is commented at the call site.
+- **`UsesAcceleration: False` zeroes both durations**, because FRB2 has no such flag. Ignoring the
+  column smooths movement the author wanted to snap — a feel change no assertion would catch.
+
+**Deferred:** input wiring (`JumpInput`, `MovementInput`) and `EntitySave.InputDevice`. FRB2 takes
+input through interfaces a data-driven loader has no way to bind without deciding the game's control
+scheme for it, and no fixture exercises it. Climbing (`CanClimb` → `ClimbingMovement`) is also
+unwired for the same reason — the `Climbing` row parses correctly and nothing selects it.
+
+So the character has its authored physics but no way to be told to move. That is the honest state:
+the data is loaded and reachable, the last hop is a design decision about input binding rather than
+a mapping.

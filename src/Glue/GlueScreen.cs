@@ -159,8 +159,21 @@ public class GlueScreen : Screen
 /// An FRB2 <see cref="Entity"/> built from a Glue <see cref="EntitySave"/>. As with
 /// <see cref="GlueScreen"/>, every loaded entity shares this one type and is distinguished by data.
 /// </summary>
-public class GlueEntity : Entity
+public class GlueEntity : Entity, Movement.IPlatformerEntity
 {
+    private Movement.PlatformerBehavior? _platformer;
+
+    /// <summary>
+    /// Platformer movement for this entity.
+    /// </summary>
+    /// <remarks>
+    /// Created on first access rather than eagerly: every loaded entity shares this one type, so a
+    /// non-platformer entity would otherwise carry a behavior it never uses. The interface promises
+    /// this is never null once the entity is registered, and collision dereferences it during
+    /// ground-snap dispatch — so it must materialise rather than return null.
+    /// </remarks>
+    public Movement.PlatformerBehavior Platformer => _platformer ??= new Movement.PlatformerBehavior();
+
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
     private GlueContentSource? _content;
