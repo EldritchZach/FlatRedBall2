@@ -70,17 +70,18 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
 
-**Status of the epic: 9 of 14 phases implemented, 2 more partly, 14 of 14 planned.** A project loads, its shapes and
-sprites appear at the authored size and position, the values an author tuned in Glue's variable grid
-are applied — including those that tunnel into a contained object — and a derived element arrives as
-the union of its inheritance chain. States apply, so an element can switch between authored
-snapshots, and sprites load their textures and animations. DoorsDemo's door renders from its
-`.glej` with no hand-written C#. What is left before a level plays is the tile map (Phase 10) and
-platformer movement (Phase 12).
+**Status of the epic: 9 of 14 phases fully implemented, 4 partly (8, 10, 11, 14), 1 not started (5).**
+A project loads; its shapes and sprites appear at the authored size and position; the values an
+author tuned in Glue's variable grid are applied, including ones that tunnel into a contained
+object; a derived element arrives as the union of its inheritance chain; states apply; sprites load
+their textures and animations; collision relationships and camera/display setup both work.
+DoorsDemo's door renders from its `.glej` with no hand-written C#, and `Level1`'s tile map draws
+with collision built from the authored tile types.
 
-DoorsDemo's `Level1` now draws its tile map with collision built from the authored tile types.
-**What remains before it plays is Phase 12** (platformer movement), with Phase 9 for the collision
-relationships and Phase 13 to frame the camera.
+**What's left before a level plays:** platformer/top-down input wiring (Phases 11/12 apply values to
+the movement behaviour but don't wire input yet), factory pooling (Phase 8), the rest of the
+name-based navigation API — indexer, XML docs, skill file (Phase 14) — and Gum integration
+(Phase 5, not started).
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated
