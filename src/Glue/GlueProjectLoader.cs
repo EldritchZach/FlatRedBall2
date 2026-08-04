@@ -42,11 +42,11 @@ public static class GlueProjectLoader
 
         ReportVersion(project, diagnostics, options);
 
-        string projectDirectory = Path.GetDirectoryName(glujPath) ?? string.Empty;
+        string projectDirectory = GetDirectory(glujPath, out char pathSeparator);
 
         foreach (var reference in project.ScreenReferences)
         {
-            var screen = ReadElement(reference.Name, ScreenExtension, projectDirectory,
+            var screen = ReadElement(reference.Name, ScreenExtension, projectDirectory, pathSeparator,
                 GlueJsonContext.Default.ScreenSave, options, diagnostics);
             if (screen is not null)
                 project.Screens.Add(screen);
@@ -54,7 +54,7 @@ public static class GlueProjectLoader
 
         foreach (var reference in project.EntityReferences)
         {
-            var entity = ReadElement(reference.Name, EntityExtension, projectDirectory,
+            var entity = ReadElement(reference.Name, EntityExtension, projectDirectory, pathSeparator,
                 GlueJsonContext.Default.EntitySave, options, diagnostics);
             if (entity is not null)
                 project.Entities.Add(entity);
@@ -81,10 +81,33 @@ public static class GlueProjectLoader
     internal static string ElementNameToRelativePath(string elementName) =>
         elementName.Replace('\\', '/');
 
+    private static readonly char[] PathSeparatorChars = { '\\', '/' };
+
+    /// <summary>
+    /// Splits off the directory portion of <paramref name="path"/> and reports which separator it
+    /// used, without going through <see cref="Path.GetDirectoryName(string)"/>. That API infers the
+    /// separator from the running OS, not from the string itself, so the same project path resolves
+    /// its element files differently on Windows than on Linux CI — this instead mirrors whatever
+    /// separator the caller's path already contains, so resolution is identical on every platform.
+    /// </summary>
+    private static string GetDirectory(string path, out char separator)
+    {
+        int lastSeparator = path.LastIndexOfAny(PathSeparatorChars);
+        if (lastSeparator < 0)
+        {
+            separator = '/';
+            return string.Empty;
+        }
+
+        separator = path[lastSeparator];
+        return path[..lastSeparator];
+    }
+
     private static TElement? ReadElement<TElement>(
         string? elementName,
         string extension,
         string projectDirectory,
+        char pathSeparator,
         JsonTypeInfo<TElement> typeInfo,
         GlueLoadOptions options,
         List<GlueLoadDiagnostic> diagnostics)
@@ -97,7 +120,8 @@ public static class GlueProjectLoader
             return null;
         }
 
-        string path = Path.Combine(projectDirectory, ElementNameToRelativePath(elementName) + extension);
+        string relativePath = ElementNameToRelativePath(elementName) + extension;
+        string path = projectDirectory.Length == 0 ? relativePath : projectDirectory + pathSeparator + relativePath;
         var element = ReadFile(path, typeInfo, options, diagnostics, elementName);
 
         if (element is not null && element.Name != elementName)
