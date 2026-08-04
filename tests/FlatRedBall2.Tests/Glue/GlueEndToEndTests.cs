@@ -134,6 +134,24 @@ public class GlueEndToEndTests
     }
 
     [Fact]
+    public void DoorsDemo_StartUpScreen_BootsThroughFlatRedBallServiceAndBuildsObjects()
+    {
+        // This is the exact boot line #804's PR description called unrunnable without "a human at a
+        // keyboard": FlatRedBallService.Start<GlueScreen> needs no window or GraphicsDevice, same as
+        // every other headless Screen test in this suite (see ScreenTests.RestartScreen_*).
+        var result = GlueProjectLoader.Load(Gluj("DoorsDemo", "DoorsDemo.gluj"));
+
+        var engine = new FlatRedBallService();
+        engine.Start<GlueScreen>(s => s.Save = result.StartUpScreen);
+
+        engine.CurrentScreen.ShouldBeOfType<GlueScreen>();
+        var screen = (GlueScreen)engine.CurrentScreen;
+        screen.GlueName.ShouldBe(@"Screens\Level1");
+        screen.Objects.ShouldNotBeEmpty();
+        screen.BuildDiagnostics.ShouldNotContain(d => d.Severity == GlueDiagnosticSeverity.Error);
+    }
+
+    [Fact]
     public void DoorsDemo_StillLoadsWithZeroErrors()
     {
         var result = GlueProjectLoader.Load(Gluj("DoorsDemo", "DoorsDemo.gluj"));

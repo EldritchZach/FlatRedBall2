@@ -243,7 +243,7 @@ Test-first throughout. Each group is roughly one commit.
 
 | # | Decision | Recommendation |
 |---|---|---|
-| D12 | `ShapeCollection` and `Text` have no FRB2 equivalent | **Report as unbuildable and move on.** Adding two engine types to satisfy a loader is the tail wagging the dog; do it when a real project needs them, as its own scoped change. |
+| D12 | `ShapeCollection` and `Text` have no FRB2 equivalent | **Report as unbuildable and move on.** Adding two engine types to satisfy a loader is the tail wagging the dog; do it when a real project needs them, as its own scoped change. Lower priority than it looks: most real `ShapeCollection` usage in Glue projects is a shape list attached to an `ICollidable` (Phase 9) or a `TileShapeCollection` (Phase 10), both already covered. Only an explicit standalone `ShapeCollection` added directly to a screen/entity hits this gap. |
 | D13 | Where does object construction live? | **A separate `GlueObjectBuilder`, not on `GlueScreen`.** Screens and entities both need it, and keeping it separate keeps it testable without a running engine. |
 | D14 | Reflection vs. a hand-written property table | **Reflection**, matching the epic's data-driven ground rule. A hand-written table for four types would be faster but would have to grow for every type every later phase adds. |
 

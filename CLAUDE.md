@@ -96,6 +96,7 @@ Invoke these with the Skill tool when working on specific topics:
 - **Entity.Engine**: `internal set` — injected by Factory before `CustomInitialize`; throws `InvalidOperationException` if accessed before injection
 - **InternalsVisibleTo**: `FlatRedBall2.Tests` accesses internal members (PhysicsUpdate, AddEntity, etc.)
 - **CollisionDispatcher**: `internal static` class — shape-pair resolution uses concrete type matching
+- **Screen/Entity lifecycle needs no display**: `new FlatRedBallService()` + `Start<TScreen>()` runs the full boot (Factory injection, `CustomInitialize`, Add-to-managers) with no `GraphicsDevice` or window — see the ~25 tests already doing this in `tests/FlatRedBall2.Tests/ScreenTests.cs`. Only actual rendered/pixel output needs a human; don't claim a Screen boot or object-construction check "can't run headless" or "needs a human at a keyboard" without first checking this pattern.
 
 ## Test-First Discipline (Repo-Wide, Non-Negotiable)
 
