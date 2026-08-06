@@ -59,7 +59,7 @@ via reflection. No codegen step.
 | 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
 | 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Implemented |
 | 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Implemented |
-| 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Planned |
+| 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Partly implemented — screens show their UI; Gum NamedObjects (§6.4) not started |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |
@@ -70,18 +70,20 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
 
-**Status of the epic: 9 of 14 phases fully implemented, 4 partly (8, 10, 11, 14), 1 not started (5).**
+**Status of the epic: 9 of 14 phases fully implemented, 5 partly (5, 8, 10, 11, 14), 0 not started.**
 A project loads; its shapes and sprites appear at the authored size and position; the values an
 author tuned in Glue's variable grid are applied, including ones that tunnel into a contained
 object; a derived element arrives as the union of its inheritance chain; states apply; sprites load
 their textures and animations; collision relationships and camera/display setup both work.
 DoorsDemo's door renders from its `.glej` with no hand-written C#, and `Level1`'s tile map draws
-with collision built from the authored tile types.
+with collision built from the authored tile types. Pointing the engine at a `.gluj` now also loads
+the project's Gum project, and a loaded screen shows the Gum screen it references — including one it
+only inherits.
 
 **What's left before a level plays:** platformer/top-down input wiring (Phases 11/12 apply values to
 the movement behaviour but don't wire input yet), factory pooling (Phase 8), the rest of the
-name-based navigation API — indexer, XML docs, skill file (Phase 14) — and Gum integration
-(Phase 5, not started).
+name-based navigation API — indexer, XML docs, skill file (Phase 14) — and Gum objects *inside*
+elements (Phase 5 §6.4: `SourceType.Gum` NamedObjects and `.gucx`-sourced files).
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated

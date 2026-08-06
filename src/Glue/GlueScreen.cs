@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using FlatRedBall2.Glue.Model;
+// ToGraphicalUiElement lives in Gum, not Gum.DataTypes with the ScreenSave it extends. The
+// MonoGameGum forwarder for it is obsolete.
+using Gum;
 
 namespace FlatRedBall2.Glue;
 
@@ -49,6 +52,16 @@ public class GlueScreen : Screen
 
     /// <summary>The Glue element name, in backslash form (<c>Screens\Level1</c>).</summary>
     public string? GlueName => Save?.Name;
+
+    /// <summary>
+    /// This screen's Gum UI, once built — null when the screen references no Gum screen, or when Gum
+    /// could not produce one.
+    /// </summary>
+    /// <remarks>
+    /// A derived screen inherits its base's Gum screen: DoorsDemo's <c>Level1</c> declares none and
+    /// still shows <c>GameScreenGum</c>.
+    /// </remarks>
+    public Gum.Wireframe.GraphicalUiElement? GumScreen { get; private set; }
 
     /// <summary>
     /// The objects built from <see cref="Save"/>, keyed by their Glue instance name. Objects whose
@@ -128,8 +141,55 @@ public class GlueScreen : Screen
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+
+        BuildGumScreen();
     }
 
+    /// <summary>
+    /// Adds the Gum screen this element references, if any. Requires a Gum project that Gum itself
+    /// loaded — see <see cref="EngineInitSettings.GlueProjectFile"/>.
+    /// </summary>
+    private void BuildGumScreen()
+    {
+        GumScreen = null;
+
+        if (Save is null || Project is null)
+            return;
+
+        string? elementName = GlueGumResolver.GumElementNameFor(
+            Save, Project.Result.Project, Project.Result.GumProjectFile);
+
+        if (elementName is null)
+            return;
+
+        var gumFile = Save.ReferencedFiles.Find(GlueGumResolver.IsGumElement);
+        if (gumFile is not null && GlueGumResolver.IsLegacyGumIdb(gumFile))
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"'{gumFile.Name}' loads through the legacy GumIdb model, which reads the file " +
+                "directly rather than looking the element up in the Gum project. Loading it as an " +
+                "ordinary Gum screen instead.",
+                Save.Name));
+        }
+
+        var screenSave = Gum.Managers.ObjectFinder.Self.GumProjectSave?.Screens
+            .Find(s => string.Equals(s.Name, elementName, StringComparison.OrdinalIgnoreCase));
+
+        if (screenSave is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"Gum screen '{elementName}' was referenced but is not in the loaded Gum project. " +
+                "Gum only resolves elements from a project it loaded itself — set " +
+                $"{nameof(EngineInitSettings)}.{nameof(EngineInitSettings.GlueProjectFile)} so it does.",
+                Save.Name));
+            return;
+        }
+
+        GumScreen = screenSave.ToGraphicalUiElement();
+        Add(GumScreen);
+    }
 
     /// <summary>The screen a nested entity should be registered on — this one.</summary>
     private Screen OwningScreenForSpawns() => this;

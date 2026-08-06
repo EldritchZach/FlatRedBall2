@@ -14,8 +14,20 @@ loader (see `plan/804-glue-project-loader/`). Committed here rather than read fr
 | Synced | 2026-08-01 |
 | `FileVersion` | 60 |
 
-Copied **as-is** — do not re-save or hand-edit. Only the Glue project files are vendored; the
-`.csproj`, content, and generated code are not needed to test the loader.
+Copied **as-is** — do not re-save or hand-edit. Only the Glue project files are vendored, plus the
+content later phases actually read; the `.csproj` and generated code are not needed to test the
+loader.
+
+**Gum content added for Phase 5** (2026-08-05, same source path, `Content/GumProject/`): the
+`.gumx`, its three `.gusx` screens, the `Standards`, and the font cache — 25 files. Deliberately
+excluded: `Libraries/bmfont.exe` (an executable has no place in a test fixture) and `EventExport/`
+(neither is read at load time). This is the fixture the Gum phase uses rather than
+`FormsSampleProject`, because DoorsDemo's `GameScreen` already references a `.gusx` and its `Level1`
+is the inheriting case that has no `.gusx` of its own.
+
+Note that Gum's `FileManager` resolves paths against the *app's* `Content` folder, not the Glue
+project's — so tests stage this folder next to the test binary. A real game needs no equivalent
+step, because its `Content` folder is the Glue project's.
 
 Why this project rather than the two the tracking issue names (ChickenClicker, Beefball): those are
 `FileVersion` 42, which sits *below* three gates that change what lands on disk
