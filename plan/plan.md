@@ -70,20 +70,34 @@ via reflection. No codegen step.
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
 | 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Implemented |
 
-**Status of the epic: 9 of 14 phases fully implemented, 5 partly (5, 8, 10, 11, 14), 0 not started.**
-A project loads; its shapes and sprites appear at the authored size and position; the values an
-author tuned in Glue's variable grid are applied, including ones that tunnel into a contained
-object; a derived element arrives as the union of its inheritance chain; states apply; sprites load
-their textures and animations; collision relationships and camera/display setup both work.
-DoorsDemo's door renders from its `.glej` with no hand-written C#, and `Level1`'s tile map draws
-with collision built from the authored tile types. Pointing the engine at a `.gluj` now also loads
-the project's Gum project, and a loaded screen shows the Gum screen it references — including one it
-only inherits.
+**Status of the epic: all 14 phases implemented.**
+A project loads and plays. Its shapes and sprites appear at the authored size and position; the
+values an author tuned in Glue's variable grid are applied, including ones that tunnel into a
+contained object; a derived element arrives as the union of its inheritance chain; states apply;
+sprites load their textures and animations; collision relationships and camera/display setup both
+work. Pointing the engine at a `.gluj` loads the project's Gum project with it, and a loaded screen
+shows the Gum screen it references — including one it only inherits. A level's tile map draws with
+collision and pathfinding nodes built from the authored tile types, entities spawn from tiles and
+from other entities, pooled ones recycle, and a loaded character has both its authored physics and
+the input to drive them. Screens and entities are reachable by their Glue names, and authored
+variables by an indexer.
 
-**What's left before a level plays:** platformer/top-down input wiring (Phases 11/12 apply values to
-the movement behaviour but don't wire input yet), factory pooling (Phase 8), the rest of the
-name-based navigation API — indexer, XML docs, skill file (Phase 14) — and Gum objects *inside*
-elements (Phase 5 §6.4: `SourceType.Gum` NamedObjects and `.gucx`-sourced files).
+**Known gaps, each with a stated reason rather than a fixture excuse:**
+
+| Gap | Why |
+|---|---|
+| `SortAxis` (Phase 8) | FRB2 has no partitioned collision anywhere; honouring it is engine design, not loader translation. |
+| Climbing (Phase 12) | Needs a climbing *state* — knowing the entity is on a ladder — which is game logic, not a value mapping. |
+| `DirectionSnap = FourWay` (Phase 11) | A one-line assignment; no fixture sets it, so nothing pins the behaviour. |
+| Standalone `ShapeCollection`, `Text` (Phase 2 D12) | No FRB2 type at all. The common `ShapeCollection` uses are already covered by `ICollidable` and `TileShapeCollection`. |
+| `CustomClasses`, `Events` | Out of scope by the issue's own ground rules. |
+
+**Fixture coverage is uneven, and the phase docs say where.** Node networks (Phase 10), tile-spawned
+entities (Phase 10), and top-down movement (Phase 11) have no vendored project that exercises them —
+FRB1's only examples live in its test project, which is `FileVersion` 54 and writes short-form
+`SourceClassType`. Those features are tested against real maps, real tile types and the real
+behaviours, with only the *declaration* synthesised; what is untested is reading one end-to-end from
+disk.
 
 The phase list mirrors issue #804 and **is not exhaustive** — expect it to grow as implementation
 surfaces schema corners the issue did not anticipate. Add new phases rather than cramming unrelated
