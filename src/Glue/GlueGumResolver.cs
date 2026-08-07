@@ -84,6 +84,110 @@ public static class GlueGumResolver
     }
 
     /// <summary>
+    /// The Gum component a <see cref="NamedObjectSave"/> builds, or null when it is not a Gum object.
+    /// </summary>
+    /// <remarks>
+    /// Two shapes reach the same place. <see cref="SourceType.Gum"/> identifies the element by its
+    /// generated runtime type name and puts that same bare name in <see cref="NamedObjectSave.SourceFile"/>
+    /// where every other source type puts a path — so resolving it as a path looks for a file that
+    /// does not exist. <see cref="SourceType.File"/> with a <c>.gucx</c> is the ordinary path case.
+    /// </remarks>
+    /// <summary>
+    /// Whether this object is a Gum visual rather than something the type map builds.
+    /// </summary>
+    /// <remarks>
+    /// G51 — a Gum object's <see cref="NamedObjectSave.SourceClassType"/> names a class Glue's
+    /// codegen generates, which exists in no FRB2 build. It is classified here rather than added to
+    /// <see cref="GlueTypeMap"/>, because there is no fixed set of names to enumerate: every project
+    /// generates its own.
+    /// </remarks>
+    public static bool IsGumObject(NamedObjectSave save) =>
+        save.SourceType == SourceType.Gum ||
+        (save.SourceType == SourceType.File &&
+            GumElementExtensions.Any(extension => HasExtension(save.SourceFile, extension)));
+
+    public static string? ComponentElementNameFor(NamedObjectSave save, string? gumProjectFile)
+    {
+        if (save.SourceType == SourceType.Gum)
+            return ElementNameFromRuntimeType(save.SourceClassType);
+
+        bool isGumFile = GumElementExtensions.Any(
+            extension => HasExtension(save.SourceFile, extension));
+
+        return save.SourceType == SourceType.File && isGumFile
+            ? ElementNameFor(save.SourceFile, gumProjectFile)
+            : null;
+    }
+
+    /// <summary>
+    /// The Gum element name behind a generated runtime class name — its namespace and the
+    /// <c>Runtime</c> suffix Glue's codegen appends both come off.
+    /// </summary>
+    /// <remarks>
+    /// A name that does not end in <c>Runtime</c> is returned as-is rather than truncated.
+    /// </remarks>
+    public static string? ElementNameFromRuntimeType(string? runtimeType)
+    {
+        if (string.IsNullOrWhiteSpace(runtimeType))
+            return null;
+
+        string name = runtimeType!;
+
+        int lastDot = name.LastIndexOf('.');
+        if (lastDot >= 0)
+            name = name.Substring(lastDot + 1);
+
+        const string suffix = "Runtime";
+        if (name.Length > suffix.Length && name.EndsWith(suffix, StringComparison.Ordinal))
+            name = name.Substring(0, name.Length - suffix.Length);
+
+        return name.Length == 0 ? null : name;
+    }
+
+    /// <summary>
+    /// The Gum element with this name in the loaded Gum project, or null when there is none.
+    /// </summary>
+    /// <remarks>
+    /// Matches a trailing segment as well as the whole name, because a generated runtime type name
+    /// loses the folders Gum keeps: <c>ButtonStandardRuntime</c> has to find
+    /// <c>Controls/ButtonStandard</c>.
+    /// </remarks>
+    public static Gum.DataTypes.ElementSave? FindGumElement(string? elementName)
+    {
+        var project = Gum.Managers.ObjectFinder.Self.GumProjectSave;
+
+        if (project is null || string.IsNullOrEmpty(elementName))
+            return null;
+
+        foreach (var component in project.Components)
+        {
+            if (NameMatches(component.Name, elementName!))
+                return component;
+        }
+
+        foreach (var screen in project.Screens)
+        {
+            if (NameMatches(screen.Name, elementName!))
+                return screen;
+        }
+
+        return null;
+    }
+
+    private static bool NameMatches(string? candidate, string elementName)
+    {
+        if (candidate is null)
+            return false;
+
+        if (string.Equals(candidate, elementName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        int lastSlash = candidate.LastIndexOf('/');
+        return lastSlash >= 0 &&
+            string.Equals(candidate.Substring(lastSlash + 1), elementName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// The Gum screen <paramref name="element"/> shows, or null when neither it nor anything it
     /// derives from references one.
     /// </summary>

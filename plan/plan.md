@@ -59,7 +59,7 @@ via reflection. No codegen step.
 | 2 | [NamedObjects](804-glue-project-loader/phase-02-namedobjects.md) | Implemented |
 | 3 | [CustomVariables](804-glue-project-loader/phase-03-customvariables.md) | Implemented |
 | 4 | [Referenced files / assets](804-glue-project-loader/phase-04-referenced-files.md) | Implemented |
-| 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Partly implemented — screens show their UI; Gum NamedObjects (§6.4) not started |
+| 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Implemented |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |

@@ -134,6 +134,68 @@ public class GlueGumTests
             .ShouldBe(expected);
     }
 
+    // G52 — SourceType.Gum puts a bare *type name* in SourceFile where every other SourceType puts a
+    // real path, so a shared resolver would try to open a file called "StateComponentRuntime". The
+    // type name is what identifies the element.
+    [Fact]
+    public void ComponentElementNameFor_ASourceTypeGumObject_ResolvesByTypeNameNotByPath()
+    {
+        var save = new NamedObjectSave
+        {
+            InstanceName = "StateComponentRuntimeInstance",
+            SourceClassType = "GlueTestProject.GumRuntimes.StateComponentRuntime",
+            SourceType = SourceType.Gum,
+            SourceFile = "StateComponentRuntime",
+        };
+
+        GlueGumResolver.ComponentElementNameFor(save, "GumProject/GumProject.gumx")
+            .ShouldBe("StateComponent");
+    }
+
+    [Theory]
+    // Glue's Gum codegen names a component's runtime class <Element>Runtime, so the element name is
+    // the class minus its namespace and that suffix.
+    [InlineData("GlueTestProject.GumRuntimes.StateComponentRuntime", "StateComponent")]
+    [InlineData("NineSliceButtonRuntime", "NineSliceButton")]
+    // Not every Gum type follows the convention; without the suffix the name stands as-is rather
+    // than losing its last eight characters.
+    [InlineData("CardGum", "CardGum")]
+    [InlineData(null, null)]
+    public void ElementNameFromRuntimeType_StripsNamespaceAndRuntimeSuffix(
+        string? runtimeType, string? expected)
+    {
+        GlueGumResolver.ElementNameFromRuntimeType(runtimeType).ShouldBe(expected);
+    }
+
+    // The other half of G52: Glue's own recogniser (GumPluginCodeGenerator.IsGue) treats a Gum object
+    // sourced from a file as SourceType.File with a .gucx extension, so both shapes must work.
+    [Fact]
+    public void ComponentElementNameFor_AGucxSourcedFileObject_ResolvesByElementName()
+    {
+        var save = new NamedObjectSave
+        {
+            InstanceName = "CardInstance",
+            SourceType = SourceType.File,
+            SourceFile = "GumProject/Components/Controls/ButtonStandard.gucx",
+        };
+
+        GlueGumResolver.ComponentElementNameFor(save, "GumProject/GumProject.gumx")
+            .ShouldBe("Controls/ButtonStandard");
+    }
+
+    [Fact]
+    public void ComponentElementNameFor_AnOrdinaryFlatRedBallObject_IsNotAGumObject()
+    {
+        var save = new NamedObjectSave
+        {
+            InstanceName = "CollisionBox",
+            SourceClassType = "FlatRedBall.Math.Geometry.AxisAlignedRectangle",
+            SourceType = SourceType.FlatRedBallType,
+        };
+
+        GlueGumResolver.ComponentElementNameFor(save, "GumProject/GumProject.gumx").ShouldBeNull();
+    }
+
     [Fact]
     public void GumScreenNameFor_AScreenWithNoGumAnywhereInItsChain_ReturnsNull()
     {

@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Partly implemented — §6.0-6.3 landed; §6.4 (Gum NamedObjects) not started |
+| **Status** | Implemented |
 | **Depends on** | Phase 4 (referenced files) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-5-gum` |
@@ -281,10 +281,22 @@ Test-first throughout. **Do §6.0 before planning the rest.**
 
 ### 6.4 — Gum NamedObjects
 
-- [ ] Failing test: a `SourceType.Gum` object resolves by type name, not by treating `SourceFile` as
-      a path (G52).
-- [ ] Failing test: a `.gucx`-sourced `SourceType.File` object resolves by element name.
-- [ ] Add a `GlueTypeMap` classification for Gum runtime types (G51).
+- [x] Failing test: a `SourceType.Gum` object resolves by type name, not by treating `SourceFile` as
+      a path (G52). `ComponentElementNameFor_ASourceTypeGumObject_ResolvesByTypeNameNotByPath`, plus
+      `ElementNameFromRuntimeType_StripsNamespaceAndRuntimeSuffix` for the name derivation.
+- [x] Failing test: a `.gucx`-sourced `SourceType.File` object resolves by element name.
+      `ComponentElementNameFor_AGucxSourcedFileObject_ResolvesByElementName`, which uses the nested
+      `Controls/ButtonStandard` case since that is the one a naive strip breaks.
+- [x] Add a `GlueTypeMap` classification for Gum runtime types (G51). — **Not added to the map.**
+      There is no fixed set of names to enumerate: every project's codegen generates its own
+      (`<Ns>.GumRuntimes.<X>Runtime`), so a lookup table could never be complete. Classified by a
+      predicate instead, `GlueGumResolver.IsGumObject`, consulted both by the builder (before the
+      type map, which could never resolve these) and by the loader's unmapped-type report.
+
+**Name derivation is lossy, and the lookup absorbs it.** A generated runtime type name drops the
+folders Gum keeps — `ButtonStandardRuntime` has to find `Controls/ButtonStandard` — so
+`FindGumElement` matches a trailing segment as well as a whole name. A name not ending in `Runtime`
+is left alone rather than truncated, so a component named `CardGum` survives.
 
 ### 6.5 — Fixtures and wrap-up
 
