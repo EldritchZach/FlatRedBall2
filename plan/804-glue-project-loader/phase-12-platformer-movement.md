@@ -349,6 +349,19 @@ over without recreating the entity.
 Binding happens in `GlueProject.CreateEntity`, and is skipped when there is no engine behind the
 screen, since a test can build an entity with no input manager.
 
-**Climbing is still unwired** (`CanClimb` → `ClimbingMovement`). The `Climbing` row parses correctly
-and nothing selects it; that needs a climbing *state* — knowing when the entity is on a ladder —
-which is game logic rather than a value mapping.
+**Climbing is now wired, and the earlier "needs game logic" verdict was wrong about FRB2.**
+
+FRB1 has no climbing *slot*: `CanClimb` is a per-row bool, and its generated code expects game code
+to swap that row into the ground slot while the character is on a ladder — DoorsDemo's hand-written
+`Player.cs` does exactly that by testing ladder overlap. Reading only FRB1 made this look like game
+logic.
+
+**FRB2 already owns the ladder state**, and more richly than FRB1: `PlatformerBehavior` has `Ladders`,
+`Fences`, `IsClimbing`, `TopOfLadderY`, `ClimbingShape` and a real climb gate/exit state machine, and
+it reads `ClimbingMovement` whenever `IsClimbing`. So the row identified by `CanClimb` simply fills
+that slot — `GlueMovementValues.FindClimbingRow`. Filling it eagerly is safe: the slot is read only
+while climbing, and `Update` throws if it ever climbs *without* one, so assigning it removes a
+failure mode rather than adding behaviour.
+
+What is still the game's call is handing the behaviour its `Ladders` — Glue records no association
+between an entity and a ladder collection, so there is nothing to map.

@@ -323,10 +323,34 @@ alone when the name is unknown** — a data-driven name has no compiler checking
 stopped the entity dead would read as a movement bug rather than a bad string.
 
 **Input is bound from `EntitySave.InputDevice`; see Phase 12 §9 for the device mapping**, which both
-phases share. `DirectionSnap = FourWay` remains unmapped: Glue records it per-entity and FRB2 puts it
-on the behaviour, so it is a one-line assignment whenever a fixture actually sets it.
+phases share.
 
-**Still no vendored top-down fixture.** The only top-down entities are in FRB1's test project, which
-is `FileVersion` 54 and writes short-form `SourceClassType`. The wiring above is covered by tests
-built on real `TopDownValues` and the real behaviour; what is untested is a top-down entity read
-end-to-end from disk.
+### Corrected after review — two errors in the first draft of this section
+
+**1. The values were never actually loaded.** `ReadTopDown` and `ApplyTopDown` had *no production
+call site*: only tests called them, and `GlueEntity.BuildObjects` never read `IsTopDown` at all. The
+mapping and its tests were real, but nothing invoked them, so a real top-down entity loaded with no
+movement values and nothing said so. `GlueEntity.LoadTopDownValues` now closes the path, and
+`BuildObjects_ATopDownEntity_LoadsItsMovementValuesFromItsCsv` reads a real FRB1 entity from disk.
+
+**Discovery has to start from the property, not from a variable.** The platformer slots arrive as
+`CustomVariable`s naming a row (`"Ground in X.csv"`), so they resolve through the variable applier.
+Top-down has no such variable — Glue records only `IsTopDown` and loads the whole CSV — which is
+exactly why the top-down path was missed while the platformer one worked.
+
+**2. `DirectionSnap` is not recorded per-entity, and this section previously claimed it was** —
+contradicting §5 G114 on this same page, which was right. Glue's `TopDownPlugin` persists exactly one
+per-entity key, `IsTopDown`; `PossibleDirections` appears only in codegen, where generated
+`Initialize` hard-sets `FourWay` unconditionally, ignoring the CSV. FRB2 defaults to `EightWay`, so a
+loaded entity keeping that default would move diagonally where the same project does not in FRB1.
+`GlueEntity.TopDown` therefore constructs with `FourWay`; the engine default is untouched for
+hand-written entities. Note the ordinals do not correspond (FRB1 `LeftRight`/`FourWay`/`EightWay` =
+0/1/2, FRB2 `FourWay`/`EightWay` = 0/1) — irrelevant while nothing is serialized, and a trap if Glue
+ever starts persisting it.
+
+**A real top-down fixture is now vendored.** `tests/FlatRedBall2.Tests/Glue/Fixtures/TopDownProject/`
+carries `TopDownMovementEntity.glej` and its `TopDownValuesStatic.csv` copied byte-for-byte from
+FRB1's `Tests/TestProjectDesktopNet6`, with a `.gluj` whose only edit is trimming the reference lists
+to the one vendored entity (the source project references 226 elements). That entity declares no
+`NamedObjects`, so the short-form `SourceClassType` problem that blocks vendoring the rest of that
+project does not arise here.

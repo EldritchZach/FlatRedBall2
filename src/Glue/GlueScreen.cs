@@ -279,7 +279,14 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// Top-down movement for this entity. Created on first access, for the same reason
     /// <see cref="Platformer"/> is — every loaded entity shares one type.
     /// </summary>
-    public Movement.TopDownBehavior TopDown => _topDown ??= new Movement.TopDownBehavior();
+    /// <remarks>
+    /// Snaps four-way rather than the engine default of eight. FRB1's generated <c>Initialize</c>
+    /// hard-sets <c>PossibleDirections = FourWay</c> unconditionally, ignoring the CSV, and Glue
+    /// persists no per-entity direction setting at all — so a loaded entity keeping FRB2's
+    /// eight-way default would move diagonally where the same project does not in FRB1 (G114).
+    /// </remarks>
+    public Movement.TopDownBehavior TopDown =>
+        _topDown ??= new Movement.TopDownBehavior { DirectionSnap = Movement.DirectionSnap.FourWay };
 
     /// <summary>
     /// Gives this entity a named set of top-down movement values and selects the first.
@@ -435,8 +442,82 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
             owningScreen: OwningScreenForSpawns());
 
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+
+        LoadTopDownValues();
+        LoadClimbingMovement();
     }
 
+    /// <summary>
+    /// Loads a top-down entity's movement CSV, which nothing else names.
+    /// </summary>
+    /// <remarks>
+    /// The platformer slots arrive as <c>CustomVariable</c>s naming a row (<c>"Ground in X.csv"</c>),
+    /// so they resolve through the variable applier. Top-down has no such variable: Glue records only
+    /// <c>IsTopDown</c> and loads the whole CSV, defaulting to its first row. Discovery therefore has
+    /// to start from the property rather than from a variable.
+    /// </remarks>
+    private void LoadTopDownValues()
+    {
+        if (Save is null || !Save.Properties.GetValue<bool>("IsTopDown"))
+            return;
+
+        var csvFile = Save.ReferencedFiles.Find(
+            f => f.Name is not null &&
+                 f.Name.EndsWith("TopDownValuesStatic.csv", StringComparison.OrdinalIgnoreCase));
+
+        if (csvFile is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                "This entity is marked top-down but references no TopDownValuesStatic.csv, so it " +
+                "has no movement values.", Save.Name));
+            return;
+        }
+
+        string? csv = Content?.GetText(
+            System.IO.Path.GetFileNameWithoutExtension(csvFile.Name));
+
+        if (csv is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"'{csvFile.Name}' holds this entity's top-down movement values but was not loaded.",
+                Save.Name));
+            return;
+        }
+
+        GlueMovementValues.ApplyTopDown(this, GlueMovementValues.ReadTopDown(csv));
+    }
+
+    /// <summary>
+    /// Fills the platformer's climbing slot from the CSV row that opts into climbing.
+    /// </summary>
+    /// <remarks>
+    /// FRB1 has no climbing slot — <c>CanClimb</c> is a per-row bool, and its generated code expects
+    /// game code to swap that row into the ground slot when the character is on a ladder. FRB2 owns
+    /// the ladder state itself (<see cref="Movement.PlatformerBehavior.Ladders"/>) and reads
+    /// <see cref="Movement.PlatformerBehavior.ClimbingMovement"/> whenever it is climbing, so the row
+    /// can simply be assigned. Nothing happens until the behaviour is given ladders, which is the
+    /// game's call.
+    /// </remarks>
+    private void LoadClimbingMovement()
+    {
+        if (Save is null || Platformer.ClimbingMovement is not null)
+            return;
+
+        var csvFile = Save.ReferencedFiles.Find(
+            f => f.Name is not null &&
+                 f.Name.EndsWith("PlatformerValuesStatic.csv", StringComparison.OrdinalIgnoreCase));
+
+        string? csv = csvFile?.Name is null
+            ? null
+            : Content?.GetText(System.IO.Path.GetFileNameWithoutExtension(csvFile.Name));
+
+        if (csv is null)
+            return;
+
+        Platformer.ClimbingMovement = GlueMovementValues.FindClimbingRow(csv);
+    }
 
     /// <summary>The screen a nested entity should be registered on — the one this entity lives on.</summary>
     private Screen? OwningScreenForSpawns() => _engineOrNull()?.CurrentScreen;

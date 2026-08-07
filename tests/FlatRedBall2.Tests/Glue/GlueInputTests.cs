@@ -15,9 +15,12 @@ namespace FlatRedBall2.Tests.Glue;
 // something telling it to move. Glue records that as a single InputDevice choice per entity.
 public class GlueInputTests
 {
+    // With a content source: without one the entity's CSVs never load, and every movement slot
+    // reads null for a reason that has nothing to do with what is under test.
     private static GlueProject LoadDoorsDemo() =>
-        GlueProject.Load(Path.Combine(
-            AppContext.BaseDirectory, "Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"));
+        GlueProject.Load(
+            Path.Combine(AppContext.BaseDirectory, "Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
+            new GlueContentSource(new ContentLoader(), Path.Combine("Glue", "Fixtures", "DoorsDemo")));
 
     private static EntitySave EntityWithInputDevice(int inputDevice)
     {
@@ -143,6 +146,117 @@ public class GlueInputTests
         entity.SetTopDownMovement("NoSuchMovement");
 
         entity.TopDown.MovementValues!.MaxSpeed.ShouldBe(100f);
+    }
+
+    // The end-to-end path, on a real FRB1 top-down entity read from disk. Everything above tests the
+    // mapping in isolation; this is what proves the loader ever calls it. It did not: ReadTopDown
+    // and ApplyTopDown had no production call site at all, so a real top-down entity loaded with no
+    // movement values and nothing said so.
+    private static GlueProject LoadTopDownProject() =>
+        GlueProject.Load(Path.Combine(
+            AppContext.BaseDirectory, "Glue", "Fixtures", "TopDownProject", "TopDownProject.gluj"),
+            new GlueContentSource(
+                new ContentLoader(), Path.Combine("Glue", "Fixtures", "TopDownProject")));
+
+    [Fact]
+    public void BuildObjects_ATopDownEntity_LoadsItsMovementValuesFromItsCsv()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadTopDownProject();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>();
+
+        var entity = project.CreateEntity(@"Entities\TopDownMovementEntity", engine.CurrentScreen);
+
+        // "Default" is the CSV's first row, at MaxSpeed 76.
+        entity.TopDown.MovementValues.ShouldNotBeNull();
+        entity.TopDown.MovementValues!.MaxSpeed.ShouldBe(76f);
+    }
+
+    [Fact]
+    public void BuildObjects_ATopDownEntity_CanSelectAnotherAuthoredRow()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadTopDownProject();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>();
+
+        var entity = project.CreateEntity(@"Entities\TopDownMovementEntity", engine.CurrentScreen);
+        entity.SetTopDownMovement("OverrideMe");
+
+        entity.TopDown.MovementValues!.MaxSpeed.ShouldBe(10f);
+    }
+
+    // G114 — FRB1's generated Initialize hard-sets PossibleDirections = FourWay unconditionally,
+    // ignoring the CSV, and Glue persists no per-entity direction setting at all. FRB2 defaults to
+    // EightWay, so a loaded entity that kept that default would snap diagonally where FRB1 does not.
+    [Fact]
+    public void TopDown_ALoadedEntity_SnapsFourWayMatchingGluesForcedDefault()
+    {
+        new GlueEntity().TopDown.DirectionSnap.ShouldBe(DirectionSnap.FourWay);
+
+        // The engine's own default is unchanged for hand-written entities.
+        new TopDownBehavior().DirectionSnap.ShouldBe(DirectionSnap.EightWay);
+    }
+
+    [Fact]
+    public void TopDown_ANonTopDownEntity_GetsNoMovementValues()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadDoorsDemo();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>(s => { s.Save = project.StartUpScreen; s.Project = project; });
+
+        var player = project.CreateEntity(@"Entities\Player", engine.CurrentScreen);
+
+        // Player is a platformer; IsTopDown is absent, so nothing top-down is loaded for it.
+        player.TopDown.MovementValues.ShouldBeNull();
+    }
+
+    // Climbing. FRB1 has no climbing slot -- CanClimb is a per-row bool, and its generated code
+    // expects game code to swap that row into the ground slot while on a ladder. FRB2 owns the
+    // ladder state itself and reads ClimbingMovement whenever IsClimbing, so the row just fills it.
+    // DoorsDemo's Player CSV has exactly one CanClimb=True row: "Climbing", MaxClimbingSpeed 75.
+    [Fact]
+    public void BuildObjects_APlatformerWithAClimbingRow_FillsTheClimbingSlot()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadDoorsDemo();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>(s => { s.Save = project.StartUpScreen; s.Project = project; });
+
+        var player = project.CreateEntity(@"Entities\Player", engine.CurrentScreen);
+
+        player.Platformer.ClimbingMovement.ShouldNotBeNull();
+        player.Platformer.ClimbingMovement!.ClimbingSpeed.ShouldBe(75f);
+    }
+
+    // The slot is read only while IsClimbing, and the behaviour throws if it climbs without one --
+    // so filling it eagerly is safe, and an entity that never climbs is unaffected.
+    [Fact]
+    public void BuildObjects_APlatformerWithAClimbingRow_DoesNotStartOutClimbing()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadDoorsDemo();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>(s => { s.Save = project.StartUpScreen; s.Project = project; });
+
+        var player = project.CreateEntity(@"Entities\Player", engine.CurrentScreen);
+
+        player.Platformer.IsClimbing.ShouldBeFalse();
+        player.Platformer.GroundMovement.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void FindClimbingRow_ACsvWithNoClimbingRow_IsNull()
+    {
+        const string csv = """
+            "Name (string, required)",CanClimb (System.Boolean),MaxClimbingSpeed (System.Single)
+            Ground,False,0
+            Air,False,0
+            """;
+
+        GlueMovementValues.FindClimbingRow(csv).ShouldBeNull();
     }
 
     [Fact]
