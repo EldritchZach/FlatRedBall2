@@ -62,7 +62,7 @@ via reflection. No codegen step.
 | 5 | [Gum integration](804-glue-project-loader/phase-05-gum-integration.md) | Implemented |
 | 6 | [Inheritance](804-glue-project-loader/phase-06-inheritance.md) | Implemented |
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
-| 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Partly implemented — spawning by name; pooling deferred |
+| 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Implemented — SortAxis needs engine support |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Implemented |
 | 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Partly implemented — CSV reader and value mapping; input wiring deferred |
