@@ -15,6 +15,7 @@ using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.Update;
 using AnimationEditor.Core.Utilities;
 using AnimationEditor.Core.ViewModels;
+using AnimationEditor.Views.Dialogs;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -54,6 +55,7 @@ public partial class MainWindow : Window
     private readonly Services.ThumbnailService _thumbnailService;
     private readonly IFileAssociationService _fileAssociation;
     private readonly IUpdateChecker _updateChecker;
+    private readonly IEditorDialogHost _dialogHost;
     private readonly PngFolderWatcher _pngFolderWatcher = new();
 
     private AppSettingsModel _appSettings = new();
@@ -99,9 +101,6 @@ public partial class MainWindow : Window
     private int _untitledCounter;
     private bool _suppressPropRefresh;
     private bool _suppressTextureComboChanged;
-    private bool _suppressPreviewScrollSync;
-    private bool _suppressWireframeScrollSync;
-    private bool _suppressPngScrollSync;
 
     // ── PNG Diff (#606) ─────────────────────────────────────────────────
     private readonly Services.PngBlameService _blameService = new();
@@ -152,7 +151,6 @@ public partial class MainWindow : Window
     private bool _suppressInterpolateSync;
     private bool _suppressGuideVisibilitySync;
     private readonly AltMenuActivationSuppressor _altMenuActivationSuppressor = new();
-    private System.Threading.CancellationTokenSource? _toastCts;
 
     // The platform application-data root under which settings live. Injected (not read from
     // Environment here) so headless tests can redirect it to a temp dir and never touch the
@@ -194,6 +192,7 @@ public partial class MainWindow : Window
         _thumbnailService = thumbnailService;
         _fileAssociation = fileAssociation;
         _updateChecker = updateChecker;
+        _dialogHost = new WindowEditorDialogHost(this);
         // Desktop renders the tree with its own _treeRoots collection, so the controller
         // reads expand state from there (browser reads its AnimationTreeControl instead).
         _tabController = new TabController(_undoManager, _appCommands,
@@ -204,8 +203,6 @@ public partial class MainWindow : Window
         if (OperatingSystem.IsMacOS())
             ApplyMacOSWindowChrome();
 
-        InitToast();
-        InitErrorBanner();
         PropertyChanged += (_, e) => { if (e.Property == OffScreenMarginProperty) Padding = OffScreenMargin; };
 
         WireAppCommands();
@@ -986,12 +983,7 @@ public partial class MainWindow : Window
                     : $"Exported {name} — {string.Join(" ", warnings)}");
             });
 
-        ItemDeletedToastUndoBtn.Click += (_, _) =>
-        {
-            _toastCts?.Cancel();
-            ItemDeletedToastPanel.IsVisible = false;
-            _undoManager.Undo();
-        };
+        Notifications.WireUndo(() => _undoManager.Undo());
 
         // Wire hot reload watcher
         _appCommands.HotReloadWatcher = new HotReloadWatcher();
@@ -1154,80 +1146,19 @@ public partial class MainWindow : Window
         WireframeCtrl.PanChanged             += (_, _) => SaveCompanionFile();
 
         // ── Wireframe scrollbars (#422) ──
-        // Two-way sync between the manual camera pan and the scrollbars, mirroring the Preview
-        // panel (#415). The scroll axis runs opposite the pan axis (PanScrollBar inverts it).
-        WireframeHScroll.ValueChanged += (_, _) => OnWireframeScrollValueChanged(horizontal: true);
-        WireframeVScroll.ValueChanged += (_, _) => OnWireframeScrollValueChanged(horizontal: false);
         // Persist on scroll-end only (not per tick), matching the pan-drag save semantics.
-        WireframeHScroll.Scroll += OnPreviewScrollEnded;
-        WireframeVScroll.Scroll += OnPreviewScrollEnded;
-        WireframeCtrl.ViewChanged += RefreshWireframeScrollBars;
-    }
-
-    private void OnWireframeScrollValueChanged(bool horizontal)
-    {
-        if (_suppressWireframeScrollSync) return;
-        _suppressWireframeScrollSync = true;
-        if (horizontal)
-            WireframeCtrl.SetPanX((float)WireframeHScroll.Value);
-        else
-            WireframeCtrl.SetPanY((float)WireframeVScroll.Value);
-        _suppressWireframeScrollSync = false;
-    }
-
-    /// <summary>
-    /// Pushes the wireframe's current pan/zoom/texture size into its two scrollbars. Fired by
-    /// <see cref="WireframeControl.ViewChanged"/>. The suppression flag stops the resulting
-    /// <c>ValueChanged</c> from looping back into the pan.
-    /// </summary>
-    private void RefreshWireframeScrollBars()
-    {
-        if (_suppressWireframeScrollSync) return;
-        _suppressWireframeScrollSync = true;
-        var (h, v) = WireframeCtrl.GetScrollBarRanges();
-        ApplyScrollRange(WireframeHScroll, h);
-        ApplyScrollRange(WireframeVScroll, v);
-        _suppressWireframeScrollSync = false;
+        PanScrollBinder.Attach(WireframeCtrl, WireframeHScroll, WireframeVScroll, SaveCompanionFile);
     }
 
     // ── PngPreviewControl scrollbar wiring (#604) ─────────────────────────────
 
     private void WirePngViewport()
     {
-        // Two-way sync between the PNG viewer's manual camera pan and its scrollbars, mirroring
-        // the wireframe (#422). No companion-file persistence — a PNG tab carries no editor state.
-        PngHScroll.ValueChanged += (_, _) => OnPngScrollValueChanged(horizontal: true);
-        PngVScroll.ValueChanged += (_, _) => OnPngScrollValueChanged(horizontal: false);
-        PngPane.ViewChanged += RefreshPngScrollBars;
+        // No companion-file persistence — a PNG tab carries no editor state.
+        PanScrollBinder.Attach(PngPane, PngHScroll, PngVScroll);
         // The PNG bar's zoom widget both shows the live zoom and drives it (type/step to 1:1 for
         // screenshots), sharing the wireframe/preview implementation.
         PngZoom.Attach(PngPane);
-    }
-
-    private void OnPngScrollValueChanged(bool horizontal)
-    {
-        if (_suppressPngScrollSync) return;
-        _suppressPngScrollSync = true;
-        if (horizontal)
-            PngPane.SetPanX((float)PngHScroll.Value);
-        else
-            PngPane.SetPanY((float)PngVScroll.Value);
-        _suppressPngScrollSync = false;
-    }
-
-    /// <summary>
-    /// Pushes the PNG viewer's current pan/zoom/texture size into its two scrollbars. Fired by
-    /// <see cref="TextureViewport.ViewChanged"/>. The suppression flag stops the resulting
-    /// <c>ValueChanged</c> from looping back into the pan.
-    /// </summary>
-    private void RefreshPngScrollBars()
-    {
-        if (_suppressPngScrollSync) return;
-        _suppressPngScrollSync = true;
-        var (h, v) = PngPane.GetScrollBarRanges();
-        ApplyScrollRange(PngHScroll, h);
-        ApplyScrollRange(PngVScroll, v);
-        _suppressPngScrollSync = false;
     }
 
     // ── PNG Diff wiring (#606) ──────────────────────────────────────────
@@ -2327,15 +2258,8 @@ public partial class MainWindow : Window
         PreviewCtrl.GroupPlaybackTicked += RefreshGroupTimelineScrubbers;
 
         // ── Preview scrollbars (#415) ──
-        // Two-way sync between the manual pan and the scrollbars, using the same suppression-flag
-        // pattern that breaks feedback loops elsewhere. The scroll axis runs
-        // opposite the pan axis (PanScrollBar handles the inversion).
-        PreviewHScroll.ValueChanged += (_, _) => OnPreviewScrollValueChanged(horizontal: true);
-        PreviewVScroll.ValueChanged += (_, _) => OnPreviewScrollValueChanged(horizontal: false);
         // Persist on scroll-end only (not per tick), matching the pan-drag save semantics.
-        PreviewHScroll.Scroll += OnPreviewScrollEnded;
-        PreviewVScroll.Scroll += OnPreviewScrollEnded;
-        PreviewCtrl.ViewChanged += RefreshPreviewScrollBars;
+        PanScrollBinder.Attach(PreviewCtrl, PreviewHScroll, PreviewVScroll, SaveCompanionFile);
 
         UpdateGuideToggleVisibility();
     }
@@ -2352,46 +2276,6 @@ public partial class MainWindow : Window
         _suppressGuideVisibilitySync = true;
         ShowUserGuidesCheck.IsChecked = PreviewCtrl.ShowUserGuides;
         _suppressGuideVisibilitySync = false;
-    }
-
-    private void OnPreviewScrollValueChanged(bool horizontal)
-    {
-        if (_suppressPreviewScrollSync) return;
-        _suppressPreviewScrollSync = true;
-        if (horizontal)
-            PreviewCtrl.SetPanX(PanScrollBar.PanFromValue((float)PreviewHScroll.Value));
-        else
-            PreviewCtrl.SetPanY(PanScrollBar.PanFromValue((float)PreviewVScroll.Value));
-        _suppressPreviewScrollSync = false;
-    }
-
-    private void OnPreviewScrollEnded(object? sender, ScrollEventArgs e)
-    {
-        if (e.ScrollEventType == ScrollEventType.EndScroll) SaveCompanionFile();
-    }
-
-    /// <summary>
-    /// Pushes the Preview's current pan/zoom/content extent into the two scrollbars. Fired by
-    /// <see cref="PreviewControl.ViewChanged"/>. The suppression flag stops the resulting
-    /// <c>ValueChanged</c> from looping back into the pan.
-    /// </summary>
-    private void RefreshPreviewScrollBars()
-    {
-        if (_suppressPreviewScrollSync) return;
-        _suppressPreviewScrollSync = true;
-        var (h, v) = PreviewCtrl.GetScrollBarRanges();
-        ApplyScrollRange(PreviewHScroll, h);
-        ApplyScrollRange(PreviewVScroll, v);
-        _suppressPreviewScrollSync = false;
-    }
-
-    // Order matters: set Minimum/Maximum before Value so RangeBase doesn't coerce it.
-    private static void ApplyScrollRange(ScrollBar bar, ScrollBarRange r)
-    {
-        bar.Minimum      = r.Minimum;
-        bar.Maximum      = r.Maximum;
-        bar.ViewportSize = r.ViewportSize;
-        bar.Value        = r.Value;
     }
 
     private void OnPreviewPlaybackFrameIndexChanged(int index)
@@ -4082,95 +3966,7 @@ public partial class MainWindow : Window
 
     private void AskAdjustFrameTime(AnimationChainSave chain)
     {
-        if (chain.Frames.Count == 0) return;
-
-        int   frameCount    = chain.Frames.Count;
-        float totalDuration = chain.Frames.Sum(f => f.FrameLength);
-        bool  canProportional = totalDuration > 0f;
-
-        var dialog = BuildAdjustFrameTimeWindow();
-
-        var durationInput = new NumericUpDown
-        {
-            Value        = (decimal)totalDuration,
-            Minimum      = 0m,
-            Maximum      = 3600m,
-            Increment    = 0.1m,
-            FormatString = "0.000",
-            Width        = 160
-        };
-
-        var radioProportional = new RadioButton
-        {
-            Content   = "Keep Proportional",
-            IsChecked = canProportional,
-            IsEnabled = canProportional
-        };
-        var radioSetAll = new RadioButton
-        {
-            Content   = "Set All Frames Same",
-            IsChecked = !canProportional
-        };
-
-        var perFrameLabel = new TextBlock
-        {
-            FontSize   = 11,
-            Foreground = Avalonia.Media.Brushes.Gray
-        };
-
-        void UpdateLabel()
-        {
-            float val = (float)(durationInput.Value ?? 0m);
-            bool showLabel = radioSetAll.IsChecked == true;
-            perFrameLabel.IsVisible = showLabel;
-            if (showLabel)
-                perFrameLabel.Text = $"Each frame: {val / frameCount:F3} seconds";
-        }
-
-        durationInput.ValueChanged       += (_, _) => UpdateLabel();
-        radioSetAll.IsCheckedChanged     += (_, _) => UpdateLabel();
-        radioProportional.IsCheckedChanged += (_, _) => UpdateLabel();
-        UpdateLabel();
-
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(12), Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "Total animation duration (seconds):" });
-        panel.Children.Add(durationInput);
-        panel.Children.Add(radioProportional);
-        panel.Children.Add(radioSetAll);
-        panel.Children.Add(perFrameLabel);
-
-        void Apply()
-        {
-            if (durationInput.Value.HasValue)
-            {
-                float newTotal = (float)durationInput.Value.Value;
-                if (radioProportional.IsChecked == true)
-                    _appCommands.ScaleFrameTimesProportional(chain, newTotal);
-                else
-                    _appCommands.ScaleFrameTimesSetAllSame(chain, newTotal);
-            }
-            dialog.Close();
-        }
-
-        var okBtn     = new Button { Content = "OK" };
-        var cancelBtn = new Button { Content = "Cancel" };
-        okBtn.Click     += (_, _) => Apply();
-        cancelBtn.Click += (_, _) => dialog.Close();
-
-        var btns = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        btns.Children.Add(okBtn);
-        btns.Children.Add(cancelBtn);
-        panel.Children.Add(btns);
-        dialog.Content = panel;
-
-        WireDialogKeyboard(dialog, onConfirm: Apply, onCancel: dialog.Close);
-
-        _ = dialog.ShowDialog(this);
+        _ = EditorDialogs.ShowAdjustFrameTimeAsync(_dialogHost, _appCommands, chain);
     }
 
     // ── Property panel wiring ─────────────────────────────────────────────────
@@ -5133,13 +4929,8 @@ public partial class MainWindow : Window
         return Task.CompletedTask;
     }
 
-    private async Task<bool> ShowConfirmDialogAsync(string message, string title)
-    {
-        var tcs = new TaskCompletionSource<bool>();
-        var dialog = BuildConfirmDialog(message, title, tcs);
-        await dialog.ShowDialog(this);
-        return await tcs.Task;
-    }
+    private Task<bool> ShowConfirmDialogAsync(string message, string title) =>
+        EditorDialogs.ConfirmAsync(_dialogHost, message, title);
 
     /// <summary>
     /// Test seam for <see cref="ShowTwoButtonDialogAsyncCore"/> -- assigned to the real dialog in
@@ -5155,61 +4946,9 @@ public partial class MainWindow : Window
     /// generic Yes/No, for prompts where "Yes"/"No" would force the user to mentally map a named
     /// choice (e.g. Restore/Delete) back onto Yes/No.
     /// </summary>
-    private async Task<bool> ShowTwoButtonDialogAsyncCore(string message, string title, string confirmLabel, string cancelLabel)
-    {
-        var tcs = new TaskCompletionSource<bool>();
-        var dialog = BuildConfirmDialog(message, title, tcs, confirmLabel, cancelLabel);
-        await dialog.ShowDialog(this);
-        return await tcs.Task;
-    }
-
-    /// <summary>
-    /// Builds the confirmation dialog. ENTER confirms (<paramref name="confirmLabel"/>), ESC
-    /// cancels (<paramref name="cancelLabel"/>), and closing the window by any other means
-    /// resolves <paramref name="tcs"/> to false. Extracted for testability.
-    /// </summary>
-    internal static Window BuildConfirmDialog(string message, string title, TaskCompletionSource<bool> tcs,
-        string confirmLabel = "Yes", string cancelLabel = "No")
-    {
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 420,
-            Height = 160,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(16), Spacing = 12 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = message,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap
-        });
-
-        var buttons = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-
-        var yesBtn = new Button { Content = confirmLabel };
-        var noBtn  = new Button { Content = cancelLabel };
-        yesBtn.Click += (_, _) => { tcs.TrySetResult(true);  dialog.Close(); };
-        noBtn.Click  += (_, _) => { tcs.TrySetResult(false); dialog.Close(); };
-        buttons.Children.Add(yesBtn);
-        buttons.Children.Add(noBtn);
-        panel.Children.Add(buttons);
-
-        dialog.Content = panel;
-        dialog.Closed += (_, _) => tcs.TrySetResult(false);
-
-        WireDialogKeyboard(dialog,
-            onConfirm: () => { tcs.TrySetResult(true);  dialog.Close(); },
-            onCancel:  () => { tcs.TrySetResult(false); dialog.Close(); });
-
-        return dialog;
-    }
+    private Task<bool> ShowTwoButtonDialogAsyncCore(
+        string message, string title, string confirmLabel, string cancelLabel) =>
+        EditorDialogs.ConfirmAsync(_dialogHost, message, title, confirmLabel, cancelLabel);
 
     /// <summary>
     /// Wires ENTER → <paramref name="onConfirm"/> and ESC → <paramref name="onCancel"/>
@@ -5239,56 +4978,8 @@ public partial class MainWindow : Window
 
     // ── String-input dialog helper ────────────────────────────────────────────
 
-    private async Task<string?> ShowStringInputDialogAsync(string title, string prompt, string initial = "")
-    {
-        var tcs = new TaskCompletionSource<string?>();
-
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 380,
-            Height = 155,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var tb = new TextBox { Text = initial };
-        var ok = new Button { Content = "OK", IsDefault = true };
-        var cancel = new Button { Content = "Cancel" };
-
-        ok.Click     += (_, _) => { tcs.TrySetResult(tb.Text); dialog.Close(); };
-        cancel.Click += (_, _) => { tcs.TrySetResult(null);    dialog.Close(); };
-        dialog.Closed += (_, _) => tcs.TrySetResult(null);
-
-        var btns = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        btns.Children.Add(ok);
-        btns.Children.Add(cancel);
-
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = prompt, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        panel.Children.Add(tb);
-        panel.Children.Add(btns);
-
-        dialog.Content = panel;
-        dialog.Opened += (_, _) =>
-        {
-            tb.Focus();
-            tb.SelectAll();
-        };
-
-        tb.KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter)  { tcs.TrySetResult(tb.Text); dialog.Close(); }
-            if (e.Key == Key.Escape) { tcs.TrySetResult(null);    dialog.Close(); }
-        };
-
-        await dialog.ShowDialog(this);
-        return await tcs.Task;
-    }
+    private Task<string?> ShowStringInputDialogAsync(string title, string prompt, string initial = "") =>
+        EditorDialogs.PromptStringAsync(_dialogHost, title, prompt, initial);
 
     // ── Status bar message ────────────────────────────────────────────────────
 
@@ -5319,72 +5010,18 @@ public partial class MainWindow : Window
         _statusMessageTimer.Start();
     }
 
-    // ── Error banner ──────────────────────────────────────────────────────────
-
-    private DispatcherTimer? _errorBannerTimer;
-
-    private void InitErrorBanner()
-    {
-        ErrorBannerDismissBtn.Click += (_, _) => HideErrorBanner();
-    }
+    // ── Toast / banner notifications ──────────────────────────────────────────
+    // All three surfaces (item-deleted undo toast, generic toast, error banner) live in the
+    // shared EditorNotificationOverlay hosted as "Notifications" — see MainWindow.axaml.
 
     /// <summary>
     /// Shows the prominent top-centre error banner. Auto-dismisses after 8s (longer than the
     /// informational status bar's 5s — errors deserve more dwell time) or on manual dismiss.
     /// </summary>
-    private void ShowErrorBanner(string text)
-    {
-        // The banner draws its own ⚠ icon, so drop a leading warning glyph that callers prepend
-        // (many ShowStatusMessage sites use "⚠ ..."), otherwise the icon shows twice.
-        ErrorBannerText.Text = text.TrimStart('⚠', ' ');
-        ErrorBanner.IsVisible = true;
+    private void ShowErrorBanner(string text) => Notifications.ShowErrorBanner(text);
 
-        _errorBannerTimer?.Stop();
-        _errorBannerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
-        _errorBannerTimer.Tick += (_, _) => HideErrorBanner();
-        _errorBannerTimer.Start();
-    }
-
-    private void HideErrorBanner()
-    {
-        _errorBannerTimer?.Stop();
-        ErrorBanner.IsVisible = false;
-        ErrorBannerText.Text = string.Empty;
-    }
-
-    // ── Toast notification ────────────────────────────────────────────────────
-
-    private DispatcherTimer? _toastTimer;
-    private Action? _toastRetryAction;
-
-    private void InitToast()
-    {
-        ToastDismissBtn.Click += (_, _) => HideToast();
-        ToastRetryBtn.Click   += (_, _) =>
-        {
-            HideToast();
-            _toastRetryAction?.Invoke();
-        };
-    }
-
-    private void ShowToast(string message, Action? retryAction = null)
-    {
-        _toastRetryAction = retryAction;
-        ToastMessage.Text = message;
-        ToastRetryBtn.IsVisible = retryAction is not null;
-        ToastPanel.IsVisible = true;
-
-        _toastTimer?.Stop();
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-        _toastTimer.Tick += (_, _) => HideToast();
-        _toastTimer.Start();
-    }
-
-    private void HideToast()
-    {
-        _toastTimer?.Stop();
-        ToastPanel.IsVisible = false;
-    }
+    private void ShowToast(string message, Action? retryAction = null) =>
+        Notifications.ShowToast(message, retryAction);
 
     // ── Keyboard wiring ───────────────────────────────────────────────────────
 
@@ -6005,225 +5642,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void ShowItemDeletedToast(string label)
-    {
-        _toastCts?.Cancel();
-        _toastCts = new System.Threading.CancellationTokenSource();
-        System.Threading.CancellationToken token = _toastCts.Token;
-
-        ItemDeletedToastLabel.Text = $"\"{label}\" deleted";
-        ItemDeletedToastPanel.IsVisible = true;
-
-        try
-        {
-            await System.Threading.Tasks.Task.Delay(4000, token);
-            ItemDeletedToastPanel.IsVisible = false;
-        }
-        catch (System.Threading.Tasks.TaskCanceledException) { }
-    }
+    private void ShowItemDeletedToast(string label) => Notifications.ShowItemDeleted(label);
 
     /// <summary>Test hook — invokes <see cref="HandleDelete"/> as if the Delete key were pressed.</summary>
     internal void HandleDeleteForTest() => HandleDelete();
 
     // ── Add Multiple Frames ───────────────────────────────────────────────────
 
-    private async Task AskAddMultipleFramesAsync(AnimationChainSave chain)
-    {
-        var dialog = new Window
-        {
-            Title = "Add Multiple Frames",
-            Width = 320,
-            Height = 200,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var countInput = new NumericUpDown
-        {
-            Value = 1, Minimum = 1, Maximum = 1000, Increment = 1,
-            FormatString = "0", Width = 100
-        };
-        var incrToggle = new CheckBox { Content = "Increment UV", IsChecked = true };
-
-        // Cancelling zeroes the count; the post-dialog code treats count <= 0 as "do nothing".
-        void Cancel() { countInput.Value = 0; dialog.Close(); }
-
-        var ok     = new Button { Content = "OK" };
-        var cancel = new Button { Content = "Cancel" };
-        ok.Click     += (_, _) => dialog.Close();
-        cancel.Click += (_, _) => Cancel();
-
-        var btns = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        btns.Children.Add(ok);
-        btns.Children.Add(cancel);
-
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = "Number of frames to add:" });
-        panel.Children.Add(countInput);
-        panel.Children.Add(incrToggle);
-        panel.Children.Add(btns);
-        dialog.Content = panel;
-
-        WireDialogKeyboard(dialog, onConfirm: dialog.Close, onCancel: Cancel);
-
-        await dialog.ShowDialog(this);
-
-        int count = (int)(countInput.Value ?? 0);
-        if (count <= 0) return;
-
-        bool exceededBounds = _appCommands.AddMultipleFrames(
-            chain, count, incrToggle.IsChecked == true);
-
-        if (exceededBounds)
-            ShowStatusMessage("Some frames were clipped — exceeded texture bounds.");
-
-        _appCommands.RefreshTreeNode(chain);
-        _events.RaiseAnimationChainsChanged();
-        _appCommands.SaveCurrentAnimationChainList();
-    }
+    private Task AskAddMultipleFramesAsync(AnimationChainSave chain) =>
+        EditorDialogs.ShowAddMultipleFramesAsync(
+            _dialogHost, _appCommands, chain, message => ShowStatusMessage(message));
 
     // ── Adjust Offsets ────────────────────────────────────────────────────────
 
-    private async Task AskAdjustOffsetsAsync(AnimationChainSave chain)
-    {
-        var dialog = new Window
-        {
-            Title = "Adjust Offsets",
-            Width = 340,
-            Height = 265,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var justifyBottomRb = new RadioButton { Content = "Justify Bottom", IsChecked = true, GroupName = "mode" };
-        var adjustAllRb     = new RadioButton { Content = "Adjust All (enter values)", GroupName = "mode" };
-        var (adjustAllRow, relXInput, relYInput) = BuildAdjustAllRow();
-
-        var absoluteRb = new RadioButton { Content = "Absolute", IsChecked = true, GroupName = "offsetMode" };
-        var relativeRb = new RadioButton { Content = "Relative", GroupName = "offsetMode" };
-
-        var offsetModeRow = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 16
-        };
-        offsetModeRow.Children.Add(absoluteRb);
-        offsetModeRow.Children.Add(relativeRb);
-
-        adjustAllRb.IsCheckedChanged += (_, _) =>
-        {
-            adjustAllRow.IsVisible   = adjustAllRb.IsChecked == true;
-            offsetModeRow.IsVisible  = adjustAllRb.IsChecked == true;
-        };
-        adjustAllRow.IsVisible  = false;
-        offsetModeRow.IsVisible = false;
-
-        bool confirmed = false;
-        void Confirm() { confirmed = true; dialog.Close(); }
-
-        var ok = new Button { Content = "OK" };
-        ok.Click += (_, _) => Confirm();
-        var cancel = new Button { Content = "Cancel" };
-        cancel.Click += (_, _) => dialog.Close();
-
-        var btns = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        btns.Children.Add(ok);
-        btns.Children.Add(cancel);
-
-        var panel = new StackPanel { Margin = new Avalonia.Thickness(14), Spacing = 8 };
-        panel.Children.Add(justifyBottomRb);
-        panel.Children.Add(adjustAllRb);
-        panel.Children.Add(adjustAllRow);
-        panel.Children.Add(offsetModeRow);
-        panel.Children.Add(btns);
-        dialog.Content = panel;
-
-        WireDialogKeyboard(dialog, onConfirm: Confirm, onCancel: dialog.Close);
-
-        await dialog.ShowDialog(this);
-        if (!confirmed) return;
-
-        var (bmpW, bmpH) = WireframeCtrl.BitmapSize;
-
-        if (justifyBottomRb.IsChecked == true)
-        {
-            _appCommands.AdjustOffsetsJustifyBottom(chain, frame =>
+    private Task AskAdjustOffsetsAsync(AnimationChainSave chain) =>
+        EditorDialogs.ShowAdjustOffsetsAsync(
+            _dialogHost, _appCommands, chain, frame =>
             {
-                if (bmpH > 0 && !string.IsNullOrEmpty(frame.TextureName))
-                    return (float)bmpH;
-                return null;
+                var (_, bitmapHeight) = WireframeCtrl.BitmapSize;
+                return bitmapHeight > 0 && !string.IsNullOrEmpty(frame.TextureName)
+                    ? bitmapHeight
+                    : null;
             });
-        }
-        else
-        {
-            _appCommands.AdjustOffsetsAdjustAll(chain,
-                (float)(relXInput.Value ?? 0),
-                (float)(relYInput.Value ?? 0),
-                relative: relativeRb.IsChecked == true);
-        }
-
-        _appCommands.RefreshAnimationFrameDisplay();
-        _appCommands.SaveCurrentAnimationChainList();
-        _events.RaiseAnimationChainsChanged();
-    }
-
-    /// <summary>
-    /// Builds the X/Y input row for the Adjust Offsets dialog using a Grid so both
-    /// inputs receive proportional space rather than being squashed inside a StackPanel.
-    /// </summary>
-    public static (Grid AdjustAllRow, NumericUpDown RelXInput, NumericUpDown RelYInput) BuildAdjustAllRow()
-    {
-        var relXInput = new NumericUpDown { Value = 0, FormatString = "0.###", Minimum = -9999, Maximum = 9999 };
-        var relYInput = new NumericUpDown { Value = 0, FormatString = "0.###", Minimum = -9999, Maximum = 9999 };
-
-        var xLabel = new TextBlock
-        {
-            Text = "X:",
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new Avalonia.Thickness(0, 0, 4, 0)
-        };
-        var yLabel = new TextBlock
-        {
-            Text = "Y:",
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new Avalonia.Thickness(8, 0, 4, 0)
-        };
-
-        Grid.SetColumn(xLabel, 0);
-        Grid.SetColumn(relXInput, 1);
-        Grid.SetColumn(yLabel, 2);
-        Grid.SetColumn(relYInput, 3);
-
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*") };
-        grid.Children.Add(xLabel);
-        grid.Children.Add(relXInput);
-        grid.Children.Add(yLabel);
-        grid.Children.Add(relYInput);
-
-        return (grid, relXInput, relYInput);
-    }
-
-    /// <summary>
-    /// Creates the shell <see cref="Window"/> for the Adjust Frame Time dialog.
-    /// The height is left unset so <see cref="SizeToContent.Height"/> can size
-    /// the window to fit whichever radio-option layout is currently shown.
-    /// </summary>
-    public static Window BuildAdjustFrameTimeWindow() => new Window
-    {
-        Title  = "Adjust All Frame Time",
-        Width  = 360,
-        SizeToContent = SizeToContent.Height,
-        WindowStartupLocation = WindowStartupLocation.CenterOwner,
-        CanResize = false
-    };
 
     // ── Resize Texture ────────────────────────────────────────────────────────
 
