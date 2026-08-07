@@ -115,7 +115,9 @@ to anyone opening that sample.
 the door and player animation chains, the player texture, the platformer CSV, the level's `.tmx` and
 its two tilesets.
 
-**`Content/Screens/Level1/StandardTilesetIcons.png` is a deliberate duplicate** of the copy at
-`Content/`. It works around an engine bug where an external tileset's image resolves against the map's
-directory rather than the `.tsx`'s — see the entry in `design/TODOS.md`. Delete the duplicate to
-reproduce that bug, and delete it permanently once the bug is fixed.
+**This fixture is the regression test for external-tileset image resolution.** `Level1Map.tmx` sits
+in `Content/Screens/Level1/` and references `../../StandardTileset.tsx`, whose own image reference is
+relative to *the tileset*, in `Content/`. That combination used to fail, and was worked around here by
+duplicating the PNG next to the map; the duplicate is gone and `TileMap` now rewrites a tileset's
+image paths to be map-relative when it serves the `.tsx`. Re-adding a copy of
+`StandardTilesetIcons.png` under `Content/Screens/Level1/` would mask a regression of that fix.

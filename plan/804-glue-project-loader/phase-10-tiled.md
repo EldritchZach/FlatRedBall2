@@ -351,11 +351,14 @@ vendored fixture exercises any of them. Tile node networks (§6.4) and entity sp
 
 ### Found while building
 
-- **An engine bug in TMX loading, filed in `design/TODOS.md`.** An external tileset's image resolves
-  against the *map's* directory rather than the `.tsx`'s, which contradicts the TMX spec and breaks
-  the normal way Tiled projects share a tileset between levels. The fixture carries a duplicated PNG
-  to work around it, and both the README and the TODO say so — the workaround is recorded rather
-  than quietly absorbed.
+- **An engine bug in TMX loading — since fixed.** An external tileset's image resolved against the
+  *map's* directory rather than the `.tsx`'s, contradicting the TMX spec and breaking the normal way
+  Tiled projects share a tileset between levels. It was recorded in `design/TODOS.md` with the
+  fixture carrying a duplicated PNG as a workaround. Both are now gone: `TileMap` rewrites a
+  tileset's image paths to be map-relative as it serves the `.tsx`, because the parser takes a single
+  scalar base directory and the converter discards the tileset's own location before the image is
+  ever loaded. Rewritten paths stay relative — an absolute one would bypass `TitleContainer` and
+  break every filesystem-less backend.
 - **A tile map is not an `IRenderable`.** It has its own `Screen.Add(TileMap)` overload because it
   owns one layer per Tiled layer. The register callback tested only for `IRenderable`, so the map
   loaded correctly and never drew — a silent failure that no test would have caught, since the tests

@@ -474,8 +474,9 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
             return;
         }
 
+        // Name is non-null by the Find predicate above, which matched on its suffix.
         string? csv = Content?.GetText(
-            System.IO.Path.GetFileNameWithoutExtension(csvFile.Name));
+            System.IO.Path.GetFileNameWithoutExtension(csvFile.Name!));
 
         if (csv is null)
         {
