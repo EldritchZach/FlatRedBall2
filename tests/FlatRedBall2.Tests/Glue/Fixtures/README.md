@@ -4,6 +4,35 @@ Vendored snapshots of FlatRedBall 1 Glue project files, used to test the `.gluj`
 loader (see `plan/804-glue-project-loader/`). Committed here rather than read from the sibling
 `FlatRedBall` checkout so the tests are self-contained.
 
+## TopDownProject
+
+| | |
+|---|---|
+| Source repo | `FlatRedBall` (sibling checkout, `C:\git\flatredball`) |
+| Source path | `Tests/TestProjectDesktopNet6/TestProjectDesktopNet6/` |
+| Synced | 2026-08-07 |
+| `FileVersion` | 54 |
+
+The only top-down fixture. `Entities/TopDownMovementEntity.glej` and its
+`Content/Entities/TopDownMovementEntity/TopDownValuesStatic.csv` are copied **byte-for-byte**.
+
+**The `.gluj` is the one hand-edited file here**, and only its reference lists: the source project
+references 226 elements, of which one is vendored, so `ScreenReferences` is emptied,
+`EntityReferences` is trimmed to the single entity, and `StartUpScreen` is cleared. Everything else —
+`FileVersion`, display settings, global files — is the real project's.
+
+Chosen deliberately: `TopDownMovementEntity` declares **no `NamedObjects`**, so it sidesteps the
+short-form `SourceClassType` problem (below) entirely while still exercising the real `IsTopDown`
+property, the real CSV shape, and the real referenced-file wiring.
+
+**Why the rest of that project is not vendored.** It is `FileVersion` 54 and writes `SourceClassType`
+unqualified — 110 of its files use a short name, and 7 mix both spellings in the same file, so it is
+not a clean version gate. `GlueTypeMap` now aliases the four short names it can construct
+(`Sprite`, `AxisAlignedRectangle`, `Circle`, `Polygon`), and the tile predicates already accepted both
+forms, so vendoring more of it is now possible — `Screens/TmxScreen.glsj` is the only
+`TileNodeNetwork` in all of FRB1, and `Screens/TiledLevelScreen.glsj` the only screen that really
+spawns entities from tiles.
+
 ## DoorsDemo
 
 | | |
