@@ -64,7 +64,7 @@ via reflection. No codegen step.
 | 7 | [States & categories](804-glue-project-loader/phase-07-states.md) | Implemented |
 | 8 | [Factories / spawning](804-glue-project-loader/phase-08-factories.md) | Implemented — SortAxis needs engine support |
 | 9 | [Collision relationships](804-glue-project-loader/phase-09-collision-relationships.md) | Implemented |
-| 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Partly implemented |
+| 10 | [Tiled (TMX)](804-glue-project-loader/phase-10-tiled.md) | Implemented |
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Partly implemented — CSV reader and value mapping; input wiring deferred |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Implemented — values reach the behaviour; input wiring deferred |
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |

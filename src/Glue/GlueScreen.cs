@@ -161,6 +161,26 @@ public class GlueScreen : Screen
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
 
         BuildGumScreen();
+        BuildTileEntities();
+    }
+
+    /// <summary>
+    /// Spawns entities for tiles whose type names one, for every map this screen built.
+    /// </summary>
+    /// <remarks>
+    /// Last, because a spawned entity is an ordinary instance that the screen must already own —
+    /// and because the maps have to exist before their tiles can be scanned.
+    /// </remarks>
+    private void BuildTileEntities()
+    {
+        if (Project is null)
+            return;
+
+        foreach (var built in _objects.Values)
+        {
+            if (built is Tiled.TileMap map)
+                GlueTileBuilder.CreateEntitiesFromTiles(map, Project, this, _buildDiagnostics, Save?.Name);
+        }
     }
 
     /// <summary>

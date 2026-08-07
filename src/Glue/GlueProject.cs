@@ -143,6 +143,18 @@ public sealed class GlueProject
         var save = FindEntity(glueName)
             ?? throw UnknownName(glueName, "entity", _entities.Keys);
 
+        return CreateEntity(save, screen);
+    }
+
+    /// <summary>
+    /// Creates an entity from a save this project already holds, skipping the name lookup.
+    /// </summary>
+    /// <remarks>
+    /// For callers already iterating the project's elements — looking the name back up would repeat
+    /// work, and would fail outright for a save whose name no longer matches its dictionary key.
+    /// </remarks>
+    internal GlueEntity CreateEntity(EntitySave save, Screen screen)
+    {
         if (save.IsAbstract)
         {
             throw new InvalidOperationException(

@@ -66,6 +66,182 @@ public class GlueTiledTests
         ((int)TileNodeNetworkCreationOptions.FromType).ShouldBe(3);
     }
 
+    /// <summary>
+    /// A node-network save shaped like the ones Glue writes, pointed at Level1's real map.
+    /// </summary>
+    /// <remarks>
+    /// No vendored fixture declares a TileNodeNetwork — FRB1's only one is in its test project,
+    /// which writes short-form SourceClassType and would need hand-editing to vendor. The map, the
+    /// tile types, and every builder path under test are real; only the declaration is synthetic.
+    /// </remarks>
+    private static NamedObjectSave NodeNetworkSave(
+        string instanceName = "NodeNetwork",
+        int creationOptions = (int)TileNodeNetworkCreationOptions.FromType,
+        string? tileType = "SolidCollision",
+        bool eliminateCutCorners = false,
+        int directionalType = 0)
+    {
+        var save = new NamedObjectSave
+        {
+            InstanceName = instanceName,
+            SourceClassType = "FlatRedBall.AI.Pathfinding.TileNodeNetwork",
+            SourceType = SourceType.FlatRedBallType,
+        };
+
+        save.Properties.Add(new PropertySave
+        {
+            Name = "TileNodeNetworkCreationOptions",
+            Value = JsonDocument.Parse(creationOptions.ToString()).RootElement.Clone(),
+        });
+        save.Properties.Add(new PropertySave
+        {
+            Name = "SourceTmxName",
+            Value = JsonDocument.Parse("\"Map\"").RootElement.Clone(),
+        });
+        save.Properties.Add(new PropertySave
+        {
+            Name = "DirectionalType",
+            Value = JsonDocument.Parse(directionalType.ToString()).RootElement.Clone(),
+        });
+        save.Properties.Add(new PropertySave
+        {
+            Name = "EliminateCutCorners",
+            Value = JsonDocument.Parse(eliminateCutCorners ? "true" : "false").RootElement.Clone(),
+        });
+
+        if (tileType is not null)
+        {
+            save.Properties.Add(new PropertySave
+            {
+                Name = "NodeNetworkTileTypeName",
+                Value = JsonDocument.Parse($"\"{tileType}\"").RootElement.Clone(),
+            });
+        }
+
+        return save;
+    }
+
+    private GlueScreen? Level1With(NamedObjectSave extra)
+    {
+        if (!_graphics.IsAvailable)
+            return null;
+
+        var save = LoadFixtureScreen("DoorsDemo", "Level1.glsj");
+        save.NamedObjects.Add(extra);
+
+        var screen = new GlueScreen
+        {
+            Save = save,
+            Content = new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.GraphicsDevice),
+        };
+
+        screen.BuildObjects();
+        return screen;
+    }
+
+    [Fact]
+    public void BuildObjects_ATileNodeNetworkFromType_HasNodesWhereThatTypesTilesAre()
+    {
+        var screen = Level1With(NodeNetworkSave());
+        if (screen is null)
+            return;
+
+        var network = screen.Objects["NodeNetwork"].ShouldBeOfType<FlatRedBall2.AI.TileNodeNetwork>();
+        var solid = (TileShapes)screen.Objects["SolidCollision"];
+        var map = (TileMap)screen.Objects["Map"];
+
+        // The same query drives both, so a node exists exactly where the collision tile does.
+        int columns = (int)(map.Width / map.TileWidth);
+        int rows = (int)(map.Height / map.TileHeight);
+        int matched = 0;
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                bool hasTile = solid.GetTileAtCell(column, row) is not null;
+                (network.NodeAt(column, row) is not null).ShouldBe(hasTile);
+                if (hasTile)
+                    matched++;
+            }
+        }
+
+        matched.ShouldBeGreaterThan(0, "the fixture's map has solid tiles, so some nodes must exist");
+    }
+
+    [Fact]
+    public void BuildObjects_ATileNodeNetworkNamingNoTileType_WarnsRatherThanBuilding()
+    {
+        var screen = Level1With(NodeNetworkSave(tileType: null));
+        if (screen is null)
+            return;
+
+        screen.Objects.ShouldNotContainKey("NodeNetwork");
+        screen.BuildDiagnostics.ShouldContain(d => d.Message.Contains("names none"));
+    }
+
+    // FillCompletely, BorderOutline and FromLayer are decoded and reported rather than silently
+    // ignored -- a network that quietly has no nodes looks like a pathfinding bug, not a gap.
+    [Fact]
+    public void BuildObjects_AnUnsupportedNodeNetworkOption_SaysSoRatherThanBuildingNothing()
+    {
+        var screen = Level1With(NodeNetworkSave(
+            creationOptions: (int)TileNodeNetworkCreationOptions.FromLayer));
+        if (screen is null)
+            return;
+
+        screen.Objects.ShouldNotContainKey("NodeNetwork");
+        screen.BuildDiagnostics.ShouldContain(
+            d => d.Message.Contains("FromLayer") && d.Message.Contains("does not support"));
+    }
+
+    // Glue spawns an entity for every tile whose type names one. No vendored map paints a tile typed
+    // after an entity -- DoorsDemo places its doors as NamedObjects -- so the rule is exercised by
+    // renaming a real entity to match a tile type the map really does use. The tiles, the lookup and
+    // the spawn path are all real; only the pairing is arranged.
+    [Fact]
+    public void CreateEntitiesFromTiles_ATileTypedAfterAnEntity_SpawnsOnePerTile()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var project = GlueProject.Load(
+            Path.Combine(AppContext.BaseDirectory, "Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
+            new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.GraphicsDevice));
+
+        var door = project.FindEntity(@"Entities\Door")!;
+        door.Name = @"Entities\SolidCollision";
+
+        var engine = new FlatRedBallService();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>(s =>
+        {
+            s.Save = project.FindScreen(@"Screens\Level1");
+            s.Project = project;
+        });
+
+        var screen = (GlueScreen)engine.CurrentScreen;
+        var solid = (TileShapes)screen.Objects["SolidCollision"];
+        var spawned = project.InstancesOf(@"Entities\SolidCollision");
+
+        spawned.ShouldNotBeEmpty();
+
+        // Every spawn sits on a tile of that type, at the tile's own centre.
+        foreach (var instance in spawned)
+            solid.GetTileAtWorld(instance.X, instance.Y).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void BuildObjects_ATileNodeNetwork_IsNotReportedAsAnUnmappedType()
+    {
+        // Before this phase a TileNodeNetwork counted as a type "a later phase owns".
+        GlueTileBuilder.IsNodeNetwork(NodeNetworkSave()).ShouldBeTrue();
+    }
+
     [Fact]
     public void BuildObjects_Level1_LoadsItsTileMap()
     {
