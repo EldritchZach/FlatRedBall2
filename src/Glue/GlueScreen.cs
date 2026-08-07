@@ -24,6 +24,7 @@ public class GlueScreen : Screen
 {
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _runtimeVariables = new(StringComparer.OrdinalIgnoreCase);
     private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
@@ -81,7 +82,24 @@ public class GlueScreen : Screen
     /// at all. An unknown name yields <c>default</c> rather than throwing.
     /// </remarks>
     public T? Get<T>(string name) =>
-        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables, _runtimeVariables);
+
+    /// <summary>
+    /// Reads or writes an authored <c>CustomVariable</c> by its Glue name — the property bag a
+    /// loaded element carries instead of the generated properties FRB1 would have compiled.
+    /// </summary>
+    /// <remarks>
+    /// A name matching a real member of this element reaches that member, so
+    /// <c>element["X"] = 5f</c> moves it; a tunneling variable reaches the contained object it
+    /// targets; anything else is held by name. The getter returns the value as stored — use
+    /// <see cref="Get{T}"/> to read it as a particular type.
+    /// </remarks>
+    public object? this[string name]
+    {
+        get => Get<object>(name);
+        set => GlueVariableApplier.Write(
+            name, value, Save?.CustomVariables, this, _objects, _runtimeVariables);
+    }
 
     /// <summary>Applies an uncategorized state by name.</summary>
     public void SetState(string stateName) => SetState(null, stateName);
@@ -236,6 +254,7 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
 
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _runtimeVariables = new(StringComparer.OrdinalIgnoreCase);
     private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
@@ -277,7 +296,24 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// at all. An unknown name yields <c>default</c> rather than throwing.
     /// </remarks>
     public T? Get<T>(string name) =>
-        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables, _runtimeVariables);
+
+    /// <summary>
+    /// Reads or writes an authored <c>CustomVariable</c> by its Glue name — the property bag a
+    /// loaded element carries instead of the generated properties FRB1 would have compiled.
+    /// </summary>
+    /// <remarks>
+    /// A name matching a real member of this element reaches that member, so
+    /// <c>element["X"] = 5f</c> moves it; a tunneling variable reaches the contained object it
+    /// targets; anything else is held by name. The getter returns the value as stored — use
+    /// <see cref="Get{T}"/> to read it as a particular type.
+    /// </remarks>
+    public object? this[string name]
+    {
+        get => Get<object>(name);
+        set => GlueVariableApplier.Write(
+            name, value, Save?.CustomVariables, this, _objects, _runtimeVariables);
+    }
 
     /// <summary>Applies an uncategorized state by name.</summary>
     public void SetState(string stateName) => SetState(null, stateName);

@@ -101,6 +101,13 @@ public sealed class GlueProject
             : Array.Empty<GlueEntity>();
 
     /// <summary>
+    /// The screen <paramref name="screen"/> names as the one to advance to, or null when it names
+    /// none — Glue's own idiom for level progression.
+    /// </summary>
+    public ScreenSave? NextScreenOf(ScreenSave screen) =>
+        string.IsNullOrEmpty(screen.NextScreen) ? null : FindScreen(screen.NextScreen!);
+
+    /// <summary>
     /// Builds a screen from its Glue name, ready to hand to the engine's screen machinery.
     /// </summary>
     /// <exception cref="ArgumentException">No element has that name.</exception>
@@ -170,6 +177,14 @@ public sealed class GlueProject
     /// removes the likeliest thing a hand-typed name gets wrong.
     /// </summary>
     private static string Normalize(string glueName) => glueName.Replace('/', '\\');
+
+    /// <summary>The same "no screen named that" error <see cref="CreateScreen"/> raises.</summary>
+    /// <remarks>
+    /// Exposed so <see cref="Screen.MoveToScreen(string, Action{GlueScreen})"/> can fail at the call
+    /// site with the identical message, rather than a frame later inside the deferred change.
+    /// </remarks>
+    internal static ArgumentException UnknownScreenName(GlueProject project, string requested) =>
+        UnknownName(requested, "screen", project._screens.Keys);
 
     private static ArgumentException UnknownName(
         string requested, string kind, IEnumerable<string> known)

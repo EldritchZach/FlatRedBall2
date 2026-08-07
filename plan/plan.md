@@ -68,7 +68,7 @@ via reflection. No codegen step.
 | 11 | [Top-down movement](804-glue-project-loader/phase-11-topdown-movement.md) | Partly implemented — CSV reader and value mapping; input wiring deferred |
 | 12 | [Platformer movement](804-glue-project-loader/phase-12-platformer-movement.md) | Implemented — values reach the behaviour; input wiring deferred |
 | 13 | [Camera / display setup](804-glue-project-loader/phase-13-camera-display.md) | Implemented |
-| 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Partly implemented — project context and creation by name |
+| 14 | [Name-based navigation and instantiation API](804-glue-project-loader/phase-14-navigation-api.md) | Implemented |
 
 **Status of the epic: 9 of 14 phases fully implemented, 5 partly (5, 8, 10, 11, 14), 0 not started.**
 A project loads; its shapes and sprites appear at the authored size and position; the values an

@@ -217,7 +217,7 @@ public class FlatRedBallService
     /// });
     /// </code>
     /// </remarks>
-    public Glue.GlueProject? GlueProject { get; private set; }
+    public Glue.GlueProject? GlueProject { get; set; }
 
     /// <summary>
     /// Reads the Glue project so its Gum project is known before Gum initializes. A project that
