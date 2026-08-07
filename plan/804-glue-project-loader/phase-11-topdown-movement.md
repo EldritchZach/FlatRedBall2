@@ -4,7 +4,7 @@
 |---|---|
 | **Initiative** | Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2 |
 | **Tracking issue** | [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804) |
-| **Status** | Partly implemented — the CSV reader and value mapping landed; input wiring and the first-row default are deferred. |
+| **Status** | Implemented — values reach TopDownBehavior, first row is the default, input is bound. |
 | **Depends on** | Phase 4 (the values are a referenced CSV file) |
 | **Blocks** | Nothing |
 | **Suggested branch** | `804-phase-11-topdown` |
@@ -309,7 +309,24 @@ G111 and G112 are both implemented: the two direction booleans are read explicit
 default the *opposite* way on the two sides, and `UsesAcceleration: False` zeroes both durations
 because FRB2 expresses "no easing" as a zero duration rather than a flag.
 
-**Deferred:** wiring the values onto `TopDownBehavior`, selecting CSV row 0 as the initial values,
-`DirectionSnap = FourWay`, and `InputDevice`. No vendored fixture is top-down — the only such
-entities live in FRB1's test project, which is `FileVersion` 54 and writes short-form
-`SourceClassType` (see `plan/plan.md`). Wiring it now would ship untested.
+**Now wired.** `GlueEntity.TopDown` is a lazily created `TopDownBehavior`, for the same reason
+`Platformer` is — every loaded entity shares one type, so an eager one would burden every
+non-top-down entity with a behaviour it never uses.
+
+**The first-row default is the first dictionary *entry*, because `TopDownValues` has no `Name`.**
+The name lives in the key of the dictionary `ReadTopDown` returns, which is why
+`SetTopDownMovementSet` takes a dictionary rather than a sequence. Glue's generated code defaults to
+the first entry, so an entity with a movement CSV and no explicit selection still moves.
+
+`SetTopDownMovement(name)` picks another by name, case-insensitively, and **leaves the current values
+alone when the name is unknown** — a data-driven name has no compiler checking it, and a typo that
+stopped the entity dead would read as a movement bug rather than a bad string.
+
+**Input is bound from `EntitySave.InputDevice`; see Phase 12 §9 for the device mapping**, which both
+phases share. `DirectionSnap = FourWay` remains unmapped: Glue records it per-entity and FRB2 puts it
+on the behaviour, so it is a one-line assignment whenever a fixture actually sets it.
+
+**Still no vendored top-down fixture.** The only top-down entities are in FRB1's test project, which
+is `FileVersion` 54 and writes short-form `SourceClassType`. The wiring above is covered by tests
+built on real `TopDownValues` and the real behaviour; what is untested is a top-down entity read
+end-to-end from disk.

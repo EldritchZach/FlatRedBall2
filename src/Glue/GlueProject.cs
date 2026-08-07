@@ -170,6 +170,8 @@ public sealed class GlueProject
         // behind, so a reused shell is indistinguishable from a fresh one.
         entity.BuildObjects();
 
+        BindInput(entity, save, screen);
+
         // Destroy is the only signal that an instance is gone. Without this the instance list keeps
         // handing out corpses, and a collision relationship built on it collides with them forever.
         entity._onDestroy = () => Release(entity);
@@ -198,6 +200,31 @@ public sealed class GlueProject
         var recycled = free[free.Count - 1];
         free.RemoveAt(free.Count - 1);
         return recycled;
+    }
+
+    /// <summary>
+    /// Gives a created entity the input its <c>InputDevice</c> asks for.
+    /// </summary>
+    /// <remarks>
+    /// Both behaviours get the same movement input — an entity is one or the other, and the unused
+    /// behaviour is never updated. Skipped without an engine, since a test can build an entity with
+    /// no input manager behind it.
+    /// </remarks>
+    private static void BindInput(GlueEntity entity, EntitySave save, Screen screen)
+    {
+        var input = screen.Engine?.Input;
+
+        if (input is null)
+            return;
+
+        var bound = GlueInputBinder.Bind(save, input);
+
+        if (bound.MovementInput is null)
+            return;
+
+        entity.Platformer.MovementInput = bound.MovementInput;
+        entity.Platformer.JumpInput = bound.JumpInput;
+        entity.TopDown.MovementInput = bound.MovementInput;
     }
 
     private void Track(string glueName, GlueEntity entity)

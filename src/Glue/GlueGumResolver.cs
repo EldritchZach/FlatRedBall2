@@ -84,15 +84,6 @@ public static class GlueGumResolver
     }
 
     /// <summary>
-    /// The Gum component a <see cref="NamedObjectSave"/> builds, or null when it is not a Gum object.
-    /// </summary>
-    /// <remarks>
-    /// Two shapes reach the same place. <see cref="SourceType.Gum"/> identifies the element by its
-    /// generated runtime type name and puts that same bare name in <see cref="NamedObjectSave.SourceFile"/>
-    /// where every other source type puts a path — so resolving it as a path looks for a file that
-    /// does not exist. <see cref="SourceType.File"/> with a <c>.gucx</c> is the ordinary path case.
-    /// </remarks>
-    /// <summary>
     /// Whether this object is a Gum visual rather than something the type map builds.
     /// </summary>
     /// <remarks>
@@ -106,6 +97,16 @@ public static class GlueGumResolver
         (save.SourceType == SourceType.File &&
             GumElementExtensions.Any(extension => HasExtension(save.SourceFile, extension)));
 
+    /// <summary>
+    /// The Gum component a <see cref="NamedObjectSave"/> builds, or null when it is not a Gum object.
+    /// </summary>
+    /// <remarks>
+    /// Two shapes reach the same place. <see cref="SourceType.Gum"/> identifies the element by its
+    /// generated runtime type name and puts that same bare name in
+    /// <see cref="NamedObjectSave.SourceFile"/> where every other source type puts a path — so
+    /// resolving it as a path looks for a file that does not exist. <see cref="SourceType.File"/>
+    /// with a <c>.gucx</c> is the ordinary path case.
+    /// </remarks>
     public static string? ComponentElementNameFor(NamedObjectSave save, string? gumProjectFile)
     {
         if (save.SourceType == SourceType.Gum)

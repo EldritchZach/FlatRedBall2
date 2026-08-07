@@ -272,6 +272,51 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// </remarks>
     public Movement.PlatformerBehavior Platformer => _platformer ??= new Movement.PlatformerBehavior();
 
+    private Movement.TopDownBehavior? _topDown;
+    private Dictionary<string, Movement.TopDownValues>? _topDownMovements;
+
+    /// <summary>
+    /// Top-down movement for this entity. Created on first access, for the same reason
+    /// <see cref="Platformer"/> is — every loaded entity shares one type.
+    /// </summary>
+    public Movement.TopDownBehavior TopDown => _topDown ??= new Movement.TopDownBehavior();
+
+    /// <summary>
+    /// Gives this entity a named set of top-down movement values and selects the first.
+    /// </summary>
+    /// <remarks>
+    /// First rather than none, because Glue's generated code defaults to the first dictionary entry —
+    /// an entity with a movement CSV and no selection still moves.
+    /// </remarks>
+    internal void SetTopDownMovementSet(IReadOnlyDictionary<string, Movement.TopDownValues> values)
+    {
+        _topDownMovements = new Dictionary<string, Movement.TopDownValues>(
+            values, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var value in values.Values)
+        {
+            TopDown.MovementValues = value;
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Selects one of this entity's authored top-down movement sets by name.
+    /// </summary>
+    /// <remarks>
+    /// An unknown name leaves the current values in place rather than clearing them — a data-driven
+    /// name has no compiler checking it, and a typo that stopped the entity dead would read as a
+    /// movement bug rather than a bad string.
+    /// </remarks>
+    public void SetTopDownMovement(string movementName)
+    {
+        if (_topDownMovements is not null &&
+            _topDownMovements.TryGetValue(movementName, out var values))
+        {
+            TopDown.MovementValues = values;
+        }
+    }
+
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, object?> _runtimeVariables = new(StringComparer.OrdinalIgnoreCase);

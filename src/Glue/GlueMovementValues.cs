@@ -122,6 +122,19 @@ public static class GlueMovementValues
     private static TimeSpan Seconds(float seconds) => TimeSpan.FromSeconds(seconds);
 
     /// <summary>
+    /// Gives <paramref name="entity"/> its top-down movement set, selecting the first row.
+    /// </summary>
+    /// <remarks>
+    /// Glue's generated code defaults to the first entry of the dictionary it built, so an entity
+    /// with a movement CSV is never left with no values at all. <see cref="GlueEntity.SetTopDownMovement"/>
+    /// picks a different one by name.
+    /// </remarks>
+    public static void ApplyTopDown(GlueEntity entity, IReadOnlyDictionary<string, TopDownValues> values)
+    {
+        entity.SetTopDownMovementSet(values);
+    }
+
+    /// <summary>
     /// Resolves Glue's <c>"&lt;Row&gt; in &lt;File&gt;.csv"</c> variable syntax to a row name.
     /// </summary>
     /// <remarks>
