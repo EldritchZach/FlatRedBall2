@@ -49,6 +49,11 @@ public sealed class GlueObjectBuilder
     {
         var typeName = GlueTypeName.Parse(save.SourceClassType);
 
+        // A Gum object is identified before the type map is consulted: its SourceClassType names a
+        // generated runtime class that exists only in FRB1, so the map could never resolve it.
+        if (GlueGumResolver.ComponentElementNameFor(save, _project?.Result.GumProjectFile) is string gumElementName)
+            return CreateGumVisual(save, gumElementName, elementName);
+
         // An object whose type names another element is a nested entity — built from that element's
         // own data rather than constructed from a CLR type.
         if (typeName.IsElementReference)
@@ -83,6 +88,14 @@ public sealed class GlueObjectBuilder
     public object? AddTo(Entity container, NamedObjectSave save, string? elementName = null)
     {
         object? instance = Create(save, elementName);
+
+        // A Gum visual is not IAttachable — it is parented through the entity's own Gum support,
+        // which is what keeps it following the entity.
+        if (instance is Gum.Wireframe.GraphicalUiElement visual)
+        {
+            container.Add(visual);
+            return instance;
+        }
 
         if (instance is not IAttachable attachable || !save.AttachToContainer)
             return instance;
@@ -129,6 +142,10 @@ public sealed class GlueObjectBuilder
                 if (container.Engine is not null)
                     entity.CustomInitialize();
 
+                break;
+
+            case Gum.Wireframe.GraphicalUiElement visual:
+                container.Add(visual);
                 break;
 
             case Rendering.IRenderable renderable:
@@ -237,6 +254,32 @@ public sealed class GlueObjectBuilder
         // The instance's own instructions layer on top of the entity's authored values.
         ApplyInstructions(entity, save, elementName);
         return entity;
+    }
+
+    /// <summary>
+    /// Builds a Gum component instance from the loaded Gum project.
+    /// </summary>
+    /// <remarks>
+    /// The element has to come from a project Gum itself loaded — see
+    /// <see cref="EngineInitSettings.GlueProjectFile"/>. Without one this reports and skips, the same
+    /// as any other type this build cannot construct.
+    /// </remarks>
+    private object? CreateGumVisual(NamedObjectSave save, string gumElementName, string? elementName)
+    {
+        var gumElement = GlueGumResolver.FindGumElement(gumElementName);
+
+        if (gumElement is null)
+        {
+            Warn($"'{save.InstanceName}' is the Gum element '{gumElementName}', which is not in the " +
+                 "loaded Gum project. Gum only resolves elements from a project it loaded itself — " +
+                 $"set {nameof(EngineInitSettings)}.{nameof(EngineInitSettings.GlueProjectFile)} so " +
+                 "it does.", elementName);
+            return null;
+        }
+
+        var visual = Gum.ElementSaveExtensionMethods.ToGraphicalUiElement(gumElement, null);
+        ApplyInstructions(visual, save, elementName);
+        return visual;
     }
 
     /// <summary>

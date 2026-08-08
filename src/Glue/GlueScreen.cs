@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using FlatRedBall2.Glue.Model;
+// ToGraphicalUiElement lives in Gum, not Gum.DataTypes with the ScreenSave it extends. The
+// MonoGameGum forwarder for it is obsolete.
+using Gum;
 
 namespace FlatRedBall2.Glue;
 
@@ -21,6 +24,7 @@ public class GlueScreen : Screen
 {
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _runtimeVariables = new(StringComparer.OrdinalIgnoreCase);
     private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
@@ -51,6 +55,16 @@ public class GlueScreen : Screen
     public string? GlueName => Save?.Name;
 
     /// <summary>
+    /// This screen's Gum UI, once built — null when the screen references no Gum screen, or when Gum
+    /// could not produce one.
+    /// </summary>
+    /// <remarks>
+    /// A derived screen inherits its base's Gum screen: DoorsDemo's <c>Level1</c> declares none and
+    /// still shows <c>GameScreenGum</c>.
+    /// </remarks>
+    public Gum.Wireframe.GraphicalUiElement? GumScreen { get; private set; }
+
+    /// <summary>
     /// The objects built from <see cref="Save"/>, keyed by their Glue instance name. Objects whose
     /// type a later phase owns are absent; see <see cref="BuildDiagnostics"/>.
     /// </summary>
@@ -68,7 +82,24 @@ public class GlueScreen : Screen
     /// at all. An unknown name yields <c>default</c> rather than throwing.
     /// </remarks>
     public T? Get<T>(string name) =>
-        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables, _runtimeVariables);
+
+    /// <summary>
+    /// Reads or writes an authored <c>CustomVariable</c> by its Glue name — the property bag a
+    /// loaded element carries instead of the generated properties FRB1 would have compiled.
+    /// </summary>
+    /// <remarks>
+    /// A name matching a real member of this element reaches that member, so
+    /// <c>element["X"] = 5f</c> moves it; a tunneling variable reaches the contained object it
+    /// targets; anything else is held by name. The getter returns the value as stored — use
+    /// <see cref="Get{T}"/> to read it as a particular type.
+    /// </remarks>
+    public object? this[string name]
+    {
+        get => Get<object>(name);
+        set => GlueVariableApplier.Write(
+            name, value, Save?.CustomVariables, this, _objects, _runtimeVariables);
+    }
 
     /// <summary>Applies an uncategorized state by name.</summary>
     public void SetState(string stateName) => SetState(null, stateName);
@@ -128,8 +159,75 @@ public class GlueScreen : Screen
         // Variables run after objects, and after those objects' own instructions, because that is
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+
+        BuildGumScreen();
+        BuildTileEntities();
     }
 
+    /// <summary>
+    /// Spawns entities for tiles whose type names one, for every map this screen built.
+    /// </summary>
+    /// <remarks>
+    /// Last, because a spawned entity is an ordinary instance that the screen must already own —
+    /// and because the maps have to exist before their tiles can be scanned.
+    /// </remarks>
+    private void BuildTileEntities()
+    {
+        if (Project is null)
+            return;
+
+        foreach (var built in _objects.Values)
+        {
+            if (built is Tiled.TileMap map)
+                GlueTileBuilder.CreateEntitiesFromTiles(map, Project, this, _buildDiagnostics, Save?.Name);
+        }
+    }
+
+    /// <summary>
+    /// Adds the Gum screen this element references, if any. Requires a Gum project that Gum itself
+    /// loaded — see <see cref="EngineInitSettings.GlueProjectFile"/>.
+    /// </summary>
+    private void BuildGumScreen()
+    {
+        GumScreen = null;
+
+        if (Save is null || Project is null)
+            return;
+
+        string? elementName = GlueGumResolver.GumElementNameFor(
+            Save, Project.Result.Project, Project.Result.GumProjectFile);
+
+        if (elementName is null)
+            return;
+
+        var gumFile = Save.ReferencedFiles.Find(GlueGumResolver.IsGumElement);
+        if (gumFile is not null && GlueGumResolver.IsLegacyGumIdb(gumFile))
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"'{gumFile.Name}' loads through the legacy GumIdb model, which reads the file " +
+                "directly rather than looking the element up in the Gum project. Loading it as an " +
+                "ordinary Gum screen instead.",
+                Save.Name));
+        }
+
+        var screenSave = Gum.Managers.ObjectFinder.Self.GumProjectSave?.Screens
+            .Find(s => string.Equals(s.Name, elementName, StringComparison.OrdinalIgnoreCase));
+
+        if (screenSave is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"Gum screen '{elementName}' was referenced but is not in the loaded Gum project. " +
+                "Gum only resolves elements from a project it loaded itself — set " +
+                $"{nameof(EngineInitSettings)}.{nameof(EngineInitSettings.GlueProjectFile)} so it does.",
+                Save.Name));
+            return;
+        }
+
+        GumScreen = screenSave.ToGraphicalUiElement();
+        Add(GumScreen);
+    }
 
     /// <summary>The screen a nested entity should be registered on — this one.</summary>
     private Screen OwningScreenForSpawns() => this;
@@ -174,8 +272,61 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// </remarks>
     public Movement.PlatformerBehavior Platformer => _platformer ??= new Movement.PlatformerBehavior();
 
+    private Movement.TopDownBehavior? _topDown;
+    private Dictionary<string, Movement.TopDownValues>? _topDownMovements;
+
+    /// <summary>
+    /// Top-down movement for this entity. Created on first access, for the same reason
+    /// <see cref="Platformer"/> is — every loaded entity shares one type.
+    /// </summary>
+    /// <remarks>
+    /// Snaps four-way rather than the engine default of eight. FRB1's generated <c>Initialize</c>
+    /// hard-sets <c>PossibleDirections = FourWay</c> unconditionally, ignoring the CSV, and Glue
+    /// persists no per-entity direction setting at all — so a loaded entity keeping FRB2's
+    /// eight-way default would move diagonally where the same project does not in FRB1 (G114).
+    /// </remarks>
+    public Movement.TopDownBehavior TopDown =>
+        _topDown ??= new Movement.TopDownBehavior { DirectionSnap = Movement.DirectionSnap.FourWay };
+
+    /// <summary>
+    /// Gives this entity a named set of top-down movement values and selects the first.
+    /// </summary>
+    /// <remarks>
+    /// First rather than none, because Glue's generated code defaults to the first dictionary entry —
+    /// an entity with a movement CSV and no selection still moves.
+    /// </remarks>
+    internal void SetTopDownMovementSet(IReadOnlyDictionary<string, Movement.TopDownValues> values)
+    {
+        _topDownMovements = new Dictionary<string, Movement.TopDownValues>(
+            values, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var value in values.Values)
+        {
+            TopDown.MovementValues = value;
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Selects one of this entity's authored top-down movement sets by name.
+    /// </summary>
+    /// <remarks>
+    /// An unknown name leaves the current values in place rather than clearing them — a data-driven
+    /// name has no compiler checking it, and a typo that stopped the entity dead would read as a
+    /// movement bug rather than a bad string.
+    /// </remarks>
+    public void SetTopDownMovement(string movementName)
+    {
+        if (_topDownMovements is not null &&
+            _topDownMovements.TryGetValue(movementName, out var values))
+        {
+            TopDown.MovementValues = values;
+        }
+    }
+
     private readonly Dictionary<string, object> _objects = new();
     private readonly Dictionary<string, JsonElement> _variables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _runtimeVariables = new(StringComparer.OrdinalIgnoreCase);
     private GlueContentSource? _content;
     private readonly List<GlueLoadDiagnostic> _buildDiagnostics = new();
 
@@ -217,7 +368,24 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// at all. An unknown name yields <c>default</c> rather than throwing.
     /// </remarks>
     public T? Get<T>(string name) =>
-        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables);
+        GlueVariableApplier.Read<T>(name, Save?.CustomVariables, this, _objects, _variables, _runtimeVariables);
+
+    /// <summary>
+    /// Reads or writes an authored <c>CustomVariable</c> by its Glue name — the property bag a
+    /// loaded element carries instead of the generated properties FRB1 would have compiled.
+    /// </summary>
+    /// <remarks>
+    /// A name matching a real member of this element reaches that member, so
+    /// <c>element["X"] = 5f</c> moves it; a tunneling variable reaches the contained object it
+    /// targets; anything else is held by name. The getter returns the value as stored — use
+    /// <see cref="Get{T}"/> to read it as a particular type.
+    /// </remarks>
+    public object? this[string name]
+    {
+        get => Get<object>(name);
+        set => GlueVariableApplier.Write(
+            name, value, Save?.CustomVariables, this, _objects, _runtimeVariables);
+    }
 
     /// <summary>Applies an uncategorized state by name.</summary>
     public void SetState(string stateName) => SetState(null, stateName);
@@ -274,8 +442,83 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
             owningScreen: OwningScreenForSpawns());
 
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
+
+        LoadTopDownValues();
+        LoadClimbingMovement();
     }
 
+    /// <summary>
+    /// Loads a top-down entity's movement CSV, which nothing else names.
+    /// </summary>
+    /// <remarks>
+    /// The platformer slots arrive as <c>CustomVariable</c>s naming a row (<c>"Ground in X.csv"</c>),
+    /// so they resolve through the variable applier. Top-down has no such variable: Glue records only
+    /// <c>IsTopDown</c> and loads the whole CSV, defaulting to its first row. Discovery therefore has
+    /// to start from the property rather than from a variable.
+    /// </remarks>
+    private void LoadTopDownValues()
+    {
+        if (Save is null || !Save.Properties.GetValue<bool>("IsTopDown"))
+            return;
+
+        var csvFile = Save.ReferencedFiles.Find(
+            f => f.Name is not null &&
+                 f.Name.EndsWith("TopDownValuesStatic.csv", StringComparison.OrdinalIgnoreCase));
+
+        if (csvFile is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                "This entity is marked top-down but references no TopDownValuesStatic.csv, so it " +
+                "has no movement values.", Save.Name));
+            return;
+        }
+
+        // Name is non-null by the Find predicate above, which matched on its suffix.
+        string? csv = Content?.GetText(
+            System.IO.Path.GetFileNameWithoutExtension(csvFile.Name!));
+
+        if (csv is null)
+        {
+            _buildDiagnostics.Add(new GlueLoadDiagnostic(
+                GlueDiagnosticSeverity.Warning,
+                $"'{csvFile.Name}' holds this entity's top-down movement values but was not loaded.",
+                Save.Name));
+            return;
+        }
+
+        GlueMovementValues.ApplyTopDown(this, GlueMovementValues.ReadTopDown(csv));
+    }
+
+    /// <summary>
+    /// Fills the platformer's climbing slot from the CSV row that opts into climbing.
+    /// </summary>
+    /// <remarks>
+    /// FRB1 has no climbing slot — <c>CanClimb</c> is a per-row bool, and its generated code expects
+    /// game code to swap that row into the ground slot when the character is on a ladder. FRB2 owns
+    /// the ladder state itself (<see cref="Movement.PlatformerBehavior.Ladders"/>) and reads
+    /// <see cref="Movement.PlatformerBehavior.ClimbingMovement"/> whenever it is climbing, so the row
+    /// can simply be assigned. Nothing happens until the behaviour is given ladders, which is the
+    /// game's call.
+    /// </remarks>
+    private void LoadClimbingMovement()
+    {
+        if (Save is null || Platformer.ClimbingMovement is not null)
+            return;
+
+        var csvFile = Save.ReferencedFiles.Find(
+            f => f.Name is not null &&
+                 f.Name.EndsWith("PlatformerValuesStatic.csv", StringComparison.OrdinalIgnoreCase));
+
+        string? csv = csvFile?.Name is null
+            ? null
+            : Content?.GetText(System.IO.Path.GetFileNameWithoutExtension(csvFile.Name));
+
+        if (csv is null)
+            return;
+
+        Platformer.ClimbingMovement = GlueMovementValues.FindClimbingRow(csv);
+    }
 
     /// <summary>The screen a nested entity should be registered on — the one this entity lives on.</summary>
     private Screen? OwningScreenForSpawns() => _engineOrNull()?.CurrentScreen;

@@ -202,6 +202,39 @@ public class FlatRedBallService
         "FlatRedBallService has not been initialized. Call Initialize() first.");
 
     /// <summary>
+    /// The Glue project named by <see cref="EngineInitSettings.GlueProjectFile"/>, or null when none
+    /// was given. Its content source is already wired to this engine's loader.
+    /// </summary>
+    /// <remarks>
+    /// Loading happens during <see cref="Initialize"/> because the project's Gum project has to be
+    /// known before Gum initializes. Holding the result here spares the caller a second load:
+    /// <code>
+    /// service.Initialize(game, new EngineInitSettings { GlueProjectFile = "MyGame.gluj" });
+    /// service.Start&lt;GlueScreen&gt;(screen =&gt;
+    /// {
+    ///     screen.Save = service.GlueProject!.StartUpScreen;
+    ///     screen.Project = service.GlueProject;
+    /// });
+    /// </code>
+    /// </remarks>
+    public Glue.GlueProject? GlueProject { get; set; }
+
+    /// <summary>
+    /// Reads the Glue project so its Gum project is known before Gum initializes. A project that
+    /// fails to load leaves <see cref="GlueProject"/> holding the diagnostics that say why.
+    /// </summary>
+    private void LoadGlueProject(string glueProjectFile)
+    {
+        // Assets sit under the .gluj's own Content folder, which is also the game's — Glue writes
+        // every referenced-file path relative to it.
+        string projectDirectory = Path.GetDirectoryName(glueProjectFile) ?? string.Empty;
+
+        GlueProject = Glue.GlueProject.Load(
+            glueProjectFile,
+            new Glue.GlueContentSource(Content, projectDirectory));
+    }
+
+    /// <summary>
     /// Initializes the engine. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
     /// </summary>
     /// <remarks>
@@ -260,7 +293,16 @@ public class FlatRedBallService
         }
 #endif
 
-        if (settings?.GumProjectFile is string gumProjectFile)
+        // A Glue project names its own Gum project, but only after it has been read — and Gum will
+        // not work with a project it did not load itself (assigning ObjectFinder.GumProjectSave
+        // leaves the runtime half-configured and throws deep inside UnitConverter). So the Glue
+        // project is read here, before Gum initializes, purely to learn that path.
+        if (settings?.GlueProjectFile is string glueProjectFile)
+        {
+            LoadGlueProject(glueProjectFile);
+        }
+
+        if ((settings?.GumProjectFile ?? GlueProject?.Result.GumProjectFile) is string gumProjectFile)
         {
             _gum.Initialize(game, gumProjectFile);
 #pragma warning disable CS0618 // Gum marks this as obsolete, but it's just because it's still experimental. It's okay.

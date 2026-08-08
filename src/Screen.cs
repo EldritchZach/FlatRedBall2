@@ -572,6 +572,44 @@ public class Screen : ILifecycleEvents
         => Engine.RequestScreenChange(configure);
 
     /// <summary>
+    /// Moves to a screen of a loaded Glue project by its Glue name (<c>Screens\Level1</c>).
+    /// </summary>
+    /// <remarks>
+    /// Every loaded screen is a <see cref="Glue.GlueScreen"/>, so <see cref="MoveToScreen{T}"/>
+    /// cannot tell two of them apart — the name is what distinguishes them. Either separator is
+    /// accepted and case is ignored, but the <c>Screens\</c> prefix is required: a bare leaf name is
+    /// ambiguous, since an entity and a screen can share one.
+    /// <para>Works in both directions — a hand-written screen can move to a loaded one, and a loaded
+    /// screen can call <see cref="MoveToScreen{T}"/> to reach a hand-written one.</para>
+    /// </remarks>
+    /// <param name="glueName">The screen's Glue name, including its <c>Screens\</c> prefix.</param>
+    /// <param name="configure">Runs after the screen's data is assigned and before its objects are
+    /// built, so it can change what gets built.</param>
+    /// <exception cref="InvalidOperationException">No Glue project is loaded.</exception>
+    /// <exception cref="ArgumentException">The project has no screen with that name.</exception>
+    public void MoveToScreen(string glueName, Action<Glue.GlueScreen>? configure = null)
+    {
+        var project = Engine.GlueProject ?? throw new InvalidOperationException(
+            $"No Glue project is loaded, so '{glueName}' cannot be resolved. Set " +
+            $"{nameof(EngineInitSettings)}.{nameof(EngineInitSettings.GlueProjectFile)} when " +
+            "initializing, or assign FlatRedBallService.GlueProject.");
+
+        // Resolved now so an unknown name throws at the call site rather than a frame later, inside
+        // the deferred change where the stack no longer says who asked.
+        var save = project.FindScreen(glueName) ?? throw Glue.GlueProject.UnknownScreenName(project, glueName);
+
+        // Assignment happens inside the configure callback, not before it: the engine retains this
+        // callback and replays it on RestartScreen. Setting Save outside would leave a restarted
+        // screen with none — a silently empty screen rather than an error.
+        Engine.RequestScreenChange<Glue.GlueScreen>(screen =>
+        {
+            screen.Save = save;
+            screen.Project = project;
+            configure?.Invoke(screen);
+        });
+    }
+
+    /// <summary>
     /// Requests a restart of the current screen at the start of the next frame. The screen is
     /// fully torn down (entities, factories, content, Gum, async tasks) and recreated as a fresh
     /// instance of the same type, replaying the most recently retained configure callback.

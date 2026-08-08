@@ -21,7 +21,8 @@ namespace FlatRedBall2.Glue;
 internal static class GlueTileBuilder
 {
     /// <summary>Whether this object is one of the tile types built here rather than constructed.</summary>
-    internal static bool IsTileObject(NamedObjectSave save) => IsMap(save) || IsCollection(save);
+    internal static bool IsTileObject(NamedObjectSave save) =>
+        IsMap(save) || IsCollection(save) || IsNodeNetwork(save);
 
     private static bool IsMap(NamedObjectSave save) =>
         GlueTypeName.Parse(save.SourceClassType).OpenTypeName
@@ -30,6 +31,10 @@ internal static class GlueTileBuilder
     private static bool IsCollection(NamedObjectSave save) =>
         GlueTypeName.Parse(save.SourceClassType).OpenTypeName
             is "FlatRedBall.TileCollisions.TileShapeCollection" or "TileShapeCollection";
+
+    internal static bool IsNodeNetwork(NamedObjectSave save) =>
+        GlueTypeName.Parse(save.SourceClassType).OpenTypeName
+            is "FlatRedBall.AI.Pathfinding.TileNodeNetwork" or "TileNodeNetwork";
 
     /// <summary>
     /// Builds every tile object in <paramref name="namedObjects"/>, in dependency order, adding what
@@ -70,6 +75,178 @@ internal static class GlueTileBuilder
                 register(shapes);
             }
         }
+
+        // Node networks last: like a collection, a network is derived from a map, so the map has to
+        // exist first. Not registered for rendering — a network is navigation data, not a visual.
+        foreach (var save in namedObjects)
+        {
+            if (!IsNodeNetwork(save) || string.IsNullOrEmpty(save.InstanceName))
+                continue;
+
+            var network = BuildNodeNetwork(save, elementName, objects, diagnostics);
+
+            if (network is not null)
+                objects[save.InstanceName] = network;
+        }
+    }
+
+    /// <summary>
+    /// Spawns an entity for every tile whose type names one, the way FRB1's tile instantiator does.
+    /// </summary>
+    /// <remarks>
+    /// Glue matches a tile's type against an entity's name, so a tile typed <c>Door</c> spawns
+    /// <c>Entities\Door</c>. Tiles are located with the same by-class query collision uses, which is
+    /// what keeps the two consistent.
+    /// <para>Spawning goes through <see cref="GlueProject.CreateEntity(EntitySave, Screen)"/> rather than
+    /// <see cref="TileMap.CreateEntities{T}"/>: the latter needs a <c>Factory&lt;T&gt;</c>, and every
+    /// loaded entity is a <see cref="GlueEntity"/>, so one factory could not tell a Door from a
+    /// Player (Phase 8 G80).</para>
+    /// </remarks>
+    /// <returns>Every entity spawned, across all types.</returns>
+    internal static List<GlueEntity> CreateEntitiesFromTiles(
+        TileMap map,
+        GlueProject project,
+        Screen screen,
+        List<GlueLoadDiagnostic> diagnostics,
+        string? elementName = null)
+    {
+        var spawned = new List<GlueEntity>();
+
+        foreach (var entity in project.Result.Project.Entities)
+        {
+            if (entity.Name is null || entity.IsAbstract)
+                continue;
+
+            // Tiles carry the leaf name; the project keys on the full Entities\Name form.
+            string leafName = entity.Name.Substring(entity.Name.LastIndexOf('\\') + 1);
+            TileShapes tiles;
+
+            try
+            {
+                tiles = map.GenerateCollisionFromClass(leafName);
+            }
+            catch (Exception e)
+            {
+                Warn(diagnostics, elementName,
+                    $"Looking for '{leafName}' tiles to spawn '{entity.Name}' failed: {e.Message}");
+                continue;
+            }
+
+            int columns = (int)System.Math.Ceiling(map.Width / System.Math.Max(map.TileWidth, 1));
+            int rows = (int)System.Math.Ceiling(map.Height / System.Math.Max(map.TileHeight, 1));
+
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    if (tiles.GetTileAtCell(column, row) is not AARect tile)
+                        continue;
+
+                    var instance = project.CreateEntity(entity, screen);
+
+                    // The tile's own centre, so the entity lands where it was painted.
+                    instance.X = tile.X;
+                    instance.Y = tile.Y;
+                    spawned.Add(instance);
+                }
+            }
+        }
+
+        return spawned;
+    }
+
+    /// <summary>
+    /// Builds a <see cref="AI.TileNodeNetwork"/> from the tiles of a map that match the authored
+    /// creation option.
+    /// </summary>
+    /// <remarks>
+    /// The network's grid is taken from the <see cref="TileShapes"/> the same query produces, so
+    /// nodes land on the same centres the collision does. Deriving it from the map's own bounds
+    /// instead would drift by half a tile wherever the map's origin is not the collection's.
+    /// </remarks>
+    private static AI.TileNodeNetwork? BuildNodeNetwork(
+        NamedObjectSave save,
+        string? elementName,
+        Dictionary<string, object> objects,
+        List<GlueLoadDiagnostic> diagnostics)
+    {
+        string? mapName = GlueTileDefaults.SourceTmxName(save);
+
+        if (string.IsNullOrEmpty(mapName))
+        {
+            Warn(diagnostics, elementName,
+                $"'{save.InstanceName}' names no source map; no node network was built.");
+            return null;
+        }
+
+        if (!objects.TryGetValue(mapName, out object? candidate) || candidate is not TileMap map)
+        {
+            Warn(diagnostics, elementName,
+                $"'{save.InstanceName}' reads from '{mapName}', which is not a loaded tile map; " +
+                "no node network was built.");
+            return null;
+        }
+
+        var options = GlueTileDefaults.NodeNetworkCreationOptions(save);
+        string? layer = GlueTileDefaults.NodeNetworkLayerName(save);
+        TileShapes? occupied;
+
+        switch (options)
+        {
+            case TileNodeNetworkCreationOptions.FromType:
+                string? type = GlueTileDefaults.NodeNetworkTileTypeName(save);
+
+                if (string.IsNullOrEmpty(type))
+                {
+                    Warn(diagnostics, elementName,
+                        $"'{save.InstanceName}' builds nodes from a tile type but names none.");
+                    return null;
+                }
+
+                occupied = map.GenerateCollisionFromClass(type, NullIfEmpty(layer));
+                break;
+
+            case TileNodeNetworkCreationOptions.FromProperties:
+                string? property = GlueTileDefaults.NodeNetworkPropertyName(save);
+
+                if (string.IsNullOrEmpty(property))
+                {
+                    Warn(diagnostics, elementName,
+                        $"'{save.InstanceName}' builds nodes from a tile property but names none.");
+                    return null;
+                }
+
+                occupied = map.GenerateCollisionFromProperty(property, NullIfEmpty(layer));
+                break;
+
+            default:
+                Warn(diagnostics, elementName,
+                    $"'{save.InstanceName}' uses node network creation option '{options}', which " +
+                    "this build does not support; no node network was built.");
+                return null;
+        }
+
+        // System.Math, not FlatRedBall2.Math, which this namespace would otherwise resolve to.
+        int columns = (int)System.Math.Ceiling(map.Width / System.Math.Max(map.TileWidth, 1));
+        int rows = (int)System.Math.Ceiling(map.Height / System.Math.Max(map.TileHeight, 1));
+
+        var network = new AI.TileNodeNetwork(
+            occupied.X, occupied.Y, occupied.GridSize, columns, rows,
+            GlueTileDefaults.NodeNetworkDirectionalType(save));
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                if (occupied.GetTileAtCell(column, row) is not null)
+                    network.AddAndLinkNode(column, row);
+            }
+        }
+
+        if (GlueTileDefaults.EliminateCutCorners(save))
+            network.EliminateCutCorners();
+
+        return network;
     }
 
     private static TileMap? BuildMap(
