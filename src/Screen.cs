@@ -1201,6 +1201,7 @@ public class Screen : ILifecycleEvents
         foreach (var renderable in _gumRenderables)
         {
             if (!renderable.IsOverlay) continue;
+            if (!HasOverlayContent(renderable)) continue;
             var batch = renderable.Batch;
             if (batch != currentBatch)
             {
@@ -1212,6 +1213,13 @@ public class Screen : ILifecycleEvents
         }
         currentBatch?.End(spriteBatch);
     }
+
+    // OverlayRoot/PopupRoot/ModalRoot are registered as overlay renderables for every screen
+    // regardless of whether the game ever populates them. An empty one draws nothing, but Begin()
+    // still runs Gum's shared cursor-hit-test camera to overlayCamera's fixed 1:1 zoom — and since
+    // the overlay pass always runs last each frame, that permanently clobbers whatever zoom the
+    // preceding per-camera pass set (issue #824). Skipping empty overlays avoids the clobber.
+    internal static bool HasOverlayContent(GumRenderable renderable) => renderable.Visual.Children.Count > 0;
 
     // Fire-and-forget timed lifetimes — tracked alongside entities and ticked in Update.
     // Parallel-list (rather than a per-entity field) so the texture-overload helper can attach
