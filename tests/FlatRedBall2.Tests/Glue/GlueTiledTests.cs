@@ -255,6 +255,36 @@ public class GlueTiledTests
         map.Height.ShouldBeGreaterThan(0f);
     }
 
+    // Tile objects skip the construct-and-configure pass, and skipped its instruction step with it,
+    // so every authored value on a map or a collection — Visible above all — was dropped.
+    [Fact]
+    public void BuildObjects_ACollectionAuthoredVisible_IsVisible()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var save = LoadFixtureScreen("DoorsDemo", "Level1.glsj");
+        save.NamedObjects.Single(o => o.InstanceName == "SolidCollision").InstructionSaves.Add(
+            new InstructionSave
+            {
+                Member = "Visible",
+                Type = "bool",
+                Value = JsonDocument.Parse("true").RootElement,
+            });
+
+        var screen = new GlueScreen
+        {
+            Save = save,
+            Content = new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
+                _graphics.GraphicsDevice),
+        };
+
+        screen.BuildObjects();
+
+        ((TileShapes)screen.Objects["SolidCollision"]).IsVisible.ShouldBeTrue();
+    }
+
     // TileShapes is not an IRenderable — it has its own Screen.Add overload, exactly like TileMap.
     // The register step matched IRenderable and TileMap only, so an authored collection was built
     // and collided but could never be seen, whatever its Visible setting.
