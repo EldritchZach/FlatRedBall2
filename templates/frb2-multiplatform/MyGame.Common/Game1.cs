@@ -28,8 +28,7 @@ public class Game1 : Game
     protected override void Initialize()
     {
         base.Initialize();
-        FlatRedBallService.Default.Initialize(this);
-        FlatRedBallService.Default.Start<GameScreen>();
+        FlatRedBallService.Default.Initialize<GameScreen>(this);
     }
 
     protected override void Update(GameTime gameTime)

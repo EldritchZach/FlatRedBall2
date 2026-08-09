@@ -42,11 +42,16 @@ public sealed class GlueGumFixture : IDisposable
             return;
         }
 
+        // The generic overload, because Gum permits exactly one Initialize per process — this is the
+        // only place the boot path can be exercised, so it exercises the one games are told to use.
         Service = new FlatRedBallService();
-        Service.Initialize(_game, new EngineInitSettings
-        {
-            GlueProjectFile = Path.Combine("Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
-        });
+        Service.Initialize<GlueScreen>(
+            _game,
+            new EngineInitSettings
+            {
+                GlueProjectFile = Path.Combine("Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
+            },
+            screen => screen.Project = Service.GlueProject);
     }
 
     private Game? _game;
@@ -103,6 +108,18 @@ public class GlueGumInstantiationTests
         // finder has it — not merely that the loader found the path.
         ObjectFinder.Self.GumProjectSave.ShouldNotBeNull();
         ObjectFinder.Self.GumProjectSave!.Screens.ShouldContain(s => s.Name == "GameScreenGum");
+    }
+
+    // The generic overload has to start the screen too, and start it after the Glue project is
+    // loaded — the configure it runs reads that project.
+    [Fact]
+    public void Initialize_WithAStartScreen_StartsItAndRunsTheConfigure()
+    {
+        if (!_fixture.IsAvailable)
+            return;
+
+        var current = _fixture.Service!.CurrentScreen.ShouldBeOfType<GlueScreen>();
+        current.Project.ShouldBeSameAs(_fixture.Service.GlueProject);
     }
 
     [Fact]
