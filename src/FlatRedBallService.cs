@@ -257,9 +257,11 @@ public class FlatRedBallService
     {
         GlueProjectFile = glueProjectFile;
 
-        // Assets sit under the .gluj's own Content folder, which is also the game's — Glue writes
-        // every referenced-file path relative to it. This one stays relative: GlueContentSource
-        // resolves through TitleContainer, which rejects a rooted path.
+        // Everything a Glue project references lives beside its .gluj - the editor keeps the project
+        // and its content in one self-contained folder - so this is simply that file's directory.
+        //
+        // Stays relative rather than rooted at OutputContentRoot: GlueContentSource resolves through
+        // TitleContainer, which rejects a rooted path.
         string projectDirectory = Path.GetDirectoryName(glueProjectFile) ?? string.Empty;
 
         GlueProject = Glue.GlueProject.Load(

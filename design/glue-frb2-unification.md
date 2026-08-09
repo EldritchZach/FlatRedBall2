@@ -17,13 +17,17 @@ FRB1 C# project. FRB2 reads `.gluj`/`.glsj`/`.glej` as data at runtime — that 
 Glue's FRB2 mode writes everything it authors into one folder inside the game's content tree:
 
 ```
-<game>/Content/FrbEditor/          <- .gluj, Screens/*.glsj, Entities/*.glej, GlueSettings/
-<game>/Content/FrbEditor/Content/  <- assets the .gluj references (GlueContentSource resolves here)
+<game>/Content/FrbEditor/    <- .gluj, Screens/*.glsj, Entities/*.glej, GlueSettings/, and every
+                               file the project references
 ```
 
-One `.csproj` glob copies the whole folder to the build output; see `samples/GlueLoaderScratch`,
-which is the live test bed. It is deliberately near-empty — a real project's worth of content is not
-the point, the round trip is.
+Referenced files resolve **directly** against that folder — there is no `Content` segment in
+between, because the project and its content are one self-contained tree. That is what lets a game
+copy a single directory to the build output, and lets a user delete it to remove the editor's
+footprint entirely. One `.csproj` glob does the copy.
+
+`samples/GlueLoaderScratch` is the live test bed. It is deliberately near-empty — a real project's
+worth of content is not the point, the round trip is.
 
 Keep `EngineInitSettings.GlueProjectFile` **relative**. `GlueContentSource` resolves through
 `TitleContainer`, which throws on a rooted path, so an absolute `.gluj` loads and then fails every
