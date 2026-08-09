@@ -62,6 +62,23 @@ a matching patch in `GlueObjectBuilder`.
 Applied to `Circle`, `AARect`, `Polygon`, and `TileShapes` — a mixed set would just be the next
 discrepancy.
 
+## An entity on a screen appeared twice (issue #829)
+
+`GlueProject.CreateEntity` registers the instance on the screen and builds its contents, and
+`GlueObjectBuilder.AddTo(Screen, …)` then registered and `CustomInitialize`d it a second time. One
+authored instance landed in the entity list twice and re-added its children to the render list, so it
+updated and drew as two. `AddTo` now matches `GlueEntity` ahead of the generic `Entity` case and
+leaves it alone — a `GlueEntity` is only ever constructed by `CreateEntity`, so it always arrives
+already owned. Engine entities such as `CameraControllingEntity` still take the
+register-and-initialize path.
+
+Every fixture buries its entity instances inside a `PositionedObjectList`, which builds through
+`BuildList` → `Create` and never double-registers; nothing covered an entity sitting straight on a
+screen, which is the shape Glue produces by default.
+
+`Screen.Register` is an unguarded `List.Add`, so the next caller to register twice gets the same
+silent doubling. Making it idempotent (or throwing) is undecided.
+
 ## How to resume the sweep
 
 Run `samples/GlueLoaderScratch` (deliberately near-empty — the round trip is the point, not a real
