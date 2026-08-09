@@ -26,7 +26,27 @@ internal static class GlueTileBuilder
 
     private static bool IsMap(NamedObjectSave save) =>
         GlueTypeName.Parse(save.SourceClassType).OpenTypeName
-            is "FlatRedBall.TileGraphics.LayeredTileMap" or "LayeredTileMap";
+            is "FlatRedBall.TileGraphics.LayeredTileMap" or "LayeredTileMap"
+        || IsTmxFileObject(save);
+
+    /// <summary>
+    /// An object added from a <c>.tmx</c>, which Glue writes with no <c>SourceClassType</c> at all.
+    /// </summary>
+    /// <remarks>
+    /// FRB1 takes the type from the file's own <c>AssetTypeInfo</c>, so the class type is redundant
+    /// there and Glue omits it; recognising a map by class type alone skipped the object, and
+    /// anything keyed to its instance name — a <c>TileShapeCollection</c>'s <c>SourceTmxName</c> —
+    /// then read from nothing.
+    /// <para>
+    /// Such an object is an alias for the loaded file rather than a second map: <c>BuildMap</c>
+    /// resolves through the content source's per-path cache, so the alias and the referenced file
+    /// are one instance.
+    /// </para>
+    /// </remarks>
+    private static bool IsTmxFileObject(NamedObjectSave save) =>
+        save.SourceType == SourceType.File
+        && save.SourceFile is string file
+        && file.EndsWith(".tmx", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCollection(NamedObjectSave save) =>
         GlueTypeName.Parse(save.SourceClassType).OpenTypeName
