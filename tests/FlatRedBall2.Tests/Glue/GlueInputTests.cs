@@ -6,6 +6,7 @@ using FlatRedBall2.Glue;
 using FlatRedBall2.Glue.Model;
 using FlatRedBall2.Input;
 using FlatRedBall2.Movement;
+using Microsoft.Xna.Framework.Input;
 using Shouldly;
 using Xunit;
 
@@ -54,6 +55,29 @@ public class GlueInputTests
 
         bound.MovementInput.ShouldNotBeNull();
         bound.JumpInput.ShouldNotBeNull();
+    }
+
+    // FRB1's keyboard fallback is Keyboard.Default2DInput, which is WASD (Keyboard.cs:110) — the
+    // generated InitializeInput binds nothing else. Arrows are additive: FRB1 gives them no default
+    // meaning, so binding both keeps parity and costs an FRB1 project nothing.
+    [Theory]
+    [InlineData(Keys.D, 1f, 0f)]
+    [InlineData(Keys.W, 0f, 1f)]
+    [InlineData(Keys.Right, 1f, 0f)]
+    [InlineData(Keys.Up, 0f, 1f)]
+    public void Bind_GamepadWithKeyboardFallback_ReadsWasdAndArrows(Keys held, float x, float y)
+    {
+        var engine = new FlatRedBallService();
+        engine.Input.InjectKey(held, down: true);
+
+        // Injected keys reach IsKeyDown only after the per-frame capture.
+        engine.Input.Update(TimeSpan.Zero);
+
+        var bound = GlueInputBinder.Bind(
+            EntityWithInputDevice((int)GlueInputDevice.GamepadWithKeyboardFallback), engine.Input);
+
+        bound.MovementInput!.X.ShouldBe(x);
+        bound.MovementInput.Y.ShouldBe(y);
     }
 
     // "None" means the game wires its own input -- Glue generates nothing at all for it, so binding
@@ -185,6 +209,54 @@ public class GlueInputTests
         entity.SetTopDownMovement("OverrideMe");
 
         entity.TopDown.MovementValues!.MaxSpeed.ShouldBe(10f);
+    }
+
+    // Loading the values and binding the input still leaves the behaviour untouched until something
+    // ticks it every frame. FRB1 generated that call into the entity's Activity; a loaded entity has
+    // no generated class, so GlueEntity has to make it itself.
+    private sealed class HeldAxisInput(float x, float y) : I2DInput
+    {
+        public float X => x;
+        public float Y => y;
+    }
+
+    private static FrameTime Frame() => new(
+        TimeSpan.FromSeconds(1f / 60f), TimeSpan.FromSeconds(1f / 60f), TimeSpan.Zero, TimeSpan.Zero);
+
+    [Fact]
+    public void CustomActivity_ATopDownEntity_MovesWhileInputIsHeld()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadTopDownProject();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>();
+
+        var entity = project.CreateEntity(@"Entities\TopDownMovementEntity", engine.CurrentScreen);
+        entity.TopDown.MovementInput = new HeldAxisInput(1f, 0f);
+
+        // Two frames: the first is the CustomActivity that sets acceleration, the second is the
+        // physics pass that turns it into movement.
+        engine.CurrentScreen.Update(Frame());
+        engine.CurrentScreen.Update(Frame());
+
+        entity.X.ShouldBeGreaterThan(0f);
+    }
+
+    // Gravity rather than input, because it needs no ground contact to observe: the airborne slot's
+    // Gravity is applied by Platformer.Update and by nothing else.
+    [Fact]
+    public void CustomActivity_APlatformerEntity_FallsUnderItsAuthoredGravity()
+    {
+        var engine = new FlatRedBallService();
+        var project = LoadDoorsDemo();
+        engine.GlueProject = project;
+        engine.Start<GlueScreen>(s => { s.Save = project.StartUpScreen; s.Project = project; });
+
+        var player = project.CreateEntity(@"Entities\Player", engine.CurrentScreen);
+
+        engine.CurrentScreen.Update(Frame());
+
+        player.AccelerationY.ShouldBeLessThan(0f);
     }
 
     // G114 — FRB1's generated Initialize hard-sets PossibleDirections = FourWay unconditionally,

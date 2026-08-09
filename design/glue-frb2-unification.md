@@ -79,6 +79,29 @@ screen, which is the shape Glue produces by default.
 `Screen.Register` is an unguarded `List.Add`, so the next caller to register twice gets the same
 silent doubling. Making it idempotent (or throwing) is undecided.
 
+## A top-down entity loaded its movement values and never moved (issue #829)
+
+Nothing ticked the behaviour. FRB2 makes the per-frame call the entity's own job — a hand-written
+entity does `TopDown.Update(this, time)` in its `CustomActivity` — and `GlueEntity` did not override
+`CustomActivity` at all. The values loaded, the input bound, and both fed a behaviour that never ran.
+The same hole sat under `Platformer`.
+
+FRB1 hides this by generating the call into each entity's `Activity`
+(`TopDownPlugin/CodeGenerators/EntityCodeGenerator.cs:344`, and the platformer plugin's equivalent),
+gated on `IsTopDown` / `IsPlatformer` and on nothing else. The two generators do not know about each
+other, so an element marked both gets both calls — which is why `GlueEntity.CustomActivity` ticks
+both rather than picking a winner. The flags are read once per build, not per frame, and read before
+`BuildObjects`' `Save`-null check so a pooled shell stops ticking what its previous life used.
+
+The keyboard fallback was wrong in the same area: `GlueInputBinder` bound arrow keys, but FRB1's
+generated `InitializeInput` uses `Keyboard.Default2DInput`, which is **WASD** and nothing else
+(`FlatRedBall/Input/Keyboard.cs:110`). It now binds WASD, keeping arrows on top — FRB1 gives arrows
+no default meaning, so accepting both is parity plus a superset rather than a behaviour change.
+
+Nothing caught this because every movement test asserted on the loaded values and the bound input,
+never on an entity that had been through a frame. The two that cover it now pump `Screen.Update` and
+assert the entity actually moved.
+
 ## How to resume the sweep
 
 Run `samples/GlueLoaderScratch` (deliberately near-empty — the round trip is the point, not a real

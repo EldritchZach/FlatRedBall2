@@ -35,7 +35,7 @@ public readonly record struct GlueBoundInput(I2DInput? MovementInput, IPressable
 /// <remarks>
 /// This is the one place the loader decides a control scheme, which is why it mirrors Glue's own
 /// generated code rather than inventing one: gamepad 0 when connected, keyboard otherwise, with the
-/// left stick and arrow keys for movement and A / Space to jump.
+/// left stick and WASD (plus arrow keys) for movement and A / Space to jump.
 /// </remarks>
 public static class GlueInputBinder
 {
@@ -66,7 +66,11 @@ public static class GlueInputBinder
     {
         var gamepad = input.GetGamepad(0);
 
+        // WASD is what FRB1 binds: its generated InitializeInput uses Keyboard.Default2DInput, which
+        // is WASD and nothing else. Arrows are added on top — FRB1 gives them no default meaning, so
+        // accepting both keeps parity and takes nothing away from a loaded project.
         var movement = new GamepadInput2D(gamepad, GamepadAxis.LeftStickX, GamepadAxis.LeftStickY)
+            .Or(new KeyboardInput2D(input.Keyboard, Keys.A, Keys.D, Keys.W, Keys.S))
             .Or(new KeyboardInput2D(input.Keyboard, Keys.Left, Keys.Right, Keys.Up, Keys.Down));
 
         var jump = new AnyPressableInput(

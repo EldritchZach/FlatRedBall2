@@ -501,8 +501,30 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
             Save, categoryName, stateName, this, _objects, _variables, _buildDiagnostics);
     }
 
+    private bool _isTopDown;
+    private bool _isPlatformer;
+
     /// <inheritdoc />
     public override void CustomInitialize() => BuildObjects();
+
+    /// <summary>
+    /// Ticks whichever movement behaviour this entity's Glue properties asked for.
+    /// </summary>
+    /// <remarks>
+    /// FRB1 generates this call into each entity's own <c>Activity</c>, gated on <c>IsTopDown</c> and
+    /// <c>IsPlatformer</c> independently — an element marked both gets both calls there, so it gets
+    /// both here. A loaded entity has no generated class to hold the call, which is why it lives on
+    /// the shared type: loading the values and binding the input leaves the behaviour inert until
+    /// something ticks it.
+    /// </remarks>
+    public override void CustomActivity(FrameTime time)
+    {
+        if (_isTopDown)
+            TopDown.Update(this, time);
+
+        if (_isPlatformer)
+            Platformer.Update(this, time);
+    }
 
     /// <summary>
     /// Builds every object in <see cref="Save"/>, attaching those authored to attach, then applies
@@ -521,6 +543,11 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
         _objects.Clear();
         _variables.Clear();
         _buildDiagnostics.Clear();
+
+        // Read before the Save null check, so a pooled shell rebuilt from nothing stops ticking the
+        // behaviour its previous life used.
+        _isTopDown = Save?.Properties.GetValue<bool>("IsTopDown") == true;
+        _isPlatformer = Save?.Properties.GetValue<bool>("IsPlatformer") == true;
 
         if (Save is null)
             return;
@@ -552,7 +579,7 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     /// </remarks>
     private void LoadTopDownValues()
     {
-        if (Save is null || !Save.Properties.GetValue<bool>("IsTopDown"))
+        if (Save is null || !_isTopDown)
             return;
 
         var csvFile = Save.ReferencedFiles.Find(
