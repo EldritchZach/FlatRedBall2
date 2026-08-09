@@ -130,6 +130,13 @@ public sealed class GlueObjectBuilder
 
         switch (instance)
         {
+            // A GlueEntity arrives already owned: it is only ever created through
+            // GlueProject.CreateEntity, which registers it on this screen and builds its contents.
+            // Registering it again lands it in the entity list twice and re-adds its children to the
+            // render list, so one authored instance updates and draws as two.
+            case GlueEntity:
+                break;
+
             case Entity entity:
                 container.Register(entity);
 
