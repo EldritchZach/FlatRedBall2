@@ -53,7 +53,7 @@ public class Circle : IAttachable, IRenderable, ICollidable
     /// </summary>
     public bool IsFilled { get; set; } = false;
     /// <summary>Outline thickness in pixels when <see cref="IsFilled"/> is <c>false</c>.</summary>
-    public float OutlineThickness { get; set; } = 2f;
+    public float OutlineThickness { get; set; } = 1f;
 
     /// <inheritdoc/>
     public void Draw(SpriteBatch spriteBatch, Camera camera)

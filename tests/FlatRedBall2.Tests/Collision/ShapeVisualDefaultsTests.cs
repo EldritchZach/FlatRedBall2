@@ -23,6 +23,15 @@ public class ShapeVisualDefaultsTests
     }
 
     [Fact]
+    public void OutlineThickness_DefaultsToOne()
+    {
+        new Circle().OutlineThickness.ShouldBe(1f);
+        new AARect().OutlineThickness.ShouldBe(1f);
+        new Polygon().OutlineThickness.ShouldBe(1f);
+        new TileShapes().OutlineThickness.ShouldBe(1f);
+    }
+
+    [Fact]
     public void IsFilled_DefaultsToFalse()
     {
         new Circle().IsFilled.ShouldBeFalse();
