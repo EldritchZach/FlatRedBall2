@@ -37,7 +37,7 @@ public class GlueHotReloadTests : IDisposable
     /// Writes a .gluj naming one screen, plus that screen's .glsj, into both roots. Mirrors what
     /// MSBuild leaves behind: an identical copy of the source tree in the output folder.
     /// </summary>
-    private void WriteProject(string screenName)
+    private void WriteProject(string screenName, string projectDirectory = "")
     {
         var gluj = $$"""
             { "FileVersion": 68, "StartUpScreen": "{{screenName.Replace("\\", "\\\\")}}",
@@ -46,20 +46,24 @@ public class GlueHotReloadTests : IDisposable
         var glsj = $$"""{ "Name": "{{screenName.Replace("\\", "\\\\")}}" }""";
         foreach (var root in new[] { _srcRoot, _destRoot })
         {
-            Directory.CreateDirectory(Path.Combine(root, "Screens"));
-            File.WriteAllText(Path.Combine(root, ProjectFileName), gluj);
+            var projectRoot = Path.Combine(root, projectDirectory);
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Screens"));
+            File.WriteAllText(Path.Combine(projectRoot, ProjectFileName), gluj);
             File.WriteAllText(
-                Path.Combine(root, "Screens", Path.GetFileName(screenName.Replace('\\', '/')) + ".glsj"),
+                Path.Combine(projectRoot, "Screens", Path.GetFileName(screenName.Replace('\\', '/')) + ".glsj"),
                 glsj);
         }
     }
 
-    private FlatRedBallService MakeEngine()
+    private FlatRedBallService MakeEngine(string projectDirectory = "")
     {
         var engine = new FlatRedBallService { OutputContentRoot = _destRoot };
         engine.SourceContentRoots.Clear();
         engine.SourceContentRoots.Add(_srcRoot);
-        engine.LoadGlueProject(ProjectFileName);
+        // Forward slashes on purpose: Glue writes its paths that way, and the loader mirrors the
+        // separator it is handed rather than the platform's.
+        engine.LoadGlueProject(
+            projectDirectory.Length == 0 ? ProjectFileName : projectDirectory + "/" + ProjectFileName);
         return engine;
     }
 
@@ -98,6 +102,28 @@ public class GlueHotReloadTests : IDisposable
         // One watcher rooted at the .gluj's own directory - Glue writes element files beside it
         // (Screens/, Entities/) as well as assets under Content/.
         screen.ContentDirectoryWatchers.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public void GlueFileChanged_ProjectNestedUnderContent_StillCopiesAndReloads()
+    {
+        // Glue's FRB2 mode puts the project under Content/FrbEditor/ rather than at the project root,
+        // so the watch root, the copy destination, and the element-file paths are all nested.
+        const string nested = "Content/FrbEditor";
+        WriteProject(@"Screens\Level1", nested);
+        var engine = MakeEngine(nested);
+        var screen = StartGlueScreen(engine);
+        var watcher = screen.ContentDirectoryWatchers[0];
+        watcher.Debounce = TimeSpan.Zero;
+
+        File.WriteAllText(
+            Path.Combine(_srcRoot, nested, "Screens", "Level1.glsj"),
+            """{ "Name": "Screens\\Level1", "NextScreen": "Screens\\Level2" }""");
+
+        watcher.MarkChangedAt(Path.Combine("Screens", "Level1.glsj"), DateTime.UtcNow - TimeSpan.FromSeconds(1));
+        UpdateTwice(engine);
+
+        ((GlueScreen)engine.CurrentScreen).Save!.NextScreen.ShouldBe(@"Screens\Level2");
     }
 
     [Fact]

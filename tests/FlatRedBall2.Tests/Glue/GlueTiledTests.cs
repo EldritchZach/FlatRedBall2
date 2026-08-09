@@ -35,7 +35,7 @@ public class GlueTiledTests
         {
             Save = LoadFixtureScreen("DoorsDemo", "Level1.glsj"),
             Content = new GlueContentSource(
-                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
                 _graphics.GraphicsDevice),
         };
 
@@ -133,7 +133,7 @@ public class GlueTiledTests
         {
             Save = save,
             Content = new GlueContentSource(
-                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
                 _graphics.GraphicsDevice),
         };
 
@@ -210,7 +210,7 @@ public class GlueTiledTests
         var project = GlueProject.Load(
             Path.Combine(AppContext.BaseDirectory, "Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
             new GlueContentSource(
-                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
                 _graphics.GraphicsDevice));
 
         var door = project.FindEntity(@"Entities\Door")!;
@@ -316,7 +316,7 @@ public class GlueTiledTests
         {
             Save = save,
             Content = new GlueContentSource(
-                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo"),
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
                 _graphics.GraphicsDevice),
         };
 

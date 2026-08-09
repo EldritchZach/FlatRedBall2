@@ -20,7 +20,7 @@ public class GlueInputTests
     private static GlueProject LoadDoorsDemo() =>
         GlueProject.Load(
             Path.Combine(AppContext.BaseDirectory, "Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
-            new GlueContentSource(new ContentLoader(), Path.Combine("Glue", "Fixtures", "DoorsDemo")));
+            new GlueContentSource(new ContentLoader(), Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content")));
 
     private static EntitySave EntityWithInputDevice(int inputDevice)
     {
@@ -156,7 +156,7 @@ public class GlueInputTests
         GlueProject.Load(Path.Combine(
             AppContext.BaseDirectory, "Glue", "Fixtures", "TopDownProject", "TopDownProject.gluj"),
             new GlueContentSource(
-                new ContentLoader(), Path.Combine("Glue", "Fixtures", "TopDownProject")));
+                new ContentLoader(), Path.Combine("Glue", "Fixtures", "TopDownProject", "Content")));
 
     [Fact]
     public void BuildObjects_ATopDownEntity_LoadsItsMovementValuesFromItsCsv()
