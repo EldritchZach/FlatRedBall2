@@ -300,24 +300,16 @@ public class FlatRedBallService
     }
 
     /// <summary>
-    /// Initializes the engine. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
+    /// Initializes the engine, sizes the window for <typeparamref name="TScreen"/>, and starts it —
+    /// the whole boot. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
     /// </summary>
     /// <remarks>
+    /// A Glue project named by <paramref name="settings"/> is loaded before the screen starts, so
+    /// <paramref name="configure"/> can read <see cref="GlueProject"/>.
+    /// <para>
     /// Does not modify <c>Game.IsMouseVisible</c>. Set <c>IsMouseVisible = true</c> in the
     /// <c>Game1</c> constructor before calling this if the game uses mouse or cursor input —
     /// MonoGame defaults the property to <c>false</c>.
-    /// </remarks>
-    /// <summary>
-    /// Initializes the engine and starts <typeparamref name="TScreen"/> — the whole boot, in the one
-    /// order it can happen in. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
-    /// </summary>
-    /// <remarks>
-    /// Prefer this to <see cref="Initialize(Game, EngineInitSettings)"/> followed by
-    /// <see cref="Start{T}"/>: a Glue project named by <paramref name="settings"/> is loaded before
-    /// the screen starts, so <paramref name="configure"/> can read <see cref="GlueProject"/>.
-    /// <para>
-    /// Pass the same screen type to <see cref="PrepareWindow{T}"/> in the <c>Game1</c> constructor,
-    /// or the window opens at the wrong size.
     /// </para>
     /// </remarks>
     public void Initialize<TScreen>(
@@ -359,6 +351,16 @@ public class FlatRedBallService
         return true;
     }
 
+    /// <summary>
+    /// Initializes the engine without starting a screen. Prefer <see cref="Initialize{TScreen}"/>,
+    /// which also sizes the window and starts the first screen; this overload is for a caller that
+    /// decides its start screen after initialization.
+    /// </summary>
+    /// <remarks>
+    /// Does not modify <c>Game.IsMouseVisible</c>. Set <c>IsMouseVisible = true</c> in the
+    /// <c>Game1</c> constructor before calling this if the game uses mouse or cursor input —
+    /// MonoGame defaults the property to <c>false</c>.
+    /// </remarks>
     public void Initialize(Game game, EngineInitSettings? settings = null)
     {
         _game = game;
@@ -618,7 +620,7 @@ public class FlatRedBallService
     /// together; this overload is for a caller with no <c>Game</c> — a headless test — or one that
     /// boots into something other than the screen it prepared the window for.
     /// </summary>
-    /// <remarks>Mid-game transitions go through <see cref="Screen.MoveToScreen{T}()"/>, not this.</remarks>
+    /// <remarks>Mid-game transitions go through <c>Screen.MoveToScreen&lt;T&gt;</c>, not this.</remarks>
     /// <param name="configure">
     /// Optional callback invoked on the new screen instance before <see cref="Screen.CustomInitialize"/> runs.
     /// Use this to set public properties that <c>CustomInitialize</c> depends on.
