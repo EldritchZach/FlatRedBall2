@@ -214,6 +214,29 @@ public sealed class GlueContentSource
         return reader.ReadToEnd();
     }
 
+    /// <summary>
+    /// Whether <paramref name="file"/> is one the owner should add to the engine on its own, with no
+    /// object instantiating it.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors FRB1's <c>ReferencedFileSaveCodeGenerator.GetIfShouldAddToManagers</c>. Adding a tile
+    /// map to a screen in Glue produces a referenced file and no <c>NamedObject</c>, so a screen that
+    /// only honoured its objects drew nothing.
+    /// <para>
+    /// The shared-static carve-out is the subtle half: a shared-static file is a template to clone
+    /// from on an entity, but on a screen it is the screen's own content and is added. Tile maps are
+    /// the only referenced type FRB2 can add today — FRB1 decides this from the type's
+    /// <c>AssetTypeInfo</c>, which has no FRB2 equivalent.
+    /// </para>
+    /// </remarks>
+    internal static bool ShouldAddToManagers(ReferencedFileSave file, bool ownerIsScreen) =>
+        file.LoadedAtRuntime
+        && !file.LoadedOnlyWhenReferenced
+        && file.AddToManagers
+        && (!file.IsSharedStatic || ownerIsScreen)
+        && file.Name is not null
+        && Path.GetExtension(file.Name).Equals(".tmx", StringComparison.OrdinalIgnoreCase);
+
     private static void Warn(List<GlueLoadDiagnostic> diagnostics, string? elementName, string message) =>
         diagnostics.Add(new GlueLoadDiagnostic(GlueDiagnosticSeverity.Warning, message, elementName));
 }

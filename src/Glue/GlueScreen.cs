@@ -254,8 +254,38 @@ public class GlueScreen : Screen
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
 
+        AddReferencedFilesToManagers();
         BuildGumScreen();
         BuildTileEntities();
+    }
+
+    /// <summary>
+    /// Adds the referenced files a screen owns outright — a tile map added in Glue produces one of
+    /// these and no <c>NamedObject</c> to instantiate it.
+    /// </summary>
+    /// <remarks>
+    /// After the objects are built, so a map reached both ways is added once: the loader caches by
+    /// path, so both routes yield the same instance and the built one is already registered.
+    /// See <see cref="GlueContentSource.ShouldAddToManagers"/> for the rule this follows.
+    /// </remarks>
+    private void AddReferencedFilesToManagers()
+    {
+        if (Save is null || Content is null)
+            return;
+
+        foreach (var file in Save.ReferencedFiles)
+        {
+            if (!GlueContentSource.ShouldAddToManagers(file, ownerIsScreen: true))
+                continue;
+
+            var map = Content.LoadTileMap(file.Name!, Save.Name, _buildDiagnostics);
+
+            if (map is null || _objects.ContainsValue(map))
+                continue;
+
+            _objects[GlueContentSource.InstanceNameOf(file.Name!)] = map;
+            Add(map);
+        }
     }
 
     /// <summary>

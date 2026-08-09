@@ -301,6 +301,69 @@ public class GlueTiledTests
         screen.BuildDiagnostics.ShouldNotContain(d => d.Message.Contains("TileShapeCollection"));
     }
 
+    // FRB1 adds a screen's referenced files to managers with no object involved
+    // (ReferencedFileSaveCodeGenerator.GetIfShouldAddToManagers): loaded at runtime, not
+    // load-on-reference, AddToManagers set, and shared-static allowed because the owner is a screen.
+    // Adding a tile map to a screen in Glue produces exactly this and no NamedObject, so a map that
+    // draws in FRB1 drew nothing here.
+    private GlueScreen ScreenReferencingLevel1Map(params NamedObjectSave[] objects)
+    {
+        var save = new ScreenSave { Name = @"Screens\ReferenceOnly" };
+        save.ReferencedFiles.Add(new ReferencedFileSave
+        {
+            Name = "Screens/Level1/Level1Map.tmx",
+            RuntimeType = "FlatRedBall.TileGraphics.LayeredTileMap",
+        });
+        save.NamedObjects.AddRange(objects);
+
+        return new GlueScreen
+        {
+            Save = save,
+            Content = new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
+                _graphics.GraphicsDevice),
+        };
+    }
+
+    [Fact]
+    public void BuildObjects_AScreensReferencedTileMapWithNoObject_IsStillAddedToTheScreen()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var screen = ScreenReferencingLevel1Map();
+
+        screen.BuildObjects();
+
+        screen.RenderList.OfType<TileMapLayerRenderable>().ShouldNotBeEmpty();
+    }
+
+    // The same map reached by both paths is one map: LoadTileMap caches by path, so the object and
+    // the referenced file resolve to the same instance, and adding it twice would draw every layer
+    // twice.
+    [Fact]
+    public void BuildObjects_AReferencedTileMapAlsoBuiltByAnObject_IsAddedOnce()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var reference = ScreenReferencingLevel1Map();
+        reference.BuildObjects();
+        int layersFromTheFileAlone = reference.RenderList.OfType<TileMapLayerRenderable>().Count();
+
+        var both = ScreenReferencingLevel1Map(new NamedObjectSave
+        {
+            InstanceName = "Map",
+            SourceClassType = "FlatRedBall.TileGraphics.LayeredTileMap",
+            SourceFile = "Screens/Level1/Level1Map.tmx",
+            SourceName = "Entire File (LayeredTileMap)",
+        });
+
+        both.BuildObjects();
+
+        both.RenderList.OfType<TileMapLayerRenderable>().Count().ShouldBe(layersFromTheFileAlone);
+    }
+
     [Fact]
     public void BuildObjects_CollectionWhoseSourceMapIsMissing_WarnsWithoutThrowing()
     {
