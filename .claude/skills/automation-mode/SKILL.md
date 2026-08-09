@@ -85,6 +85,8 @@ Cursor injection takes screen pixels by default (origin top-left, Y+ down) or wo
 
 Hold stdin open for the whole session and end with an explicit `quit`. Piping a burst of commands that reaches EOF immediately kills the process before the queue is drained — no responses, no PNG, exit code 2. Closing stdin without `quit` is the opposite failure: the game keeps running.
 
+Which is why the game always runs under `timeout N`, the build is chained with `&&` so a failed build cannot fall through to a run, and the artifact is asserted (`test -f shot.png`) rather than assumed. Without those, a game that ignores `quit` or never launched leaves the shell blocked until the tool's own timeout — minutes of wall clock spent looking like a slow build.
+
 ## Querying Entities (Zero Config)
 
 `query target:"<EntityTypeName>"` returns a snapshot list of every live instance of that type. The type name is the simple C# type name — `PlayerShip`, not `ShmupSpace.Entities.PlayerShip`.

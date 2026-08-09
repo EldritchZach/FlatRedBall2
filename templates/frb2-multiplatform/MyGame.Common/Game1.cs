@@ -22,7 +22,6 @@ public class Game1 : Game
 #endif
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
-        FlatRedBallService.Default.PrepareWindow<GameScreen>(_graphics);
     }
 
     protected override void Initialize()

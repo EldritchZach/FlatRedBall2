@@ -324,8 +324,39 @@ public class FlatRedBallService
         Game game, EngineInitSettings? settings = null, Action<TScreen>? configure = null)
         where TScreen : Screen, new()
     {
+        // Before Initialize builds the SpriteBatch and its textures: ApplyChanges can reset the
+        // device, and resizing after those exist would do it underneath them. The window is not
+        // visible yet either way — MonoGame shows it when the run loop starts, after
+        // Game.Initialize — so this resize costs nothing on screen.
+        if (ClaimWindowPreparation(typeof(TScreen)) &&
+            game.Services.GetService(typeof(IGraphicsDeviceManager)) is GraphicsDeviceManager graphics)
+        {
+            ApplyWindowSettings<TScreen>(graphics);
+            graphics.ApplyChanges();
+        }
+
         Initialize(game, settings);
         Start(configure);
+    }
+
+    private Type? _preparedWindowScreenType;
+
+    /// <summary>
+    /// Whether the window still needs sizing for <paramref name="screenType"/>, recording the claim.
+    /// </summary>
+    /// <remarks>
+    /// A game written against the old boot calls <see cref="PrepareWindow{T}"/> from its constructor
+    /// and then <see cref="Initialize{TScreen}"/>, which would otherwise size the window a second
+    /// time. Keyed by type rather than a bare flag: a game may prepare for one screen and start
+    /// another, and that case does need applying again.
+    /// </remarks>
+    internal bool ClaimWindowPreparation(Type screenType)
+    {
+        if (_preparedWindowScreenType == screenType)
+            return false;
+
+        _preparedWindowScreenType = screenType;
+        return true;
     }
 
     public void Initialize(Game game, EngineInitSettings? settings = null)
@@ -906,7 +937,15 @@ public class FlatRedBallService
     /// }
     /// </code>
     /// </example>
+    [Obsolete("Initialize<TScreen> sizes the window itself. Delete this call and pass the screen " +
+              "type to Initialize instead; calling both is harmless but does nothing extra.")]
     public void PrepareWindow<T>(GraphicsDeviceManager graphics) where T : Screen, new()
+    {
+        if (ClaimWindowPreparation(typeof(T)))
+            ApplyWindowSettings<T>(graphics);
+    }
+
+    private void ApplyWindowSettings<T>(GraphicsDeviceManager graphics) where T : Screen, new()
     {
 #if KNI
         // Browser host: the canvas DOM owns the back-buffer size. Setting
