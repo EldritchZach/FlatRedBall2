@@ -121,6 +121,25 @@ public class GlueGumInstantiationTests
         service.GlueProject.Content.ShouldNotBeNull();
     }
 
+    // The service builds the project's content source itself, and every other test hands
+    // GlueContentSource a device by hand — so nothing noticed when that one did not. Without the
+    // device the source skips every referenced .tmx and says so only in a diagnostic nobody reads,
+    // which reads as a screen that loads fine and draws nothing.
+    [Fact]
+    public void Initialize_WithAGlueProject_BuildsTheTileMapsItsScreensReference()
+    {
+        if (!_fixture.IsAvailable)
+            return;
+
+        var screen = _fixture.Service!.GlueProject!.CreateScreen(@"Screens\Level1");
+        screen.BuildObjects();
+
+        // The device check runs before the file is opened, so its absence is the whole signal. This
+        // fixture keeps its content under Content/ rather than beside the .gluj, so the map itself
+        // still does not resolve here — GlueTiledTests covers a map that loads.
+        screen.BuildDiagnostics.ShouldNotContain(d => d.Message.Contains("graphics device"));
+    }
+
     [Fact]
     public void Start_AGlueScreenDeclaringAGumScreen_ShowsIt()
     {

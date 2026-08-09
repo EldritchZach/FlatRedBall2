@@ -11,7 +11,7 @@
     "GenerateLoadGlobalContentCode": true
   },
   "SyncedProjects": [],
-  "StartUpScreen": "Screens\\NewScreen",
+  "StartUpScreen": "Screens\\Level1",
   "ResolutionPresets": [],
   "PerformanceSettingsSave": {},
   "IgnoredDirectories": [],
@@ -47,17 +47,32 @@
   "FileVersion": 68,
   "ScreenReferences": [
     {
+      "Name": "Screens\\GameScreen"
+    },
+    {
+      "Name": "Screens\\Level1"
+    },
+    {
       "Name": "Screens\\NewScreen"
     }
   ],
   "EntityReferences": [
     {
       "Name": "Entities\\BearEntity"
+    },
+    {
+      "Name": "Entities\\Box"
     }
   ],
   "Bookmarks": [],
   "PluginData": {
-    "RequiredPlugins": []
+    "RequiredPlugins": [
+      {
+        "Name": "Tiled Plugin",
+        "Version": "2.16.0.0",
+        "VersionRequirement": 2
+      }
+    ]
   },
   "DisplaySettings": {
     "Name": "Custom",

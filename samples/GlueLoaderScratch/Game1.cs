@@ -44,6 +44,10 @@ public class Game1 : Game
             screen.Save = glueProject.StartUpScreen;
             screen.Project = glueProject;
         });
+
+        // Inert without --frb-auto. Present so a discrepancy in this test bed can be checked by
+        // stepping frames and capturing a screenshot rather than by eye.
+        FlatRedBallService.Default.EnableAutomationMode();
     }
 
     protected override void Update(GameTime gameTime)

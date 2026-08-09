@@ -120,12 +120,6 @@
       ],
       "InstructionSaves": [
         {
-          "Type": "float",
-          "Member": "TextureScale",
-          "Value": 5.0,
-          "Time": 0.0
-        },
-        {
           "Type": "Texture2D",
           "Member": "Texture",
           "Value": "Bear",
@@ -133,8 +127,14 @@
         },
         {
           "Type": "float",
+          "Member": "TextureScale",
+          "Value": 5.0,
+          "Time": 0.0
+        },
+        {
+          "Type": "float",
           "Member": "X",
-          "Value": -145.0,
+          "Value": -176.0,
           "Time": 0.0
         },
         {
@@ -163,19 +163,47 @@
         {
           "Type": "float",
           "Member": "X",
-          "Value": -170.0,
+          "Value": -194.0,
           "Time": 0.0
         },
         {
           "Type": "float",
           "Member": "Y",
-          "Value": 86.0,
+          "Value": 22.0,
           "Time": 0.0
         }
       ],
       "SourceType": 1,
-      "SourceFile": "Entities\\BearEntity",
+      "SourceFile": "Entities/BearEntity",
       "AttachToContainer": true,
+      "GenerateTimedEmit": true
+    },
+    {
+      "InstanceName": "BearEntityInstance1",
+      "SourceClassType": "Entities\\BearEntity",
+      "Properties": [
+        {
+          "Name": "AssociateWithFactory",
+          "Value": true,
+          "Type": "bool"
+        }
+      ],
+      "InstructionSaves": [
+        {
+          "Type": "float",
+          "Member": "X",
+          "Value": 181.0,
+          "Time": 0.0
+        },
+        {
+          "Type": "float",
+          "Member": "Y",
+          "Value": 149.0,
+          "Time": 0.0
+        }
+      ],
+      "SourceType": 1,
+      "SourceFile": "Entities/BearEntity",
       "GenerateTimedEmit": true
     }
   ],

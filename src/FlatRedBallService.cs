@@ -264,9 +264,12 @@ public class FlatRedBallService
         // TitleContainer, which rejects a rooted path.
         string projectDirectory = Path.GetDirectoryName(glueProjectFile) ?? string.Empty;
 
+        // The device is what lets referenced .tmx files load at all — without it the content source
+        // skips every tile map and says so only in a diagnostic nobody reads. Null before Initialize
+        // has a game, which is the headless case the source already handles.
         GlueProject = Glue.GlueProject.Load(
             glueProjectFile,
-            new Glue.GlueContentSource(Content, projectDirectory),
+            new Glue.GlueContentSource(Content, projectDirectory, _game?.GraphicsDevice),
             OutputRootedLoadOptions());
     }
 

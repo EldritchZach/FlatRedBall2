@@ -58,6 +58,7 @@ Each command is a JSON object terminated by `\n`. Each response is a JSON object
 | Query all entities | `{"cmd":"query","target":"entities"}` |
 | Query one entity type | `{"cmd":"query","target":"Player"}` |
 | Force a value | `{"cmd":"set","entity":"Player","prop":"X","value":100.0}` |
+| Screenshot next Draw | `{"cmd":"record_next_screenshot","path":"shot.png"}` |
 | Quit | `{"cmd":"quit"}` |
 
 ### Frame stepping
@@ -77,6 +78,12 @@ Key names resolve via `Enum.Parse<Keys>()` — use MonoGame's `Keys` enum names 
 Input commands produce no response — query if you need confirmation. `WasKeyPressed` style inputs require the down state to span at least one stepped frame between the down and up commands; combine `input down:true` → `step` → `input down:false` to register a press.
 
 Cursor injection takes screen pixels by default (origin top-left, Y+ down) or world coords with `"space":"world"`. World-space requires at least one registered camera and back-projects through the first one — split-screen disambiguation isn't supported yet, so for those cases use `"space":"screen"` and compute pixels yourself. `primary` and `secondary` mirror left/right mouse buttons; both default to `false` and are sticky across frames until the next cursor command. Once any cursor injection has occurred, the real mouse and touch input are ignored for the rest of the session — there is no opt-out yet.
+
+### Screenshots
+
+`record_next_screenshot` arms a capture that the *next* `Draw` fulfills — it responds when the PNG is on disk, not when armed, so it has to be followed by a `step`. This is how to check rendered output without a human: capture, then read the PNG back.
+
+Hold stdin open for the whole session and end with an explicit `quit`. Piping a burst of commands that reaches EOF immediately kills the process before the queue is drained — no responses, no PNG, exit code 2. Closing stdin without `quit` is the opposite failure: the game keeps running.
 
 ## Querying Entities (Zero Config)
 
