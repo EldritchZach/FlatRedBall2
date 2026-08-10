@@ -312,13 +312,39 @@ public class FlatRedBallService
     /// MonoGame defaults the property to <c>false</c>.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Boots a whole Glue project: loads <paramref name="glueProjectFile"/>, applies the display
+    /// settings it declares, and starts its start-up screen. Call this inside <c>Game.Initialize</c>,
+    /// after <c>base.Initialize()</c>.
+    /// </summary>
+    /// <remarks>
+    /// The project names its own start-up screen, its own Gum project and its own resolution, so
+    /// there is nothing else for the caller to supply — and nothing to pass back in.
+    /// <para>
+    /// The path must be <b>relative</b>: it resolves through <c>TitleContainer</c>, which throws on a
+    /// rooted path, so an absolute one loads the project and then fails every asset it references.
+    /// </para>
+    /// <para>
+    /// Use <see cref="Initialize{TScreen}"/> instead to load a Glue project but boot a screen of
+    /// your own, or to pass a <c>configure</c> callback.
+    /// </para>
+    /// </remarks>
+    public void Initialize(Game game, string glueProjectFile) =>
+        Initialize<Glue.GlueScreen>(
+            game, new EngineInitSettings { GlueProjectFile = glueProjectFile });
+
     public void Initialize<TScreen>(
         Game game, EngineInitSettings? settings = null, Action<TScreen>? configure = null)
         where TScreen : Screen, new()
     {
-        // Before Initialize builds the SpriteBatch and its textures: ApplyChanges can reset the
-        // device, and resizing after those exist would do it underneath them. The window is not
-        // visible yet either way — MonoGame shows it when the run loop starts, after
+        Initialize(game, settings);
+
+        // A Glue project declares the resolution, so it has to be read before the window is sized —
+        // which is why sizing follows the load rather than preceding it. Nothing else applies this;
+        // a game that loaded a project by hand had to call it itself.
+        GlueProject?.ApplyDisplaySettings(DisplaySettings);
+
+        // The window is not visible yet — MonoGame shows it when the run loop starts, after
         // Game.Initialize — so this resize costs nothing on screen.
         if (ClaimWindowPreparation(typeof(TScreen)) &&
             game.Services.GetService(typeof(IGraphicsDeviceManager)) is GraphicsDeviceManager graphics)
@@ -327,8 +353,35 @@ public class FlatRedBallService
             graphics.ApplyChanges();
         }
 
-        Initialize(game, settings);
-        Start(configure);
+        Start(WithLoadedProject(configure));
+    }
+
+    /// <summary>
+    /// Gives a <see cref="Glue.GlueScreen"/> the project and screen data it is about to build from,
+    /// before <paramref name="configure"/> gets its say.
+    /// </summary>
+    /// <remarks>
+    /// The engine loaded the project and knows which screen the project starts on, so requiring the
+    /// caller to hand both back was pure ceremony — and a hazard, since a hot reload replaces the
+    /// caller's callback and would drop wiring that lived only there. Assigned only when unset, so
+    /// a <paramref name="configure"/> that boots a different Glue screen still wins.
+    /// </remarks>
+    private Action<TScreen>? WithLoadedProject<TScreen>(Action<TScreen>? configure)
+        where TScreen : Screen, new()
+    {
+        if (GlueProject is null)
+            return configure;
+
+        return screen =>
+        {
+            if (screen is Glue.GlueScreen glueScreen)
+            {
+                glueScreen.Project ??= GlueProject;
+                glueScreen.Save ??= GlueProject.StartUpScreen;
+            }
+
+            configure?.Invoke(screen);
+        };
     }
 
     private Type? _preparedWindowScreenType;

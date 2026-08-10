@@ -42,16 +42,11 @@ public sealed class GlueGumFixture : IDisposable
             return;
         }
 
-        // The generic overload, because Gum permits exactly one Initialize per process — this is the
-        // only place the boot path can be exercised, so it exercises the one games are told to use.
+        // The whole-project overload, because Gum permits exactly one Initialize per process — this
+        // is the only place the boot path can be exercised, so it exercises the one games are told
+        // to use.
         Service = new FlatRedBallService();
-        Service.Initialize<GlueScreen>(
-            _game,
-            new EngineInitSettings
-            {
-                GlueProjectFile = Path.Combine("Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"),
-            },
-            screen => screen.Project = Service.GlueProject);
+        Service.Initialize(_game, Path.Combine("Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"));
     }
 
     private Game? _game;
@@ -110,16 +105,33 @@ public class GlueGumInstantiationTests
         ObjectFinder.Self.GumProjectSave!.Screens.ShouldContain(s => s.Name == "GameScreenGum");
     }
 
-    // The generic overload has to start the screen too, and start it after the Glue project is
-    // loaded — the configure it runs reads that project.
+    // Naming the .gluj is the whole boot: the project loads, its start-up screen runs, and the
+    // screen is given the data it needs. None of that is information the caller has and the engine
+    // does not, so none of it should have to be passed back in.
     [Fact]
-    public void Initialize_WithAStartScreen_StartsItAndRunsTheConfigure()
+    public void Initialize_WithAGlueProjectPath_StartsItsStartUpScreenReadyToBuild()
     {
         if (!_fixture.IsAvailable)
             return;
 
-        var current = _fixture.Service!.CurrentScreen.ShouldBeOfType<GlueScreen>();
-        current.Project.ShouldBeSameAs(_fixture.Service.GlueProject);
+        var project = _fixture.Service!.GlueProject.ShouldNotBeNull();
+        var current = _fixture.Service.CurrentScreen.ShouldBeOfType<GlueScreen>();
+
+        current.Project.ShouldBeSameAs(project);
+        current.Save.ShouldBeSameAs(project.StartUpScreen);
+    }
+
+    // The project's own display block is what sizes the window, and nothing but this path applies
+    // it — GlueProject.ApplyDisplaySettings had no caller at all.
+    [Fact]
+    public void Initialize_WithAGlueProjectPath_AppliesTheProjectsDisplaySettings()
+    {
+        if (!_fixture.IsAvailable)
+            return;
+
+        // DoorsDemo's DisplaySettings block declares 256x224, not the engine's 1280x720 default.
+        _fixture.Service!.DisplaySettings.ResolutionWidth.ShouldBe(256);
+        _fixture.Service.DisplaySettings.ResolutionHeight.ShouldBe(224);
     }
 
     [Fact]
