@@ -60,11 +60,12 @@ internal static class GlueTileBuilder
     /// Builds every tile object in <paramref name="namedObjects"/>, in dependency order, adding what
     /// it creates to <paramref name="objects"/>.
     /// </summary>
-    /// <param name="builder">
-    /// Applies each object's authored instructions. Tile objects are built here rather than in the
-    /// construct-and-configure pass, and skipping that pass skipped its instruction step with it —
-    /// so <c>Visible</c> on a collection, and every other authored value, was silently dropped.
-    /// </param>
+    /// <remarks>
+    /// <paramref name="builder"/> applies each object's authored instructions. Tile objects are built
+    /// here rather than in the construct-and-configure pass, and skipping that pass skipped its
+    /// instruction step with it — so <c>Visible</c> on a collection, and every other authored value,
+    /// was silently dropped.
+    /// </remarks>
     internal static void Build(
         List<NamedObjectSave> namedObjects,
         string? elementName,

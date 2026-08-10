@@ -81,11 +81,20 @@ Cursor injection takes screen pixels by default (origin top-left, Y+ down) or wo
 
 ### Screenshots
 
-`record_next_screenshot` arms a capture that the *next* `Draw` fulfills — it responds when the PNG is on disk, not when armed, so it has to be followed by a `step`. This is how to check rendered output without a human: capture, then read the PNG back.
+`record_next_screenshot` arms a capture that a later `Draw` fulfills — it responds when the PNG is on disk, not when armed. This is how to check rendered output without a human: capture, then read the PNG back. An armed capture holds off both draw suppression and `quit`, so it cannot be starved or exited out from under.
 
-Hold stdin open for the whole session and end with an explicit `quit`. Piping a burst of commands that reaches EOF immediately kills the process before the queue is drained — no responses, no PNG, exit code 2. Closing stdin without `quit` is the opposite failure: the game keeps running.
+A whole session can go in one write, `quit` included, with a sleep after it to hold stdin open:
 
-Which is why the game always runs under `timeout N`, the build is chained with `&&` so a failed build cannot fall through to a run, and the artifact is asserted (`test -f shot.png`) rather than assumed. Without those, a game that ignores `quit` or never launched leaves the shell blocked until the tool's own timeout — minutes of wall clock spent looking like a slow build.
+```bash
+(printf '%s\n' '{"cmd":"step","count":3}' \
+   '{"cmd":"record_next_screenshot","path":"shot.png"}' \
+   '{"cmd":"step"}' '{"cmd":"quit"}'; sleep 6) \
+  | timeout 30 ./MyGame.exe --frb-auto > out.log 2>&1
+```
+
+Run the game under `timeout N`, chain the build with `&&` so a failed build cannot fall through to a run, and assert the artifact (`test -f shot.png`) rather than assuming it. Without those, a game that never launched leaves the shell blocked until the tool's own timeout — minutes of wall clock that read as a slow build.
+
+Responses go to stdout and the reader's own log to stderr, so redirect them separately when the log would corrupt your parse.
 
 ## Querying Entities (Zero Config)
 

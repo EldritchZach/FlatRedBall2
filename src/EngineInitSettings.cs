@@ -15,7 +15,7 @@ public enum MissingGumFontFileBehavior
 }
 
 /// <summary>
-/// Startup configuration passed to <see cref="FlatRedBallService.Initialize"/>.
+/// Startup configuration passed to <see cref="FlatRedBallService.Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/>.
 /// All properties are read once at initialization time — changes after that call have no effect.
 /// </summary>
 public class EngineInitSettings

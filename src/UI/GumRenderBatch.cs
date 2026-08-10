@@ -33,7 +33,7 @@ public class GumRenderBatch : IRenderBatch
     /// <summary>
     /// Creates the inner <c>RenderingLibrary.Graphics.GumBatch</c>.
     /// Must be called after the engine's <c>GumService</c> has been initialized.
-    /// Called automatically by <see cref="FlatRedBallService.Initialize"/>.
+    /// Called automatically by <see cref="FlatRedBallService.Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/>.
     /// </summary>
     internal void Initialize()
     {

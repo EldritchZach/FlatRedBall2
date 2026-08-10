@@ -8,11 +8,23 @@ description: Run an FRB1/Glue project's .gluj/.glsj/.glej data directly in FRB2,
 FRB2 reads the JSON files Glue writes and builds Screens and Entities from them at runtime. There is
 no generated C#: `src/Glue/` is the whole implementation, `GlueProject` is the entry point.
 
+Booting one is a single call in `Game1.Initialize`, after `base.Initialize()`:
+
+```csharp
+FlatRedBallService.Default.Initialize(this, "Content/FrbEditor/MyGame.gluj");
+```
+
+The project names its own start-up screen, Gum project and resolution, so nothing else is passed —
+the engine wires the screen's `Save`/`Project` itself. **The path must be relative**: it resolves
+through `TitleContainer`, which throws on a rooted path, so an absolute one loads the project and
+then fails every asset it references. To load a project but boot your own screen instead, use
+`Initialize<MyScreen>(game, new EngineInitSettings { GlueProjectFile = … })`.
+
 ## Where to start
 
 | Task | Go to |
 |---|---|
-| Boot a project | `EngineInitSettings.GlueProjectFile` → `FlatRedBallService.GlueProject` |
+| Boot a project | `Initialize(game, "Content/FrbEditor/MyGame.gluj")` |
 | Load without booting | `GlueProject.Load(glujPath, content)` |
 | Find/create an element | `GlueProject.FindScreen`/`FindEntity`/`CreateScreen`/`CreateEntity` |
 | Move between screens | `Screen.MoveToScreen(string glueName)` |
@@ -33,9 +45,9 @@ and an entity can share one.
 ## Landmines
 
 **Assign `Save` inside the `configure` callback, never before it.** The engine retains that callback
-and replays it on `RestartScreen`. Assigning outside means a restarted screen rebuilds with no data —
-a silently *empty* screen rather than an error. `MoveToScreen(string)` already does this correctly;
-match it when calling `Start<GlueScreen>` yourself.
+and replays it on `RestartScreen`; assigning outside means a restarted screen rebuilds with no data —
+a silently *empty* screen rather than an error. Only applies when you construct a `GlueScreen`
+yourself: `Initialize(game, glujPath)` and `MoveToScreen(string)` both do it correctly.
 
 **Loading is tolerant by design: it collects diagnostics instead of throwing.** A project that
 references a type this build cannot construct still loads, minus that object. Check
@@ -63,10 +75,10 @@ the new data. Nothing to call — it registers in `CustomInitialize` whenever
 `FlatRedBallService.SourceContentRoots` is non-empty, so it is dev-only by construction. Opt out with
 `FlatRedBallService.IsGlueHotReloadEnabled` before the first screen starts.
 
-**The reload restart replaces the retained `configure` callback.** Anything else your
-`Start<GlueScreen>` callback did — a difficulty, a seed, a hand-built object — is gone from every
-restart after the first Glue edit, because the replacement only reassigns `Save` and `Project`. Put
-that setup in a `GlueScreen` subclass's `CustomInitialize` or in `RestoreHotReloadState`.
+**The reload restart replaces the retained `configure` callback.** `Save` and `Project` survive —
+the replacement reassigns them — but anything else a callback you passed did, a difficulty or a seed
+or a hand-built object, is gone from every restart after the first Glue edit. Put that setup in a
+`GlueScreen` subclass's `CustomInitialize` or in `RestoreHotReloadState`.
 
 Gum files are left to Gum's own in-place pipeline, and `bin`/`obj` are filtered by
 `ContentDirectoryWatcher.IgnoredDirectories`. `content-hot-reload` covers the watch/copy machinery

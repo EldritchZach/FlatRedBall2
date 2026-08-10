@@ -72,7 +72,7 @@ public sealed class GraphicsDeviceFixture : IDisposable
 /// </remarks>
 [CollectionDefinition(Name)]
 public sealed class GraphicsDeviceCollection
-    : ICollectionFixture<GraphicsDeviceFixture>, ICollectionFixture<Glue.GlueGumFixture>
+    : ICollectionFixture<GraphicsDeviceFixture>
 {
     public const string Name = "GraphicsDevice";
 }

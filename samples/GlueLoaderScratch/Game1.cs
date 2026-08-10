@@ -31,15 +31,7 @@ public class Game1 : Game
     protected override void Initialize()
     {
         base.Initialize();
-        FlatRedBallService.Default.Initialize<GlueScreen>(
-            this,
-            new EngineInitSettings { GlueProjectFile = GlueProjectFile },
-            screen =>
-            {
-                var glueProject = FlatRedBallService.Default.GlueProject!;
-                screen.Save = glueProject.StartUpScreen;
-                screen.Project = glueProject;
-            });
+        FlatRedBallService.Default.Initialize(this, GlueProjectFile);
 
         // Inert without --frb-auto. Present so a discrepancy in this test bed can be checked by
         // stepping frames and capturing a screenshot rather than by eye.
