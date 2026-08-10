@@ -178,7 +178,7 @@ public sealed class GlueObjectBuilder
         }
     }
 
-    private void ApplyInstructions(object instance, NamedObjectSave save, string? elementName)
+    internal void ApplyInstructions(object instance, NamedObjectSave save, string? elementName)
     {
         foreach (var instruction in save.InstructionSaves)
         {

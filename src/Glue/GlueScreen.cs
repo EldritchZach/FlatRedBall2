@@ -254,8 +254,38 @@ public class GlueScreen : Screen
         // the order FRB1 assigns in — an element variable is expected to win over an instruction.
         GlueVariableApplier.Apply(Save, this, _objects, _variables, _buildDiagnostics);
 
+        AddReferencedFilesToManagers();
         BuildGumScreen();
         BuildTileEntities();
+    }
+
+    /// <summary>
+    /// Adds the referenced files a screen owns outright — a tile map added in Glue produces one of
+    /// these and no <c>NamedObject</c> to instantiate it.
+    /// </summary>
+    /// <remarks>
+    /// After the objects are built, so a map reached both ways is added once: the loader caches by
+    /// path, so both routes yield the same instance and the built one is already registered.
+    /// See <see cref="GlueContentSource.ShouldAddToManagers"/> for the rule this follows.
+    /// </remarks>
+    private void AddReferencedFilesToManagers()
+    {
+        if (Save is null || Content is null)
+            return;
+
+        foreach (var file in Save.ReferencedFiles)
+        {
+            if (!GlueContentSource.ShouldAddToManagers(file, ownerIsScreen: true))
+                continue;
+
+            var map = Content.LoadTileMap(file.Name!, Save.Name, _buildDiagnostics);
+
+            if (map is null || _objects.ContainsValue(map))
+                continue;
+
+            _objects[GlueContentSource.InstanceNameOf(file.Name!)] = map;
+            Add(map);
+        }
     }
 
     /// <summary>
@@ -330,15 +360,18 @@ public class GlueScreen : Screen
     /// Registers an object the tile builder created, which bypasses the normal add path.
     /// </summary>
     /// <remarks>
-    /// A <see cref="Tiled.TileMap"/> is not an <c>IRenderable</c> — it has its own overload, because
-    /// it owns a layer per Tiled layer. Testing only for <c>IRenderable</c> silently loads the map
-    /// and never draws it.
+    /// Neither <see cref="Tiled.TileMap"/> nor <see cref="Collision.TileShapes"/> is an
+    /// <c>IRenderable</c>; each has its own <c>Screen.Add</c> overload, because each owns a
+    /// collection of renderables rather than being one — a layer per Tiled layer, a rectangle per
+    /// collision tile. Testing only for <c>IRenderable</c> builds them and never draws them, which
+    /// reads as an authored object that silently does not exist.
     /// </remarks>
     private void RegisterBuilt(object built)
     {
         switch (built)
         {
             case Tiled.TileMap map: Add(map); break;
+            case Collision.TileShapes tiles: Add(tiles); break;
             case Rendering.IRenderable renderable: Add(renderable); break;
         }
     }
@@ -650,12 +683,16 @@ public class GlueEntity : Entity, Movement.IPlatformerEntity
     };
 
     /// <summary>Registers an object the tile builder created on the screen that owns this entity.</summary>
-    /// <remarks>See <see cref="GlueScreen.RegisterBuilt"/> — a tile map needs its own overload.</remarks>
+    /// <remarks>
+    /// See <see cref="GlueScreen.RegisterBuilt"/> — tile maps and tile shapes each need their own
+    /// overload.
+    /// </remarks>
     private void RegisterBuilt(object built)
     {
         switch (built)
         {
             case Tiled.TileMap map: Engine.CurrentScreen.Add(map); break;
+            case Collision.TileShapes tiles: Engine.CurrentScreen.Add(tiles); break;
             case Rendering.IRenderable renderable: Engine.CurrentScreen.Add(renderable); break;
         }
     }

@@ -26,24 +26,20 @@ public class Game1 : Game
 #endif
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
-        FlatRedBallService.Default.PrepareWindow<GlueScreen>(_graphics);
     }
 
     protected override void Initialize()
     {
         base.Initialize();
-        FlatRedBallService.Default.Initialize(this, new EngineInitSettings
-        {
-            GlueProjectFile = GlueProjectFile
-        });
-
-        var glueProject = FlatRedBallService.Default.GlueProject!;
-
-        FlatRedBallService.Default.Start<GlueScreen>(screen =>
-        {
-            screen.Save = glueProject.StartUpScreen;
-            screen.Project = glueProject;
-        });
+        FlatRedBallService.Default.Initialize<GlueScreen>(
+            this,
+            new EngineInitSettings { GlueProjectFile = GlueProjectFile },
+            screen =>
+            {
+                var glueProject = FlatRedBallService.Default.GlueProject!;
+                screen.Save = glueProject.StartUpScreen;
+                screen.Project = glueProject;
+            });
 
         // Inert without --frb-auto. Present so a discrepancy in this test bed can be checked by
         // stepping frames and capturing a screenshot rather than by eye.

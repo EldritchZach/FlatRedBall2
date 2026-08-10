@@ -300,7 +300,61 @@ public class FlatRedBallService
     }
 
     /// <summary>
-    /// Initializes the engine. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
+    /// Initializes the engine, sizes the window for <typeparamref name="TScreen"/>, and starts it —
+    /// the whole boot. Call this inside <c>Game.Initialize</c>, after <c>base.Initialize()</c>.
+    /// </summary>
+    /// <remarks>
+    /// A Glue project named by <paramref name="settings"/> is loaded before the screen starts, so
+    /// <paramref name="configure"/> can read <see cref="GlueProject"/>.
+    /// <para>
+    /// Does not modify <c>Game.IsMouseVisible</c>. Set <c>IsMouseVisible = true</c> in the
+    /// <c>Game1</c> constructor before calling this if the game uses mouse or cursor input —
+    /// MonoGame defaults the property to <c>false</c>.
+    /// </para>
+    /// </remarks>
+    public void Initialize<TScreen>(
+        Game game, EngineInitSettings? settings = null, Action<TScreen>? configure = null)
+        where TScreen : Screen, new()
+    {
+        // Before Initialize builds the SpriteBatch and its textures: ApplyChanges can reset the
+        // device, and resizing after those exist would do it underneath them. The window is not
+        // visible yet either way — MonoGame shows it when the run loop starts, after
+        // Game.Initialize — so this resize costs nothing on screen.
+        if (ClaimWindowPreparation(typeof(TScreen)) &&
+            game.Services.GetService(typeof(IGraphicsDeviceManager)) is GraphicsDeviceManager graphics)
+        {
+            ApplyWindowSettings<TScreen>(graphics);
+            graphics.ApplyChanges();
+        }
+
+        Initialize(game, settings);
+        Start(configure);
+    }
+
+    private Type? _preparedWindowScreenType;
+
+    /// <summary>
+    /// Whether the window still needs sizing for <paramref name="screenType"/>, recording the claim.
+    /// </summary>
+    /// <remarks>
+    /// A game written against the old boot calls <see cref="PrepareWindow{T}"/> from its constructor
+    /// and then <see cref="Initialize{TScreen}"/>, which would otherwise size the window a second
+    /// time. Keyed by type rather than a bare flag: a game may prepare for one screen and start
+    /// another, and that case does need applying again.
+    /// </remarks>
+    internal bool ClaimWindowPreparation(Type screenType)
+    {
+        if (_preparedWindowScreenType == screenType)
+            return false;
+
+        _preparedWindowScreenType = screenType;
+        return true;
+    }
+
+    /// <summary>
+    /// Initializes the engine without starting a screen. Prefer <see cref="Initialize{TScreen}"/>,
+    /// which also sizes the window and starts the first screen; this overload is for a caller that
+    /// decides its start screen after initialization.
     /// </summary>
     /// <remarks>
     /// Does not modify <c>Game.IsMouseVisible</c>. Set <c>IsMouseVisible = true</c> in the
@@ -560,6 +614,13 @@ public class FlatRedBallService
     /// </summary>
     public Screen CurrentScreen { get; private set; } = new Screen();
 
+    /// <summary>
+    /// Starts <typeparamref name="T"/> as the first screen. A game boots through
+    /// <see cref="Initialize{TScreen}"/> instead, which does this and the engine initialization
+    /// together; this overload is for a caller with no <c>Game</c> — a headless test — or one that
+    /// boots into something other than the screen it prepared the window for.
+    /// </summary>
+    /// <remarks>Mid-game transitions go through <c>Screen.MoveToScreen&lt;T&gt;</c>, not this.</remarks>
     /// <param name="configure">
     /// Optional callback invoked on the new screen instance before <see cref="Screen.CustomInitialize"/> runs.
     /// Use this to set public properties that <c>CustomInitialize</c> depends on.
@@ -878,7 +939,15 @@ public class FlatRedBallService
     /// }
     /// </code>
     /// </example>
+    [Obsolete("Initialize<TScreen> sizes the window itself. Delete this call and pass the screen " +
+              "type to Initialize instead; calling both is harmless but does nothing extra.")]
     public void PrepareWindow<T>(GraphicsDeviceManager graphics) where T : Screen, new()
+    {
+        if (ClaimWindowPreparation(typeof(T)))
+            ApplyWindowSettings<T>(graphics);
+    }
+
+    private void ApplyWindowSettings<T>(GraphicsDeviceManager graphics) where T : Screen, new()
     {
 #if KNI
         // Browser host: the canvas DOM owns the back-buffer size. Setting

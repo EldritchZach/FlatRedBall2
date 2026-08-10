@@ -7,6 +7,32 @@ namespace FlatRedBall2.Tests;
 
 public class FlatRedBallServiceTests
 {
+    private sealed class FirstScreen : Screen { }
+    private sealed class SecondScreen : Screen { }
+
+    // Initialize<T> sizes the window itself, but a game written against the old two-call boot still
+    // calls PrepareWindow from its constructor. Applying the same settings twice would ApplyChanges
+    // a second time on a device that is already correct, so the second claim is refused.
+    [Fact]
+    public void ClaimWindowPreparation_TheSameScreenTwice_IsRefusedTheSecondTime()
+    {
+        var engine = new FlatRedBallService();
+
+        engine.ClaimWindowPreparation(typeof(FirstScreen)).ShouldBeTrue();
+        engine.ClaimWindowPreparation(typeof(FirstScreen)).ShouldBeFalse();
+    }
+
+    // Refusing on any prior claim would leave the window sized for a screen the game is not
+    // starting — a game may prepare for one screen and boot into another.
+    [Fact]
+    public void ClaimWindowPreparation_ADifferentScreen_IsAllowed()
+    {
+        var engine = new FlatRedBallService();
+        engine.ClaimWindowPreparation(typeof(FirstScreen));
+
+        engine.ClaimWindowPreparation(typeof(SecondScreen)).ShouldBeTrue();
+    }
+
     [Fact]
     public void ApplyClientSizeChange_NormalizedRightHalf_ProducesRightHalfPixelViewportAndDerivedOrthoWidth()
     {

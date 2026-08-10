@@ -255,6 +255,51 @@ public class GlueTiledTests
         map.Height.ShouldBeGreaterThan(0f);
     }
 
+    // Tile objects skip the construct-and-configure pass, and skipped its instruction step with it,
+    // so every authored value on a map or a collection — Visible above all — was dropped.
+    [Fact]
+    public void BuildObjects_ACollectionAuthoredVisible_IsVisible()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var save = LoadFixtureScreen("DoorsDemo", "Level1.glsj");
+        save.NamedObjects.Single(o => o.InstanceName == "SolidCollision").InstructionSaves.Add(
+            new InstructionSave
+            {
+                Member = "Visible",
+                Type = "bool",
+                Value = JsonDocument.Parse("true").RootElement,
+            });
+
+        var screen = new GlueScreen
+        {
+            Save = save,
+            Content = new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
+                _graphics.GraphicsDevice),
+        };
+
+        screen.BuildObjects();
+
+        ((TileShapes)screen.Objects["SolidCollision"]).IsVisible.ShouldBeTrue();
+    }
+
+    // TileShapes is not an IRenderable — it has its own Screen.Add overload, exactly like TileMap.
+    // The register step matched IRenderable and TileMap only, so an authored collection was built
+    // and collided but could never be seen, whatever its Visible setting.
+    [Fact]
+    public void BuildObjects_ABuiltCollection_ReachesTheRenderList()
+    {
+        var screen = BuiltLevel1();
+        if (screen is null)
+            return;
+
+        var solid = (TileShapes)screen.Objects["SolidCollision"];
+
+        screen.RenderList.ShouldContain(solid.AllTiles.First());
+    }
+
     [Fact]
     public void BuildObjects_Level1_BuildsCollisionFromTheAuthoredTileType()
     {
@@ -299,6 +344,133 @@ public class GlueTiledTests
         screen.BuildDiagnostics.ShouldNotContain(d => d.Severity == GlueDiagnosticSeverity.Error);
         screen.BuildDiagnostics.ShouldNotContain(d => d.Message.Contains("LayeredTileMap"));
         screen.BuildDiagnostics.ShouldNotContain(d => d.Message.Contains("TileShapeCollection"));
+    }
+
+    // FRB1 adds a screen's referenced files to managers with no object involved
+    // (ReferencedFileSaveCodeGenerator.GetIfShouldAddToManagers): loaded at runtime, not
+    // load-on-reference, AddToManagers set, and shared-static allowed because the owner is a screen.
+    // Adding a tile map to a screen in Glue produces exactly this and no NamedObject, so a map that
+    // draws in FRB1 drew nothing here.
+    private GlueScreen ScreenReferencingLevel1Map(params NamedObjectSave[] objects)
+    {
+        var save = new ScreenSave { Name = @"Screens\ReferenceOnly" };
+        save.ReferencedFiles.Add(new ReferencedFileSave
+        {
+            Name = "Screens/Level1/Level1Map.tmx",
+            RuntimeType = "FlatRedBall.TileGraphics.LayeredTileMap",
+        });
+        save.NamedObjects.AddRange(objects);
+
+        return new GlueScreen
+        {
+            Save = save,
+            Content = new GlueContentSource(
+                _graphics.ContentLoader!, Path.Combine("Glue", "Fixtures", "DoorsDemo", "Content"),
+                _graphics.GraphicsDevice),
+        };
+    }
+
+    [Fact]
+    public void BuildObjects_AScreensReferencedTileMapWithNoObject_IsStillAddedToTheScreen()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var screen = ScreenReferencingLevel1Map();
+
+        screen.BuildObjects();
+
+        screen.RenderList.OfType<TileMapLayerRenderable>().ShouldNotBeEmpty();
+    }
+
+    // The same map reached by both paths is one map: LoadTileMap caches by path, so the object and
+    // the referenced file resolve to the same instance, and adding it twice would draw every layer
+    // twice.
+    [Fact]
+    public void BuildObjects_AReferencedTileMapAlsoBuiltByAnObject_IsAddedOnce()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var reference = ScreenReferencingLevel1Map();
+        reference.BuildObjects();
+        int layersFromTheFileAlone = reference.RenderList.OfType<TileMapLayerRenderable>().Count();
+
+        var both = ScreenReferencingLevel1Map(new NamedObjectSave
+        {
+            InstanceName = "Map",
+            SourceClassType = "FlatRedBall.TileGraphics.LayeredTileMap",
+            SourceFile = "Screens/Level1/Level1Map.tmx",
+            SourceName = "Entire File (LayeredTileMap)",
+        });
+
+        both.BuildObjects();
+
+        both.RenderList.OfType<TileMapLayerRenderable>().Count().ShouldBe(layersFromTheFileAlone);
+    }
+
+    // Adding a tile map to a screen in Glue writes SourceType File plus the .tmx and "Entire File
+    // (LayeredTileMap)", and leaves SourceClassType empty. Recognising a map by its class type alone
+    // skipped the object, and anything keyed to its instance name — a TileShapeCollection's
+    // SourceTmxName — then had nothing to read from.
+    private static NamedObjectSave FileSourcedMap(string instanceName) => new()
+    {
+        InstanceName = instanceName,
+        SourceType = SourceType.File,
+        SourceFile = "Screens/Level1/Level1Map.tmx",
+        SourceName = "Entire File (LayeredTileMap)",
+    };
+
+    [Fact]
+    public void BuildObjects_AMapObjectWithNoSourceClassType_IsStillBuiltUnderItsInstanceName()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var screen = ScreenReferencingLevel1Map(FileSourcedMap("Map"));
+
+        screen.BuildObjects();
+
+        screen.Objects.ShouldContainKey("Map");
+        screen.Objects["Map"].ShouldBeOfType<TileMap>();
+    }
+
+    [Fact]
+    public void BuildObjects_ACollectionReadingAFileSourcedMap_BuildsItsCollision()
+    {
+        if (!_graphics.IsAvailable)
+            return;
+
+        var collection = new NamedObjectSave
+        {
+            InstanceName = "TileShapeCollectionInstance",
+            SourceClassType = "FlatRedBall.TileCollisions.TileShapeCollection",
+            SourceType = SourceType.FlatRedBallType,
+            SourceFile = "TileShapeCollection",
+        };
+        collection.Properties.Add(new PropertySave
+        {
+            Name = "SourceTmxName",
+            Value = JsonDocument.Parse("\"Map\"").RootElement,
+        });
+        collection.Properties.Add(new PropertySave
+        {
+            Name = "CollisionTileTypeName",
+            Value = JsonDocument.Parse("\"SolidCollision\"").RootElement,
+        });
+        // 4 is CollisionCreationOptions.FromType — collision from tiles of a named type.
+        collection.Properties.Add(new PropertySave
+        {
+            Name = "CollisionCreationOptions",
+            Value = JsonDocument.Parse("4").RootElement,
+        });
+
+        var screen = ScreenReferencingLevel1Map(FileSourcedMap("Map"), collection);
+
+        screen.BuildObjects();
+
+        screen.BuildDiagnostics.ShouldNotContain(d => d.Message.Contains("not a loaded tile map"));
+        screen.Objects.ShouldContainKey("TileShapeCollectionInstance");
     }
 
     [Fact]
