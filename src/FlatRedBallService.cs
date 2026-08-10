@@ -1217,11 +1217,6 @@ public class FlatRedBallService
         => _automationMode?.RegisterValueSetter(entityName, propName, setter);
 
     /// <summary>
-    /// Per-frame engine tick. Call from <c>Game.Update</c>. Drives screen transitions, input
-    /// polling, content hot-reload, time accumulation, async continuations, and the active
-    /// screen's <see cref="Screen.CustomActivity"/> in that order.
-    /// </summary>
-    /// <summary>
     /// Stands the engine back down: destroys the current screen, releases the resources
     /// <see cref="Initialize(Game, EngineInitSettings)"/> created, and returns Gum to its
     /// uninitialized state. Safe to call more than once.
@@ -1260,6 +1255,11 @@ public class FlatRedBallService
         GlueProjectFile = null;
     }
 
+    /// <summary>
+    /// Per-frame engine tick. Call from <c>Game.Update</c>. Drives screen transitions, input
+    /// polling, content hot-reload, time accumulation, async continuations, and the active
+    /// screen's <see cref="Screen.CustomActivity"/> in that order.
+    /// </summary>
     public void Update(GameTime gameTime)
     {
         long updateStart = System.Diagnostics.Stopwatch.GetTimestamp();

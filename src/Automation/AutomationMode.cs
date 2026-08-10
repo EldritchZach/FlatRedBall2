@@ -422,11 +422,6 @@ internal class AutomationMode
     }
 
     /// <summary>
-    /// Pops the armed screenshot request, if any. Pure state-machine logic — no
-    /// <see cref="GraphicsDevice"/> dependency — kept separate from <see cref="FulfillPendingScreenshot"/>
-    /// so it can be unit tested without a real graphics device.
-    /// </summary>
-    /// <summary>
     /// Whether a capture is armed and still waiting for a draw.
     /// </summary>
     /// <remarks>
@@ -443,6 +438,11 @@ internal class AutomationMode
         catch (InvalidOperationException) { }
     }
 
+    /// <summary>
+    /// Pops the armed screenshot request, if any. Pure state-machine logic — no
+    /// <see cref="GraphicsDevice"/> dependency — kept separate from <see cref="FulfillPendingScreenshot"/>
+    /// so it can be unit tested without a real graphics device.
+    /// </summary>
     internal bool TryConsumePendingScreenshot(out string? path)
     {
         path = _pendingScreenshotPath;
