@@ -1221,7 +1221,10 @@ public class FlatRedBallService
         {
             if (!_automationMode.TryAdvanceFrame(Time.CurrentFrame))
             {
-                _game!.SuppressDraw();
+                // An armed screenshot still needs one draw to capture — suppressing every
+                // ungranted tick would starve it, since no further step is coming.
+                if (!_automationMode.HasPendingScreenshot)
+                    _game!.SuppressDraw();
                 return;
             }
         }
@@ -1292,6 +1295,12 @@ public class FlatRedBallService
         _syncContext.Update();
 
         CurrentScreen.Update(Time.CurrentFrameTime);
+
+        // Answer the step here rather than in Draw: MonoGame coalesces draws under a fixed timestep,
+        // so three stepped Updates can share one Draw and a caller counting one response per step
+        // waits forever for the rest. A screenshot still has to wait for Draw — the back buffer it
+        // wants does not exist until then — and carries its own response.
+        _automationMode?.FlushStepResponse(Time.CurrentFrame);
 
         _frameProfile.UpdateTotalMs = ProfileClock.Ms(updateStart, System.Diagnostics.Stopwatch.GetTimestamp());
         // FrameTotalMs is finalized at end of Draw (when both Update and Draw measurements exist
@@ -1402,7 +1411,6 @@ public class FlatRedBallService
             CurrentScreen.DrawOverlay(_spriteBatch, RenderDiagnostics, _overlayCamera);
         }
 
-        _automationMode?.FlushStepResponse(Time.CurrentFrame);
         _automationMode?.FulfillPendingScreenshot(gd, Time.CurrentFrame);
 
         _frameProfile.DrawTotalMs = ProfileClock.Ms(drawStart, System.Diagnostics.Stopwatch.GetTimestamp());
