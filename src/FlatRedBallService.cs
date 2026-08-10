@@ -29,7 +29,7 @@ namespace FlatRedBall2;
 /// MonoGame <see cref="Microsoft.Xna.Framework.Game"/> loop.
 /// <para>
 /// Most games access the engine through <see cref="Default"/>, the single static instance,
-/// and call <see cref="Initialize"/>, <see cref="Update"/>, and <see cref="Draw"/> from the
+/// and call <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/>, <see cref="Update"/>, and <see cref="Draw"/> from the
 /// matching <c>Game</c> hooks.
 /// </para>
 /// </summary>
@@ -194,9 +194,9 @@ public class FlatRedBallService
     }
 
     /// <summary>
-    /// The MonoGame <see cref="Microsoft.Xna.Framework.Game"/> instance passed to <see cref="Initialize"/>.
+    /// The MonoGame <see cref="Microsoft.Xna.Framework.Game"/> instance passed to <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/>.
     /// Use this to call <see cref="Microsoft.Xna.Framework.Game.Exit"/> or access window/graphics properties.
-    /// Throws if accessed before <see cref="Initialize"/> is called.
+    /// Throws if accessed before <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/> is called.
     /// </summary>
     public Game Game => _game ?? throw new InvalidOperationException(
         "FlatRedBallService has not been initialized. Call Initialize() first.");
@@ -206,7 +206,7 @@ public class FlatRedBallService
     /// was given. Its content source is already wired to this engine's loader.
     /// </summary>
     /// <remarks>
-    /// Loading happens during <see cref="Initialize"/> because the project's Gum project has to be
+    /// Loading happens during <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/> because the project's Gum project has to be
     /// known before Gum initializes. Holding the result here spares the caller a second load:
     /// <code>
     /// service.Initialize(game, new EngineInitSettings { GlueProjectFile = "MyGame.gluj" });
@@ -344,15 +344,10 @@ public class FlatRedBallService
         // a game that loaded a project by hand had to call it itself.
         GlueProject?.ApplyDisplaySettings(DisplaySettings);
 
-        // The window is not visible yet — MonoGame shows it when the run loop starts, after
-        // Game.Initialize — so this resize costs nothing on screen.
-        if (ClaimWindowPreparation(typeof(TScreen)) &&
-            game.Services.GetService(typeof(IGraphicsDeviceManager)) is GraphicsDeviceManager graphics)
-        {
-            ApplyWindowSettings<TScreen>(graphics);
-            graphics.ApplyChanges();
-        }
-
+        // Sizing the window is Start's job — ActivateScreen applies the starting screen's window
+        // settings, and does it from the real screen instance rather than a throwaway one. The
+        // window is not visible until the run loop begins, after Game.Initialize, so applying it
+        // there costs nothing on screen.
         Start(WithLoadedProject(configure));
     }
 
@@ -382,26 +377,6 @@ public class FlatRedBallService
 
             configure?.Invoke(screen);
         };
-    }
-
-    private Type? _preparedWindowScreenType;
-
-    /// <summary>
-    /// Whether the window still needs sizing for <paramref name="screenType"/>, recording the claim.
-    /// </summary>
-    /// <remarks>
-    /// A game written against the old boot calls <see cref="PrepareWindow{T}"/> from its constructor
-    /// and then <see cref="Initialize{TScreen}"/>, which would otherwise size the window a second
-    /// time. Keyed by type rather than a bare flag: a game may prepare for one screen and start
-    /// another, and that case does need applying again.
-    /// </remarks>
-    internal bool ClaimWindowPreparation(Type screenType)
-    {
-        if (_preparedWindowScreenType == screenType)
-            return false;
-
-        _preparedWindowScreenType = screenType;
-        return true;
     }
 
     /// <summary>
@@ -523,7 +498,7 @@ public class FlatRedBallService
     /// should use: the pair of the camera whose <see cref="Rendering.Camera.UiRoot"/>/<see cref="Rendering.Camera.PopupRoot"/>/<see cref="Rendering.Camera.ModalRoot"/>
     /// is the control's topmost ancestor, else the (<paramref name="globalPopup"/>, <paramref name="globalModal"/>)
     /// fallback when the control lives under a non-camera root (screen overlay, entity visuals). Wired into
-    /// <see cref="GraphicalUiElement.ResolvePopupRoots"/> at <see cref="Initialize"/> so Gum routes ComboBox/
+    /// <see cref="GraphicalUiElement.ResolvePopupRoots"/> at <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/> so Gum routes ComboBox/
     /// MenuItem popups to the opening camera's per-camera roots — drawn in that camera's pass at its zoom.
     /// </summary>
     internal static (InteractiveGue popup, InteractiveGue modal) ResolvePopupRootsFor(
@@ -992,13 +967,11 @@ public class FlatRedBallService
     /// }
     /// </code>
     /// </example>
-    [Obsolete("Initialize<TScreen> sizes the window itself. Delete this call and pass the screen " +
-              "type to Initialize instead; calling both is harmless but does nothing extra.")]
-    public void PrepareWindow<T>(GraphicsDeviceManager graphics) where T : Screen, new()
-    {
-        if (ClaimWindowPreparation(typeof(T)))
-            ApplyWindowSettings<T>(graphics);
-    }
+    [Obsolete("Starting a screen sizes the window for it, so this is no longer needed. Delete the " +
+              "call and pass the screen type to Initialize instead; calling both is harmless, " +
+              "because the starting screen's settings are applied last either way.")]
+    public void PrepareWindow<T>(GraphicsDeviceManager graphics) where T : Screen, new() =>
+        ApplyWindowSettings<T>(graphics);
 
     private void ApplyWindowSettings<T>(GraphicsDeviceManager graphics) where T : Screen, new()
     {
@@ -1121,7 +1094,7 @@ public class FlatRedBallService
     }
 
     // Sub-systems
-    /// <summary>The MonoGame graphics device. Throws if accessed before <see cref="Initialize"/>.</summary>
+    /// <summary>The MonoGame graphics device. Throws if accessed before <see cref="Initialize(Microsoft.Xna.Framework.Game, EngineInitSettings)"/>.</summary>
     public GraphicsDevice GraphicsDevice => _game!.GraphicsDevice;
     /// <summary>
     /// Engine-owned random number source — used by gameplay systems that want a seedable shared instance.
