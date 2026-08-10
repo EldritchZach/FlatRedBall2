@@ -472,7 +472,14 @@ public class FlatRedBallService
             new KernSmithFontCreator(game.GraphicsDevice);
         GumRenderBatch.Instance.Initialize();
         GumRenderBatch.ScreenSpaceInstance.Initialize();
-        ShapeRenderer.Self.Initialize(game.GraphicsDevice, game.Content);
+        // Guarded because ShapeRenderer is a Gum-side singleton that throws on a second Initialize,
+        // and GumService.Uninitialize does not reset it — so without this, no engine can ever be
+        // initialized after another has shut down. Correct while one graphics device serves the
+        // process, which is every game and every test that reuses its Game. Two live devices would
+        // leave this bound to the first; the fix for that belongs in Gum's UninitializePlatform,
+        // which already resets its sibling renderers.
+        if (!ShapeRenderer.Self.IsInitialized)
+            ShapeRenderer.Self.Initialize(game.GraphicsDevice, game.Content);
 
         // Route Gum Forms popups (ComboBox dropdowns, MenuItem submenus) opened by a control on a
         // camera to that camera's per-camera PopupRoot/ModalRoot, so they draw in that camera's pass
@@ -1214,6 +1221,45 @@ public class FlatRedBallService
     /// polling, content hot-reload, time accumulation, async continuations, and the active
     /// screen's <see cref="Screen.CustomActivity"/> in that order.
     /// </summary>
+    /// <summary>
+    /// Stands the engine back down: destroys the current screen, releases the resources
+    /// <see cref="Initialize(Game, EngineInitSettings)"/> created, and returns Gum to its
+    /// uninitialized state. Safe to call more than once.
+    /// </summary>
+    /// <remarks>
+    /// A game normally never calls this — the process is ending anyway. It exists because Gum keeps
+    /// its project, managers and canvas size in process-wide statics, so a second engine cannot be
+    /// initialized while a first still holds them. Tearing down releases them, which is what lets a
+    /// test own an engine instead of sharing one, and what a hot restart would need.
+    /// <para>
+    /// The engine is reusable afterwards only by constructing a new one: this releases the graphics
+    /// resources tied to the old <c>Game</c>, and re-initializing the same instance is not a case
+    /// anything needs.
+    /// </para>
+    /// </remarks>
+    public void Shutdown()
+    {
+        if (_game is null)
+            return;
+
+        TeardownCurrentScreen();
+        CurrentScreen = new Screen();
+
+        _automationMode = null;
+
+        _gum.Uninitialize();
+
+        _spriteBatch?.Dispose();
+        _spriteBatch = null;
+        _whitePixel?.Dispose();
+        _whitePixel = null;
+
+        _game = null;
+        _graphicsManager = null;
+        GlueProject = null;
+        GlueProjectFile = null;
+    }
+
     public void Update(GameTime gameTime)
     {
         long updateStart = System.Diagnostics.Stopwatch.GetTimestamp();

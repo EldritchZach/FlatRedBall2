@@ -10,12 +10,13 @@ using Xunit;
 namespace FlatRedBall2.Tests.Glue;
 
 /// <summary>
-/// One engine, initialized from a Glue project, shared by the whole class.
+/// One engine booted from a Glue project, shared by the tests in the class that owns this fixture.
 /// </summary>
 /// <remarks>
-/// Gum initializes once per process — a second <c>Initialize</c> throws — so every test here has to
-/// share one service rather than building its own. That also makes this fixture the only place the
-/// Glue-project boot path runs, which is what the tests are really about.
+/// Gum keeps its project and managers in process-wide statics, so only one engine may hold them at
+/// a time. This is a class fixture rather than a collection one for exactly that reason: it owns
+/// them for the lifetime of one test class and releases them in <see cref="Dispose"/>, leaving the
+/// process clean for anything else that needs an engine.
 /// </remarks>
 public sealed class GlueGumFixture : IDisposable
 {
@@ -42,9 +43,7 @@ public sealed class GlueGumFixture : IDisposable
             return;
         }
 
-        // The whole-project overload, because Gum permits exactly one Initialize per process — this
-        // is the only place the boot path can be exercised, so it exercises the one games are told
-        // to use.
+        // The whole-project overload — the one games are told to use.
         Service = new FlatRedBallService();
         Service.Initialize(_game, Path.Combine("Glue", "Fixtures", "DoorsDemo", "DoorsDemo.gluj"));
     }
@@ -80,14 +79,19 @@ public sealed class GlueGumFixture : IDisposable
             CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
     }
 
-    public void Dispose() => _game?.Dispose();
+    public void Dispose()
+    {
+        // Releases Gum's process-wide statics, so the next class to want an engine can have one.
+        Service?.Shutdown();
+        _game?.Dispose();
+    }
 }
 
 // Covers actually showing a loaded project's UI, which needs a Gum runtime and so a real device.
 // In GraphicsDeviceCollection so this does not run in parallel with anything else that builds a
 // Game — that combination fails intermittently.
 [Collection(GraphicsDeviceCollection.Name)]
-public class GlueGumInstantiationTests
+public class GlueGumInstantiationTests : IClassFixture<GlueGumFixture>
 {
     private readonly GlueGumFixture _fixture;
 
