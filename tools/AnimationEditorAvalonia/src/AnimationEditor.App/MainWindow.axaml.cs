@@ -4260,6 +4260,36 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Shows <paramref name="names"/>'s shared value in <paramref name="control"/>, or blanks it with
+    /// a "(mixed)" placeholder when the selection disagrees on Name — same convention as
+    /// <see cref="SetValueOrMixed"/>. When <paramref name="disableForCollision"/> is true (two or more
+    /// selected shapes share a frame), the field is disabled instead: applying one literal name to
+    /// shapes in the same frame would collide, since shape names only need to be unique per-frame.
+    /// </summary>
+    private static void SetNameOrMixed(TextBox control, IReadOnlyList<string> names, bool disableForCollision)
+    {
+        if (disableForCollision)
+        {
+            control.IsEnabled = false;
+            control.Text = null;
+            control.PlaceholderText = "(multiple — same frame)";
+            return;
+        }
+
+        control.IsEnabled = true;
+        if (names.Distinct().Count() == 1)
+        {
+            control.Text = names[0];
+            control.PlaceholderText = null;
+        }
+        else
+        {
+            control.Text = null;
+            control.PlaceholderText = "(mixed)";
+        }
+    }
+
     private void RefreshPropertyPanel()
     {
         _suppressPropRefresh = true;
@@ -4365,13 +4395,14 @@ public partial class MainWindow : Window
             {
                 // Multi-selected rects can disagree on a property, same as multi-selected frames
                 // (#571) — show that field blank with a "(mixed)" placeholder instead of one rect's
-                // value; editing it then applies the new value to every selected rect. Name has no
-                // legitimate "mixed" display since it isn't numeric, so it's just disabled instead
-                // (see ApplyRectProps for why a shared literal name isn't applied across a batch).
+                // value; editing it then applies the new value to every selected rect. Name follows
+                // the same pattern: shape names only need to be unique within a frame (not across
+                // frames), so batch-renaming is safe unless two selected rects share a frame — see
+                // SetNameOrMixed and ApplyRectProps.
                 var rects = _selectedState.SelectedRectangles;
-                bool rectsMulti = rects.Count > 1;
-                PropRectName.IsEnabled = !rectsMulti;
-                PropRectName.Text = rectsMulti ? "(multiple)" : (rect.Name ?? "");
+                bool rectsCollide = rects.Count > 1 &&
+                    _appCommands.HasSameFrameNameCollision(rects.Cast<object>().ToList());
+                SetNameOrMixed(PropRectName, rects.Select(r => r.Name ?? "").ToList(), rectsCollide);
                 SetValueOrMixed(PropRectX, rects.Select(r => (decimal)r.X).ToList());
                 SetValueOrMixed(PropRectY, rects.Select(r => (decimal)r.Y).ToList());
                 SetValueOrMixed(PropRectScaleX, rects.Select(r => (decimal)r.ScaleX).ToList());
@@ -4381,9 +4412,9 @@ public partial class MainWindow : Window
             if (circ is not null)
             {
                 var circles = _selectedState.SelectedCircles;
-                bool circlesMulti = circles.Count > 1;
-                PropCircleName.IsEnabled = !circlesMulti;
-                PropCircleName.Text = circlesMulti ? "(multiple)" : (circ.Name ?? "");
+                bool circlesCollide = circles.Count > 1 &&
+                    _appCommands.HasSameFrameNameCollision(circles.Cast<object>().ToList());
+                SetNameOrMixed(PropCircleName, circles.Select(c => c.Name ?? "").ToList(), circlesCollide);
                 SetValueOrMixed(PropCircleX, circles.Select(c => (decimal)c.X).ToList());
                 SetValueOrMixed(PropCircleY, circles.Select(c => (decimal)c.Y).ToList());
                 SetValueOrMixed(PropCircleRadius, circles.Select(c => (decimal)c.Radius).ToList());
@@ -4500,15 +4531,16 @@ public partial class MainWindow : Window
         var rects = _selectedState.SelectedRectangles;
         if (rects.Count == 0) return;
 
-        // A null component here means "still showing (mixed), not edited" — leave that axis alone
-        // per-rect. Name is only applied for a single selected rect: propagating one literal name
-        // to every rect in a multi-selection would clobber their distinct names (PropRectName is
-        // disabled in RefreshPropertyPanel whenever more than one rect is selected).
+        // A null component here means "still showing (mixed)/disabled, not edited" — leave that
+        // field alone per-rect. PropRectName.Text is null exactly when RefreshPropertyPanel just
+        // showed "(mixed)" or disabled the field for a same-frame collision (SetNameOrMixed); once
+        // the user types, Text becomes non-null and applies to every selected rect (safe as long as
+        // no two share a frame — SetNameOrMixed disables the field for that case).
         float? x = PropRectX.Value.HasValue ? (float)PropRectX.Value.Value : null;
         float? y = PropRectY.Value.HasValue ? (float)PropRectY.Value.Value : null;
         float? scaleX = PropRectScaleX.Value.HasValue ? (float)PropRectScaleX.Value.Value : null;
         float? scaleY = PropRectScaleY.Value.HasValue ? (float)PropRectScaleY.Value.Value : null;
-        string? name = rects.Count == 1 ? (PropRectName.Text ?? "") : null;
+        string? name = PropRectName.Text;
 
         _appCommands.SetRectPropsBulk(rects, name, x, y, scaleX, scaleY);
     }
@@ -4519,11 +4551,11 @@ public partial class MainWindow : Window
         var circles = _selectedState.SelectedCircles;
         if (circles.Count == 0) return;
 
-        // See ApplyRectProps for the null-means-"don't touch" / single-selection-only-name semantics.
+        // See ApplyRectProps for the null-means-"don't touch" / same-frame-collision semantics.
         float? x = PropCircleX.Value.HasValue ? (float)PropCircleX.Value.Value : null;
         float? y = PropCircleY.Value.HasValue ? (float)PropCircleY.Value.Value : null;
         float? radius = PropCircleRadius.Value.HasValue ? (float)PropCircleRadius.Value.Value : null;
-        string? name = circles.Count == 1 ? (PropCircleName.Text ?? "") : null;
+        string? name = PropCircleName.Text;
 
         _appCommands.SetCirclePropsBulk(circles, name, x, y, radius);
     }
