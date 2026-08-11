@@ -2,6 +2,7 @@ using AnimationEditor.Core.IO;
 using AnimationEditor.Core.Models;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using SkiaSharp;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -47,6 +48,47 @@ public class ProjectFolderPersistenceTests
 
             var settings = ReadPersistedSettings(ctx);
             Assert.Equal(dir, settings.LastProjectFolderPath);
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    // Issue #839: end-to-end proof that the App/MainWindow DI wiring reaches ProjectTreeThumbnailService --
+    // ProjectTreeThumbnailServiceTests and ProjectPanelControlTests already cover the generation
+    // logic itself in isolation.
+    [AvaloniaFact]
+    public async Task OpeningProjectFolder_AchxHasAFrame_LoadsAThumbnailForItsTreeNode()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        using (var bm = new SKBitmap(8, 8))
+        {
+            bm.Erase(SKColors.Red);
+            using var img = SKImage.FromBitmap(bm);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(Path.Combine(dir, "hero.png"), data.ToArray());
+        }
+        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
+        acls.AnimationChains.Add(new FlatRedBall2.Animation.Content.AnimationChainSave
+        {
+            Name = "Walk",
+            Frames = { new FlatRedBall2.Animation.Content.AnimationFrameSave { TextureName = "hero.png" } },
+        });
+        acls.Save(Path.Combine(dir, "hero.achx"));
+
+        var ctx = TestHelpers.BuildServices();
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenProjectFolderForTestAsync(dir);
+            Dispatcher.UIThread.RunJobs();
+            await window.ProjectPanel.ThumbnailLoadTask;
+
+            Assert.True(window.ProjectPanel.TreeRoots[0].HasThumbnail);
         }
         finally
         {

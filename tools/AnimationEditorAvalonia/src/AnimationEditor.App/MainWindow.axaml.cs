@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     private readonly IUndoManager _undoManager;
     private readonly IPendingCutState _pendingCutState;
     private readonly Services.ThumbnailService _thumbnailService;
+    private readonly ProjectTreeThumbnailService _projectTreeThumbnailService;
     private readonly IFileAssociationService _fileAssociation;
     private readonly IUpdateChecker _updateChecker;
     private readonly IEditorDialogHost _dialogHost;
@@ -174,6 +175,7 @@ public partial class MainWindow : Window
         IUndoManager undoManager,
         IPendingCutState pendingCutState,
         Services.ThumbnailService thumbnailService,
+        ProjectTreeThumbnailService projectTreeThumbnailService,
         IFileAssociationService fileAssociation,
         IUpdateChecker updateChecker,
         string applicationDataRoot)
@@ -190,6 +192,7 @@ public partial class MainWindow : Window
         _undoManager = undoManager;
         _pendingCutState = pendingCutState;
         _thumbnailService = thumbnailService;
+        _projectTreeThumbnailService = projectTreeThumbnailService;
         _fileAssociation = fileAssociation;
         _updateChecker = updateChecker;
         _dialogHost = new WindowEditorDialogHost(this);
@@ -229,6 +232,7 @@ public partial class MainWindow : Window
         PreviewCtrl.InitializeServices(_selectedState, _appState, _appCommands, _events, _projectManager, _undoManager, _thumbnailService, _pendingCutState, msg => ShowStatusMessage(msg, isError: true));
         FilesPanel.Initialize(_thumbnailService, this,
             msg => ShowStatusMessage(msg, isError: true), OpenPngAsTab);
+        ProjectPanel.Initialize(_projectTreeThumbnailService);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
