@@ -15,6 +15,7 @@ using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.Update;
 using AnimationEditor.Core.Utilities;
 using AnimationEditor.Core.ViewModels;
+using AnimationEditor.Views.Controls;
 using AnimationEditor.Views.Dialogs;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -935,10 +936,11 @@ public partial class MainWindow : Window
                 ShowStatusMessage($"⚠ Reload skipped for '{Path.GetFileName(path)}': {reason}", isError: true));
 
         _appCommands.EditorProjectModelChanged += path =>
-            Dispatcher.UIThread.InvokeAsync(() =>
+            Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 ClearPendingCut();
                 SyncTabCacheFromEditor(path);
+                await InvalidateProjectPanelThumbnailIfTrackedAsync(path);
             });
 
         _pendingCutState.Changed += () =>
@@ -2001,6 +2003,37 @@ public partial class MainWindow : Window
         ShowStatusMessage(entries.Count == 0
             ? $"No .achx files found under \"{rootFolder.Name}\"."
             : $"Found {entries.Count} .achx file(s) under \"{rootFolder.Name}\".", isError: false);
+    }
+
+    /// <summary>
+    /// Refreshes the Project tab's thumbnail for <paramref name="savedPath"/> if that file is
+    /// also present in the currently-scanned Project tree (issue #839 follow-up: a save wasn't
+    /// reflected there at all before this). No-op for a file outside the scanned folder, or when
+    /// the Project tab has never been populated. Internal (not private) and returns
+    /// <see cref="Task"/> so tests can await the full save-&gt;invalidate-&gt;regenerate pipeline
+    /// deterministically, same seam pattern as <see cref="OpenProjectFolderForTestAsync"/>.
+    /// </summary>
+    internal Task InvalidateProjectPanelThumbnailIfTrackedAsync(string? savedPath)
+    {
+        if (string.IsNullOrEmpty(savedPath)) return Task.CompletedTask;
+
+        var entry = FindProjectPanelEntry(ProjectPanel.TreeRoots, savedPath);
+        return entry is not null ? ProjectPanel.InvalidateThumbnail(entry) : Task.CompletedTask;
+    }
+
+    private static AchxFileEntry? FindProjectPanelEntry(
+        IEnumerable<AchxTreeNodeVm> nodes, string absolutePath)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Entry?.File is DiskEditorFile diskFile &&
+                string.Equals(diskFile.FullPath, absolutePath, StringComparison.OrdinalIgnoreCase))
+                return node.Entry;
+
+            var found = FindProjectPanelEntry(node.Children, absolutePath);
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private void OnSaveClick(object? sender, RoutedEventArgs e)

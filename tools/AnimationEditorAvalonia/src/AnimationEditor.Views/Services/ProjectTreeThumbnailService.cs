@@ -5,6 +5,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,6 +37,22 @@ public sealed class ProjectTreeThumbnailService
     /// </param>
     public ProjectTreeThumbnailService(string? diskCacheDirectory) =>
         _diskCacheDirectory = diskCacheDirectory;
+
+    /// <summary>
+    /// Drops <paramref name="entry"/>'s cached bitmap(s) (every requested size) so the next
+    /// <see cref="GetThumbnailAsync"/> call re-parses and re-decodes instead of returning stale
+    /// art. Callers should invoke this after a save completes for a file also present in the
+    /// project tree (issue #839 follow-up: nothing did this before, so an edited-and-saved frame
+    /// kept showing its old thumbnail until the folder was reopened). Does not touch the disk
+    /// cache directly -- the next generation's own <see cref="TrySaveToDisk"/> already replaces
+    /// the stale on-disk file once it writes the new one (same hash prefix, new size/modified
+    /// suffix).
+    /// </summary>
+    public void InvalidateEntry(AchxFileEntry entry)
+    {
+        foreach (var key in _memoryCache.Keys.Where(k => k.Entry == entry).ToList())
+            _memoryCache.Remove(key);
+    }
 
     /// <summary>
     /// Returns a thumbnail for <paramref name="entry"/>'s first frame, or <see langword="null"/>

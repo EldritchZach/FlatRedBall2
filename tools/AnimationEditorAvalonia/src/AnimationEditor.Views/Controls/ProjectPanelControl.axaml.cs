@@ -150,6 +150,23 @@ public partial class ProjectPanelControl : UserControl
             node.Thumbnail = thumbnail;
     }
 
+    /// <summary>
+    /// Re-generates the thumbnail for a single already-visible node after its file changed on
+    /// disk (issue #839 follow-up: a save wasn't reflected in the tree at all). No-op if
+    /// <paramref name="entry"/> isn't currently in the tree, or before <see cref="Initialize"/>.
+    /// Callers fire-and-forget this; it's <c>async Task</c> only so tests can await it.
+    /// </summary>
+    public async Task InvalidateThumbnail(AchxFileEntry entry)
+    {
+        if (_thumbnailService is null) return;
+
+        var node = FindNode(TreeRoots, entry);
+        if (node is null) return;
+
+        _thumbnailService.InvalidateEntry(entry);
+        await LoadOneThumbnailAsync(node, CancellationToken.None);
+    }
+
     private void OnSearchQueryChanged(object? sender, string query)
     {
         _searchQuery = query;

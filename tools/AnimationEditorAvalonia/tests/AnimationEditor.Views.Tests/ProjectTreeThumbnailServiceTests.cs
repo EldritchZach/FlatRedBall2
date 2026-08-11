@@ -103,6 +103,28 @@ public class ProjectTreeThumbnailServiceTests
         Assert.Null(thumb);
     }
 
+    // Issue #839 follow-up: saving an edit (reordering frames, resizing a frame region, etc.)
+    // changes the .achx on disk, but GetThumbnailAsync's in-memory cache is keyed by the
+    // AchxFileEntry object, not by content -- nothing re-checks disk on its own. The caller
+    // (ProjectPanelControl, wired from MainWindow's save-completed event) must call
+    // InvalidateEntry after a save so the next request regenerates instead of returning stale art.
+    [AvaloniaFact]
+    public async Task InvalidateEntry_ThenGetThumbnailAsync_RegeneratesInsteadOfReturningStaleInstance()
+    {
+        var entry = MakeEntry(AchxWithFrame, "hero.png", EncodePng(16, 16, SKColors.Red));
+        var svc = new ProjectTreeThumbnailService(diskCacheDirectory: null);
+        var first = await svc.GetThumbnailAsync(entry, 28, 28);
+
+        ((FakeFile)entry.File).Content = Encoding.UTF8.GetBytes(AchxWithFrame.Replace("hero.png", "other.png"));
+        ((FakeFolder)entry.ParentFolder).FilesByName["other.png"] = new FakeFile("other.png", EncodePng(16, 16, SKColors.Blue));
+        svc.InvalidateEntry(entry);
+        var afterInvalidate = await svc.GetThumbnailAsync(entry, 28, 28);
+
+        Assert.NotNull(first);
+        Assert.NotNull(afterInvalidate);
+        Assert.NotSame(first, afterInvalidate);
+    }
+
     [AvaloniaFact]
     public async Task GetThumbnailAsync_CalledTwiceForSameEntry_ReturnsSameCachedInstance()
     {
@@ -167,8 +189,11 @@ public class ProjectTreeThumbnailServiceTests
 
     private sealed class FakeFile : IEditorFile
     {
-        public FakeFile(string name, byte[] content) { Name = name; _content = content; }
-        private readonly byte[] _content;
+        public FakeFile(string name, byte[] content) { Name = name; Content = content; }
+
+        /// <summary>Settable so a test can simulate an edit+save landing on disk between two
+        /// GetThumbnailAsync calls, around an InvalidateEntry.</summary>
+        public byte[] Content { get; set; }
         public string Name { get; }
 
         /// <summary>Records which thread called <see cref="OpenReadAsync"/>, so tests can prove
@@ -178,12 +203,12 @@ public class ProjectTreeThumbnailServiceTests
         public Task<Stream> OpenReadAsync()
         {
             ReadThreadId = Environment.CurrentManagedThreadId;
-            return Task.FromResult<Stream>(new MemoryStream(_content));
+            return Task.FromResult<Stream>(new MemoryStream(Content));
         }
 
         public Task<Stream> OpenWriteAsync() => throw new NotSupportedException();
         public Task<FolderEntrySnapshot> GetBasicPropertiesAsync() =>
-            Task.FromResult(new FolderEntrySnapshot((ulong)_content.Length, DateTimeOffset.UnixEpoch));
+            Task.FromResult(new FolderEntrySnapshot((ulong)Content.Length, DateTimeOffset.UnixEpoch));
     }
 
     private sealed class FakeFolder : IEditorFolder
