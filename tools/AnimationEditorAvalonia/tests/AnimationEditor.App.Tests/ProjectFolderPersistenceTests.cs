@@ -103,6 +103,13 @@ public class ProjectFolderPersistenceTests
     // Issue #839 follow-up: saving an edit to a tracked file must refresh its Project-tree
     // thumbnail. Before this, nothing invalidated it -- the tree kept showing the pre-edit art
     // until the folder was reopened, even after a real save to disk.
+    //
+    // This drives the SAME trigger a real drag-resize commit uses in production
+    // (WireframeControl.CommitActiveDrag -> OnFrameRegionChanged -> RaiseAnimationChainsChanged),
+    // rather than calling ProjectManager.SaveAnimationChainList directly, so it proves the full
+    // real chain: edit -> AnimationChainsChanged -> AppCommands saves (see
+    // AppCommandsSaveOnChangeTests for that piece in isolation) -> EditorProjectModelChanged ->
+    // MainWindow invalidates the tracked tree node.
     [AvaloniaFact]
     public async Task SavingATrackedFile_RefreshesItsProjectTreeThumbnail()
     {
@@ -130,13 +137,20 @@ public class ProjectFolderPersistenceTests
             var beforeEdit = window.ProjectPanel.TreeRoots[0].Thumbnail;
             Assert.NotNull(beforeEdit);
 
-            // Simulate reordering/resizing so the first frame now resolves to a different texture,
-            // then save -- bypassing the tab-open UI flow and AppCommands' EditorProjectModelChanged
-            // event (unrelated tab-sync side effects, not what's under test here) so this test
-            // isolates exactly the new invalidate-then-regenerate path.
+            // Load the file as the active project (bypassing the tab-open UI flow, which isn't
+            // what's under test) and mutate its first frame -- standing in for a real
+            // WireframeControl drag-resize, which mutates the frame directly with no command
+            // object (see WireframeControl.ApplyHandleDrag's "no save / tree refresh yet" comment).
             ctx.ProjectManager.LoadAnimationChain(new AnimationEditor.Core.Paths.FilePath(achxPath));
             ctx.ProjectManager.AnimationChainListSave!.AnimationChains[0].Frames[0].TextureName = "other.png";
-            ctx.ProjectManager.SaveAnimationChainList(achxPath);
+
+            // The real trigger: what WireframeControl.CommitActiveDrag / OnFrameRegionChanged
+            // raises on drag-release. AppCommands' own subscription (issue #839 follow-up) saves
+            // as a synchronous side effect of this call.
+            ctx.ApplicationEvents.RaiseAnimationChainsChanged();
+            Assert.True(File.Exists(achxPath));
+
+            Dispatcher.UIThread.RunJobs();
             await window.InvalidateProjectPanelThumbnailIfTrackedAsync(achxPath);
 
             var afterEdit = window.ProjectPanel.TreeRoots[0].Thumbnail;

@@ -1430,11 +1430,19 @@ public partial class MainWindow : Window
 
     // ── Core event handlers ───────────────────────────────────────────────────
 
+    /// <summary>
+    /// UI-refresh reaction to <see cref="IApplicationEvents.AnimationChainsChanged"/>. The actual
+    /// save is handled by <c>AppCommands</c>'s own subscription to the same event (issue #839
+    /// follow-up: that used to live here, which made "does an edit actually persist" untestable
+    /// without a full Avalonia window). <c>AppCommands</c> is constructed before <see
+    /// cref="MainWindow"/> (see <c>App.axaml.cs</c>'s DI registration order), so its subscription
+    /// fires first — the save has already happened by the time <see cref="UpdateTitle"/> below
+    /// reads <c>SaveState</c>.
+    /// </summary>
     private void HandleAnimationChainsChanged()
     {
         if (!string.IsNullOrEmpty(_projectManager.FileName))
         {
-            _appCommands.SaveCurrentAnimationChainList();
             SaveCompanionFile();
             UpdateTitle();
         }
