@@ -57,26 +57,15 @@ public sealed class ProjectTreeThumbnailService
             if (_memoryCache.TryGetValue(memoryKey, out cached))
                 return cached;
 
-            string? cacheFilePath = null;
-            if (_diskCacheDirectory is not null)
-            {
-                var snapshot = await entry.File.GetBasicPropertiesAsync();
-                var cacheFileName = AchxThumbnailCacheKey.BuildFileName(
-                    entry.RelativePath, snapshot.Size, snapshot.Modified);
-                cacheFilePath = Path.Combine(_diskCacheDirectory, cacheFileName);
-
-                var cached2 = TryLoadFromDisk(cacheFilePath);
-                if (cached2 is not null)
-                {
-                    _memoryCache[memoryKey] = cached2;
-                    return cached2;
-                }
-            }
-
-            var bitmap = await GenerateAsync(entry, maxWidth, maxHeight, cancellationToken);
-
-            if (bitmap is not null && cacheFilePath is not null)
-                TrySaveToDisk(cacheFilePath, bitmap);
+            // Task.Run is load-bearing, not decoration: SemaphoreSlim.WaitAsync above and small
+            // local-file reads inside LoadOrGenerateAsync routinely complete synchronously, so
+            // without it the achx parse + PNG decode + Skia crop -- all CPU-bound, nothing left
+            // to actually yield on -- run inline on whichever thread called GetThumbnailAsync.
+            // ProjectPanelControl fires the whole per-folder load loop from the UI thread, so
+            // that froze the app on a folder with many .achx files (issue #839 follow-up).
+            var bitmap = await Task.Run(
+                () => LoadOrGenerateAsync(entry, maxWidth, maxHeight, cancellationToken),
+                cancellationToken);
 
             _memoryCache[memoryKey] = bitmap;
             return bitmap;
@@ -85,6 +74,30 @@ public sealed class ProjectTreeThumbnailService
         {
             _concurrency.Release();
         }
+    }
+
+    private async Task<Bitmap?> LoadOrGenerateAsync(
+        AchxFileEntry entry, int maxWidth, int maxHeight, CancellationToken cancellationToken)
+    {
+        string? cacheFilePath = null;
+        if (_diskCacheDirectory is not null)
+        {
+            var snapshot = await entry.File.GetBasicPropertiesAsync();
+            var cacheFileName = AchxThumbnailCacheKey.BuildFileName(
+                entry.RelativePath, snapshot.Size, snapshot.Modified);
+            cacheFilePath = Path.Combine(_diskCacheDirectory, cacheFileName);
+
+            var cached = TryLoadFromDisk(cacheFilePath);
+            if (cached is not null)
+                return cached;
+        }
+
+        var bitmap = await GenerateAsync(entry, maxWidth, maxHeight, cancellationToken);
+
+        if (bitmap is not null && cacheFilePath is not null)
+            TrySaveToDisk(cacheFilePath, bitmap);
+
+        return bitmap;
     }
 
     private static async Task<Bitmap?> GenerateAsync(

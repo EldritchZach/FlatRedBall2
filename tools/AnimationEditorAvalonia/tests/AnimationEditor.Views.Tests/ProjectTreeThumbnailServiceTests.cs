@@ -130,6 +130,24 @@ public class ProjectTreeThumbnailServiceTests
             "Expected exactly one cached thumbnail file on disk.");
     }
 
+    // Regression: SemaphoreSlim.WaitAsync and small local-file reads routinely complete
+    // synchronously, so without an explicit Task.Run the achx parse + PNG decode + Skia crop
+    // (all CPU-bound, no I/O to actually yield on) ran inline on whichever thread called
+    // GetThumbnailAsync -- the UI thread, since ProjectPanelControl.Rebuild() fires the load
+    // loop synchronously. On a folder with many .achx files that froze the app on first load.
+    [AvaloniaFact]
+    public async Task GetThumbnailAsync_GenerationWork_RunsOffTheCallingThread()
+    {
+        var callingThreadId = Environment.CurrentManagedThreadId;
+        var entry = MakeEntry(AchxWithFrame, "hero.png", EncodePng(16, 16, SKColors.Red));
+        var svc = new ProjectTreeThumbnailService(diskCacheDirectory: null);
+
+        await svc.GetThumbnailAsync(entry, 28, 28);
+
+        Assert.NotNull(((FakeFile)entry.File).ReadThreadId);
+        Assert.NotEqual(callingThreadId, ((FakeFile)entry.File).ReadThreadId);
+    }
+
     [AvaloniaFact]
     public async Task GetThumbnailAsync_DiskCacheAlreadyHasAMatchingFile_ReusesItInsteadOfRegenerating()
     {
@@ -152,7 +170,17 @@ public class ProjectTreeThumbnailServiceTests
         public FakeFile(string name, byte[] content) { Name = name; _content = content; }
         private readonly byte[] _content;
         public string Name { get; }
-        public Task<Stream> OpenReadAsync() => Task.FromResult<Stream>(new MemoryStream(_content));
+
+        /// <summary>Records which thread called <see cref="OpenReadAsync"/>, so tests can prove
+        /// generation work happens off the caller's (potentially UI) thread. Null until called.</summary>
+        public int? ReadThreadId { get; private set; }
+
+        public Task<Stream> OpenReadAsync()
+        {
+            ReadThreadId = Environment.CurrentManagedThreadId;
+            return Task.FromResult<Stream>(new MemoryStream(_content));
+        }
+
         public Task<Stream> OpenWriteAsync() => throw new NotSupportedException();
         public Task<FolderEntrySnapshot> GetBasicPropertiesAsync() =>
             Task.FromResult(new FolderEntrySnapshot((ulong)_content.Length, DateTimeOffset.UnixEpoch));
