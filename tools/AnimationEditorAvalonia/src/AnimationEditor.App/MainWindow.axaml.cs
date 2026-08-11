@@ -60,6 +60,16 @@ public partial class MainWindow : Window
     private readonly IEditorDialogHost _dialogHost;
     private readonly PngFolderWatcher _pngFolderWatcher = new();
 
+    /// <summary>
+    /// Completes once the most recent <see cref="IAppCommands.EditorProjectModelChanged"/>
+    /// reaction (tab-cache sync + Project-tree thumbnail invalidation) finishes. Test seam --
+    /// production code never awaits this; tests use it to observe the automatic
+    /// save-&gt;invalidate chain deterministically instead of calling the invalidation method
+    /// directly (which would prove the method works but not that the real event wiring reaches
+    /// it with a matching path -- see issue #839's path-normalization bug).
+    /// </summary>
+    internal Task LastEditorProjectModelChangedTask { get; private set; } = Task.CompletedTask;
+
     private AppSettingsModel _appSettings = new();
     private readonly TabManager _tabManager = new();
     private readonly TabController _tabController;
@@ -936,7 +946,7 @@ public partial class MainWindow : Window
                 ShowStatusMessage($"⚠ Reload skipped for '{Path.GetFileName(path)}': {reason}", isError: true));
 
         _appCommands.EditorProjectModelChanged += path =>
-            Dispatcher.UIThread.InvokeAsync(async () =>
+            LastEditorProjectModelChangedTask = Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 ClearPendingCut();
                 SyncTabCacheFromEditor(path);
@@ -2032,10 +2042,15 @@ public partial class MainWindow : Window
     private static AchxFileEntry? FindProjectPanelEntry(
         IEnumerable<AchxTreeNodeVm> nodes, string absolutePath)
     {
+        // FilePath equality, not a raw string compare: ProjectManager.FileName is set from
+        // FilePath.FullPath (forward-slash normalized -- see LoadAnimationChain), but
+        // DiskEditorFile.FullPath comes straight from Directory.EnumerateFiles (raw OS
+        // backslash on Windows). A plain string.Equals never matched, so a real save's
+        // EditorProjectModelChanged silently failed to find its tree entry (issue #839).
+        var target = new FilePath(absolutePath);
         foreach (var node in nodes)
         {
-            if (node.Entry?.File is DiskEditorFile diskFile &&
-                string.Equals(diskFile.FullPath, absolutePath, StringComparison.OrdinalIgnoreCase))
+            if (node.Entry?.File is DiskEditorFile diskFile && new FilePath(diskFile.FullPath) == target)
                 return node.Entry;
 
             var found = FindProjectPanelEntry(node.Children, absolutePath);

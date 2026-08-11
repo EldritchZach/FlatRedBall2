@@ -105,11 +105,14 @@ public class ProjectFolderPersistenceTests
     // until the folder was reopened, even after a real save to disk.
     //
     // This drives the SAME trigger a real drag-resize commit uses in production
-    // (WireframeControl.CommitActiveDrag -> OnFrameRegionChanged -> RaiseAnimationChainsChanged),
-    // rather than calling ProjectManager.SaveAnimationChainList directly, so it proves the full
-    // real chain: edit -> AnimationChainsChanged -> AppCommands saves (see
-    // AppCommandsSaveOnChangeTests for that piece in isolation) -> EditorProjectModelChanged ->
-    // MainWindow invalidates the tracked tree node.
+    // (WireframeControl.CommitActiveDrag -> OnFrameRegionChanged -> RaiseAnimationChainsChanged)
+    // and awaits MainWindow's own EditorProjectModelChanged reaction (LastEditorProjectModelChangedTask)
+    // rather than calling ProjectPanel.InvalidateThumbnail directly. Calling it directly would only
+    // prove the invalidation *method* works, not that the real event wiring finds the right tree
+    // node -- which is exactly how a real path-normalization bug slipped past an earlier version of
+    // this test (ProjectManager.FileName is forward-slash normalized via FilePath.FullPath;
+    // DiskEditorFile.FullPath is a raw Directory.EnumerateFiles path -- backslash on Windows -- so a
+    // naive string compare between them never matched).
     [AvaloniaFact]
     public async Task SavingATrackedFile_RefreshesItsProjectTreeThumbnail()
     {
@@ -151,7 +154,7 @@ public class ProjectFolderPersistenceTests
             Assert.True(File.Exists(achxPath));
 
             Dispatcher.UIThread.RunJobs();
-            await window.InvalidateProjectPanelThumbnailIfTrackedAsync(achxPath);
+            await window.LastEditorProjectModelChangedTask;
 
             var afterEdit = window.ProjectPanel.TreeRoots[0].Thumbnail;
             Assert.NotNull(afterEdit);
