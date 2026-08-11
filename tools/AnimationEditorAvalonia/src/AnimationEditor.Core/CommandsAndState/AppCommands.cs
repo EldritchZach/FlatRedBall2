@@ -48,6 +48,21 @@ namespace AnimationEditor.Core.CommandsAndState
             _ioManager = ioManager;
             _objectFinder = objectFinder;
             _undoManager = undoManager;
+
+            // Autosave policy: every command that mutates the animation data raises
+            // AnimationChainsChanged (constructors/Do() of ~20 IUndoableCommand types, plus a
+            // couple of direct call sites in this class). This is the single place that reacts
+            // to it by writing the change to disk -- it used to live in MainWindow (the Avalonia
+            // app layer), which meant "does an edit actually get saved" had zero test coverage
+            // and was twice misdiagnosed while investigating issue #839. Living here instead
+            // means AppCommandsSaveOnChangeTests exercises it with no Avalonia/UI involved.
+            _events.AnimationChainsChanged += OnAnimationChainsChanged;
+        }
+
+        private void OnAnimationChainsChanged()
+        {
+            if (!string.IsNullOrEmpty(_pm.FileName))
+                SaveCurrentAnimationChainList();
         }
         // Delegates wired up by the Avalonia app layer ----------------------------
 

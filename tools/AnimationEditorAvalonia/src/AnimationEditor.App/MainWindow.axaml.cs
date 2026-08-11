@@ -15,6 +15,7 @@ using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.Update;
 using AnimationEditor.Core.Utilities;
 using AnimationEditor.Core.ViewModels;
+using AnimationEditor.Views.Controls;
 using AnimationEditor.Views.Dialogs;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -53,10 +54,21 @@ public partial class MainWindow : Window
     private readonly IUndoManager _undoManager;
     private readonly IPendingCutState _pendingCutState;
     private readonly Services.ThumbnailService _thumbnailService;
+    private readonly ProjectTreeThumbnailService _projectTreeThumbnailService;
     private readonly IFileAssociationService _fileAssociation;
     private readonly IUpdateChecker _updateChecker;
     private readonly IEditorDialogHost _dialogHost;
     private readonly PngFolderWatcher _pngFolderWatcher = new();
+
+    /// <summary>
+    /// Completes once the most recent <see cref="IAppCommands.EditorProjectModelChanged"/>
+    /// reaction (tab-cache sync + Project-tree thumbnail invalidation) finishes. Test seam --
+    /// production code never awaits this; tests use it to observe the automatic
+    /// save-&gt;invalidate chain deterministically instead of calling the invalidation method
+    /// directly (which would prove the method works but not that the real event wiring reaches
+    /// it with a matching path -- see issue #839's path-normalization bug).
+    /// </summary>
+    internal Task LastEditorProjectModelChangedTask { get; private set; } = Task.CompletedTask;
 
     private AppSettingsModel _appSettings = new();
     private readonly TabManager _tabManager = new();
@@ -174,6 +186,7 @@ public partial class MainWindow : Window
         IUndoManager undoManager,
         IPendingCutState pendingCutState,
         Services.ThumbnailService thumbnailService,
+        ProjectTreeThumbnailService projectTreeThumbnailService,
         IFileAssociationService fileAssociation,
         IUpdateChecker updateChecker,
         string applicationDataRoot)
@@ -190,6 +203,7 @@ public partial class MainWindow : Window
         _undoManager = undoManager;
         _pendingCutState = pendingCutState;
         _thumbnailService = thumbnailService;
+        _projectTreeThumbnailService = projectTreeThumbnailService;
         _fileAssociation = fileAssociation;
         _updateChecker = updateChecker;
         _dialogHost = new WindowEditorDialogHost(this);
@@ -229,6 +243,7 @@ public partial class MainWindow : Window
         PreviewCtrl.InitializeServices(_selectedState, _appState, _appCommands, _events, _projectManager, _undoManager, _thumbnailService, _pendingCutState, msg => ShowStatusMessage(msg, isError: true));
         FilesPanel.Initialize(_thumbnailService, this,
             msg => ShowStatusMessage(msg, isError: true), OpenPngAsTab);
+        ProjectPanel.Initialize(_projectTreeThumbnailService);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
@@ -931,10 +946,11 @@ public partial class MainWindow : Window
                 ShowStatusMessage($"⚠ Reload skipped for '{Path.GetFileName(path)}': {reason}", isError: true));
 
         _appCommands.EditorProjectModelChanged += path =>
-            Dispatcher.UIThread.InvokeAsync(() =>
+            LastEditorProjectModelChangedTask = Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 ClearPendingCut();
                 SyncTabCacheFromEditor(path);
+                await InvalidateProjectPanelThumbnailIfTrackedAsync(path);
             });
 
         _pendingCutState.Changed += () =>
@@ -1424,11 +1440,19 @@ public partial class MainWindow : Window
 
     // ── Core event handlers ───────────────────────────────────────────────────
 
+    /// <summary>
+    /// UI-refresh reaction to <see cref="IApplicationEvents.AnimationChainsChanged"/>. The actual
+    /// save is handled by <c>AppCommands</c>'s own subscription to the same event (issue #839
+    /// follow-up: that used to live here, which made "does an edit actually persist" untestable
+    /// without a full Avalonia window). <c>AppCommands</c> is constructed before <see
+    /// cref="MainWindow"/> (see <c>App.axaml.cs</c>'s DI registration order), so its subscription
+    /// fires first — the save has already happened by the time <see cref="UpdateTitle"/> below
+    /// reads <c>SaveState</c>.
+    /// </summary>
     private void HandleAnimationChainsChanged()
     {
         if (!string.IsNullOrEmpty(_projectManager.FileName))
         {
-            _appCommands.SaveCurrentAnimationChainList();
             SaveCompanionFile();
             UpdateTitle();
         }
@@ -1997,6 +2021,42 @@ public partial class MainWindow : Window
         ShowStatusMessage(entries.Count == 0
             ? $"No .achx files found under \"{rootFolder.Name}\"."
             : $"Found {entries.Count} .achx file(s) under \"{rootFolder.Name}\".", isError: false);
+    }
+
+    /// <summary>
+    /// Refreshes the Project tab's thumbnail for <paramref name="savedPath"/> if that file is
+    /// also present in the currently-scanned Project tree (issue #839 follow-up: a save wasn't
+    /// reflected there at all before this). No-op for a file outside the scanned folder, or when
+    /// the Project tab has never been populated. Internal (not private) and returns
+    /// <see cref="Task"/> so tests can await the full save-&gt;invalidate-&gt;regenerate pipeline
+    /// deterministically, same seam pattern as <see cref="OpenProjectFolderForTestAsync"/>.
+    /// </summary>
+    internal Task InvalidateProjectPanelThumbnailIfTrackedAsync(string? savedPath)
+    {
+        if (string.IsNullOrEmpty(savedPath)) return Task.CompletedTask;
+
+        var entry = FindProjectPanelEntry(ProjectPanel.TreeRoots, savedPath);
+        return entry is not null ? ProjectPanel.InvalidateThumbnail(entry) : Task.CompletedTask;
+    }
+
+    private static AchxFileEntry? FindProjectPanelEntry(
+        IEnumerable<AchxTreeNodeVm> nodes, string absolutePath)
+    {
+        // FilePath equality, not a raw string compare: ProjectManager.FileName is set from
+        // FilePath.FullPath (forward-slash normalized -- see LoadAnimationChain), but
+        // DiskEditorFile.FullPath comes straight from Directory.EnumerateFiles (raw OS
+        // backslash on Windows). A plain string.Equals never matched, so a real save's
+        // EditorProjectModelChanged silently failed to find its tree entry (issue #839).
+        var target = new FilePath(absolutePath);
+        foreach (var node in nodes)
+        {
+            if (node.Entry?.File is DiskEditorFile diskFile && new FilePath(diskFile.FullPath) == target)
+                return node.Entry;
+
+            var found = FindProjectPanelEntry(node.Children, absolutePath);
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private void OnSaveClick(object? sender, RoutedEventArgs e)

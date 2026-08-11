@@ -43,6 +43,9 @@ internal sealed class TestServices
     public AppCommands AppCommands { get; }
     public PendingCutState PendingCutState { get; }
     public ThumbnailService ThumbnailService { get; }
+    // null diskCacheDirectory: tests never need thumbnails backed by a real per-user cache dir
+    // (same rationale as SettingsRoot's isolation -- see class doc).
+    public ProjectTreeThumbnailService ProjectTreeThumbnailService { get; } = new(diskCacheDirectory: null);
     public IFileAssociationService FileAssociationService { get; } = new NullFileAssociationService();
     public IUpdateChecker UpdateChecker { get; set; } = new FakeUpdateChecker();
 
@@ -78,7 +81,7 @@ internal sealed class TestServices
         new MainWindow(
             ProjectManager, SelectedState, AppCommands, AppState,
             ApplicationEvents, IoManager, ObjectFinder, UndoManager, PendingCutState,
-            ThumbnailService, FileAssociationService, UpdateChecker, SettingsRoot);
+            ThumbnailService, ProjectTreeThumbnailService, FileAssociationService, UpdateChecker, SettingsRoot);
 
     public WireframeControl CreateWireframeControl(System.Action<string>? showError = null)
     {
