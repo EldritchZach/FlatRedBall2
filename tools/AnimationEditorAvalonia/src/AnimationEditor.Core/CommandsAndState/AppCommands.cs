@@ -3,6 +3,7 @@ using AnimationEditor.Core.HotReload;
 using AnimationEditor.Core.IO;
 using AnimationEditor.Core.Models;
 using AnimationEditor.Core.Rendering;
+using AnimationEditor.Core.Utilities;
 using FlatRedBall2.Animation;
 using FlatRedBall2.Animation.Content;
 using System;
@@ -1691,6 +1692,10 @@ namespace AnimationEditor.Core.CommandsAndState
                 },
                 this, _events, _objectFinder, "Edit Circles"));
         }
+
+        /// <inheritdoc cref="IAppCommands.HasSameFrameNameCollision"/>
+        public bool HasSameFrameNameCollision(IReadOnlyList<object> shapes) =>
+            ShapeFrameLookup.HasSameFrameCollision(_pm.AnimationChainListSave, shapes);
 
         // ── Paste (clipboard → project) ───────────────────────────────────────
 
