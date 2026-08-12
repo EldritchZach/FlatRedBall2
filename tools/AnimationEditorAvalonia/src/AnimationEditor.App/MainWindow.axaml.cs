@@ -2211,7 +2211,11 @@ public partial class MainWindow : Window
         };
 
     /// <summary>
-    /// Builds the content panel for the About dialog.
+    /// Builds the content panel for the About dialog. <paramref name="updateCheck"/> is <c>null</c>
+    /// when no check has run yet; a non-null result with a populated <see cref="UpdateCheckResult.LatestVersion"/>
+    /// and <see cref="UpdateCheckResult.IsUpdateAvailable"/> <c>false</c> means the check succeeded
+    /// and the running version is already current (issue #845 — this used to be indistinguishable
+    /// from "never checked").
     /// Extracted for testability.
     /// </summary>
     internal static Control BuildAboutContent(UpdateCheckResult? updateCheck = null)
@@ -2219,9 +2223,12 @@ public partial class MainWindow : Window
         var ver = typeof(MainWindow).Assembly.GetName().Version;
         var versionText = ver is null ? "unknown" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
 
-        var updatePromptText = updateCheck?.IsUpdateAvailable == true
-            ? $"Update available: v{updateCheck.LatestVersion}"
-            : "Check here for updates:";
+        var updatePromptText = updateCheck switch
+        {
+            { IsUpdateAvailable: true } => $"Update available: v{updateCheck.LatestVersion}",
+            { LatestVersion: not null } => $"You're up to date (v{updateCheck.LatestVersion}).",
+            _ => "Check here for updates:",
+        };
         var releaseUrl = updateCheck?.ReleaseUrl ?? ReleasesUrl;
         var buttonLabel = updateCheck?.IsUpdateAvailable == true ? "Get Update" : "View Releases on GitHub";
 
