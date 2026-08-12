@@ -46,7 +46,7 @@ internal sealed class TestServices
     // null diskCacheDirectory: tests never need thumbnails backed by a real per-user cache dir
     // (same rationale as SettingsRoot's isolation -- see class doc).
     public ProjectTreeThumbnailService ProjectTreeThumbnailService { get; } = new(diskCacheDirectory: null);
-    public IFileAssociationService FileAssociationService { get; } = new NullFileAssociationService();
+    public IFileAssociationService FileAssociationService { get; set; } = new NullFileAssociationService();
     public IUpdateChecker UpdateChecker { get; set; } = new FakeUpdateChecker();
 
     /// <summary>
