@@ -823,7 +823,11 @@ public partial class MainWindow : Window
             await LoadProjectFolderAsync(lastProjectFolder);
 
         RefreshFilesPanel();
-        ShowDefaultHandlerBannerIfAppropriate();
+        // Not auto-shown (issue #849): RegisterAsDefault() doesn't work for the current
+        // dev/portable distribution — no installer yet (#493) — so the banner would just
+        // offer a "Make default" button that does nothing useful. The manual "Set as
+        // default" / "Don't show again" controls in Settings still work for anyone who
+        // wants to try it.
         _ = RunStartupUpdateCheckAsync();
     }
 
