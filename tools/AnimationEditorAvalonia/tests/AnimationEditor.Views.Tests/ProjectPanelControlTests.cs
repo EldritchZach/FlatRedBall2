@@ -1,10 +1,17 @@
 using AnimationEditor.App.Services;
 using AnimationEditor.Core.IO;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -110,6 +117,46 @@ public class ProjectPanelControlTests
         Assert.False(control.ProjectSearchBox.SearchBox.IsVisible); // search collapsed
         Assert.Equal(2, control.TreeRoots.Count); // full tree restored
         Assert.Same(hero, ((AnimationEditor.Views.Controls.AchxTreeNodeVm)control.ProjectTree.SelectedItem!).Entry);
+    }
+
+    // Issue #841: real double-click (two MouseDown/MouseUp pairs, not reflection) must reach
+    // FileDoubleClicked. Avalonia's TreeViewItem toggles IsExpanded from its own Tunnel-phase
+    // pointer handling on the second click, so a Bubble-registered DoubleTapped handler would be
+    // unreliable here -- same landmine documented for MainWindow.OnTreePointerPressed (#716).
+    [AvaloniaFact]
+    public void DoubleClickingFileRow_RaisesFileDoubleClicked()
+    {
+        var control = new AnimationEditor.Views.Controls.ProjectPanelControl();
+        var root = new FakeFolder("Content");
+        var entry = new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx");
+        control.SetEntries(new[] { entry });
+
+        var window = new Window { Content = control, Width = 400, Height = 400 };
+        try
+        {
+            window.Show();
+            window.Measure(new Size(400, 400));
+            window.Arrange(new Rect(0, 0, 400, 400));
+            Dispatcher.UIThread.RunJobs();
+
+            var tvi = control.ProjectTree.GetVisualDescendants().OfType<TreeViewItem>()
+                .First(t => ReferenceEquals(t.DataContext, control.TreeRoots[0]));
+
+            AchxFileEntry? doubleClicked = null;
+            control.FileDoubleClicked += e => doubleClicked = e;
+
+            var local = new Point(tvi.Bounds.Width / 2, tvi.Bounds.Height / 2);
+            var p = tvi.TranslatePoint(local, window)!.Value;
+            window.MouseDown(p, MouseButton.Left);
+            window.MouseUp(p, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            window.MouseDown(p, MouseButton.Left);
+            window.MouseUp(p, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Same(entry, doubleClicked);
+        }
+        finally { window.Close(); }
     }
 
     // Issue #839: SetEntries kicks off async thumbnail generation via ProjectTreeThumbnailService.

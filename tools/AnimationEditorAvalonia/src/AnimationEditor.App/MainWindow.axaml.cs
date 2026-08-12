@@ -73,6 +73,11 @@ public partial class MainWindow : Window
     private AppSettingsModel _appSettings = new();
     private readonly TabManager _tabManager = new();
     private readonly TabController _tabController;
+    // Guards _undoManager.StackChanged's preview-promote reaction (#841) against the Clear()/
+    // RestoreSnapshot() calls LoadAnimationFileAsync itself makes while loading a file -- those
+    // fire StackChanged too, and without this guard every preview-open would immediately
+    // self-promote before the user did anything.
+    private bool _suppressPreviewPromotion;
 
     // ── Tab drag state ────────────────────────────────────────────────────────
     private TabEntry? _dragTab;
@@ -247,10 +252,21 @@ public partial class MainWindow : Window
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
+        // Single click previews the file in the one reusable preview tab; double-click (or
+        // editing it -- see the _undoManager.StackChanged subscription in WireTabBar) promotes
+        // it to a permanent tab (#841).
         ProjectPanel.FileSelected += entry =>
         {
             if (entry.File is DiskEditorFile diskFile)
-                _ = OpenFileAsTab(diskFile.FullPath);
+                _ = LoadAnimationFileAsync(diskFile.FullPath, asPreview: true);
+        };
+        ProjectPanel.FileDoubleClicked += entry =>
+        {
+            if (entry.File is DiskEditorFile diskFile)
+            {
+                _tabManager.Promote(new FilePath(diskFile.FullPath));
+                RebuildTabStrip();
+            }
         };
         _pngFolderWatcher.FolderContentsChanged += changed =>
             Dispatcher.UIThread.InvokeAsync(() =>
@@ -286,6 +302,19 @@ public partial class MainWindow : Window
         // lose the session (issue #439). Called synchronously so the write lands before any kill;
         // SaveTabsToSettings only reads tab state and writes a file, touching no UI controls.
         _tabManager.TabsChanged += SaveTabsToSettings;
+        // Any recorded edit to the active preview tab promotes it to permanent (#841) -- leaving
+        // it previewable would silently discard the edit the next time a different file is
+        // single-clicked in the Project tree. Guarded against the load sequence's own
+        // Clear()/RestoreSnapshot() calls via _suppressPreviewPromotion.
+        _undoManager.StackChanged += () =>
+        {
+            if (_suppressPreviewPromotion) return;
+            if (_tabManager.ActiveTab is { IsPreview: true } active)
+            {
+                _tabManager.Promote(active.Path);
+                RebuildTabStrip();
+            }
+        };
     }
 
     private void RebuildTabStrip()
@@ -322,6 +351,9 @@ public partial class MainWindow : Window
             {
                 Text = tab.DisplayName,
                 FontSize = 11,
+                // Preview tabs (#841) render italicized -- the standard VS Code/JetBrains cue
+                // that this tab is reused by the next single click instead of staying open.
+                FontStyle = tab.IsPreview ? Avalonia.Media.FontStyle.Italic : Avalonia.Media.FontStyle.Normal,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Foreground = isActive ? ThemedBrush("Ink") : ThemedBrush("InkMid"),
             };
@@ -472,6 +504,10 @@ public partial class MainWindow : Window
                 if (_isDragging)
                 {
                     int targetIdx = ComputeTabIndexAt(args.GetPosition(TabStrip).X);
+                    // Dragging a preview tab to reorder it is a deliberate action (#841) --
+                    // promote it, or the next single click elsewhere would silently replace the
+                    // tab the user just spent effort repositioning.
+                    _tabManager.Promote(captured.Path);
                     _tabManager.Move(captured.Path, targetIdx);
                     RebuildTabStrip();
                 }
@@ -4679,7 +4715,13 @@ public partial class MainWindow : Window
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task LoadAnimationFileAsync(string fileName)
+    /// <param name="asPreview">
+    /// True for a single click in the Open Project Folder tree (#841): the file opens in the
+    /// single reusable preview tab (<see cref="TabManager.OpenPreview"/>) instead of a permanent
+    /// one. False (default) for every explicit open — File &gt; Open, recent files, drag-drop,
+    /// double-click — which always yields a permanent tab via <see cref="TabManager.OpenOrFocus"/>.
+    /// </param>
+    private async Task LoadAnimationFileAsync(string fileName, bool asPreview = false)
     {
         if (string.IsNullOrEmpty(fileName)) return;
 
@@ -4700,32 +4742,44 @@ public partial class MainWindow : Window
         EnsureCurrentEditorContentHasTab();
 
         var filePath = new FilePath(fileName);
-        var result = _tabManager.OpenOrFocus(filePath);
-        var arrivedTab = _tabManager.ActiveTab;
 
-        if (result == TabOpenResult.Focused)
+        // The load below clears/restores undo history as a side effect of loading content, not
+        // of the user editing anything -- suppress the StackChanged preview-promote reaction
+        // (WireTabBar) for the duration, or every preview-open would immediately self-promote.
+        _suppressPreviewPromotion = true;
+        try
         {
-            // The tab is already registered and now active in TabManager, but the editor
-            // may still be displaying a different tab's content (e.g. user was on tab 1
-            // and re-opened tab 2's file via File > Open).  Load the file to ensure the
-            // panels and previews reflect the focused tab.
-            bool alreadyShown = string.Equals(_projectManager.FileName, fileName,
-                StringComparison.OrdinalIgnoreCase);
-            if (!alreadyShown && !string.IsNullOrEmpty(fileName))
-            {
-                await _appCommands.ActivateTabContentAsync(arrivedTab!);
-                if (arrivedTab?.UndoSnapshot != null)
-                    _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
-            }
-            RebuildTabStrip();
-            return;
-        }
+            var result = asPreview ? _tabManager.OpenPreview(filePath) : _tabManager.OpenOrFocus(filePath);
+            var arrivedTab = _tabManager.ActiveTab;
 
-        await _appCommands.OpenAchxWorkflowAsync(fileName);
-        // Restore this tab's prior history if it was previously open (snapshot normally
-        // null on first open; non-null if the tab was closed and re-opened mid-session).
-        if (arrivedTab?.UndoSnapshot != null)
-            _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+            if (result == TabOpenResult.Focused)
+            {
+                // The tab is already registered and now active in TabManager, but the editor
+                // may still be displaying a different tab's content (e.g. user was on tab 1
+                // and re-opened tab 2's file via File > Open).  Load the file to ensure the
+                // panels and previews reflect the focused tab.
+                bool alreadyShown = string.Equals(_projectManager.FileName, fileName,
+                    StringComparison.OrdinalIgnoreCase);
+                if (!alreadyShown && !string.IsNullOrEmpty(fileName))
+                {
+                    await _appCommands.ActivateTabContentAsync(arrivedTab!);
+                    if (arrivedTab?.UndoSnapshot != null)
+                        _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+                }
+                RebuildTabStrip();
+                return;
+            }
+
+            await _appCommands.OpenAchxWorkflowAsync(fileName);
+            // Restore this tab's prior history if it was previously open (snapshot normally
+            // null on first open; non-null if the tab was closed and re-opened mid-session).
+            if (arrivedTab?.UndoSnapshot != null)
+                _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+        }
+        finally
+        {
+            _suppressPreviewPromotion = false;
+        }
     }
 
     /// <summary>

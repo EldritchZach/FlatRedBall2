@@ -1,6 +1,8 @@
 using AnimationEditor.App.Services;
 using AnimationEditor.Core.IO;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using System;
@@ -42,6 +44,12 @@ public partial class ProjectPanelControl : UserControl
     public event Action<AchxFileEntry>? FileSelected;
 
     /// <summary>
+    /// Raised when the user double-clicks a file row (issue #841) -- promotes an existing
+    /// preview tab for that file to a permanent one.
+    /// </summary>
+    public event Action<AchxFileEntry>? FileDoubleClicked;
+
+    /// <summary>
     /// Completes once every thumbnail from the most recent <see cref="Rebuild"/> has finished
     /// loading (or been cancelled by a newer one). Test seam for awaiting the async thumbnail
     /// load -- production code never needs to await this.
@@ -54,6 +62,10 @@ public partial class ProjectPanelControl : UserControl
         DataContext = this;
         ExcludeBinObjCheck.IsCheckedChanged += (_, _) => Rebuild();
         ProjectTree.SelectionChanged += OnTreeSelectionChanged;
+        // Tunnel-phase, matching MainWindow.OnTreePointerPressed's ClickCount==2 pattern (#716):
+        // TreeViewItem's own pointer handling toggles IsExpanded on the second click before a
+        // Bubble-registered DoubleTapped handler on an ancestor would ever see it.
+        ProjectTree.AddHandler(InputElement.PointerPressedEvent, OnProjectTreePointerPressed, RoutingStrategies.Tunnel);
         Rebuild();
     }
 
@@ -216,6 +228,18 @@ public partial class ProjectPanelControl : UserControl
             if (found is not null) return found;
         }
         return null;
+    }
+
+    private void OnProjectTreePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var props = e.GetCurrentPoint(ProjectTree).Properties;
+        if (!props.IsLeftButtonPressed || e.ClickCount != 2) return;
+        if (e.Source is not Control src) return;
+
+        var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
+        if (tvi?.DataContext is not AchxTreeNodeVm { IsFile: true, Entry: { } entry }) return;
+
+        FileDoubleClicked?.Invoke(entry);
     }
 
     private void OnFolderExpanderToggled(object? sender, EventArgs e)
