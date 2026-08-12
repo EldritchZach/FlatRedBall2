@@ -2226,7 +2226,7 @@ public partial class MainWindow : Window
         var updatePromptText = updateCheck switch
         {
             { IsUpdateAvailable: true } => $"Update available: v{updateCheck.LatestVersion}",
-            { LatestVersion: not null } => $"You're up to date (v{updateCheck.LatestVersion}).",
+            { LatestVersion: not null } => $"You're up to date (v{updateCheck.LatestVersion})",
             _ => "Check here for updates:",
         };
         var releaseUrl = updateCheck?.ReleaseUrl ?? ReleasesUrl;
