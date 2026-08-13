@@ -19,7 +19,7 @@ public static class AchxFolderTreeBuilder
             root.Insert(parts, file);
         }
 
-        return root.ToSortedNodes();
+        return root.ToSortedNodes(string.Empty);
     }
 
     private sealed class BuilderNode
@@ -46,17 +46,19 @@ public static class AchxFolderTreeBuilder
             child.Insert(remaining, file);
         }
 
-        public List<AchxTreeNode> ToSortedNodes()
+        public List<AchxTreeNode> ToSortedNodes(string relativePrefix)
         {
             var nodes = new List<AchxTreeNode>();
 
             foreach (var (name, folder) in _folders.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
             {
+                var folderRelativePath = relativePrefix.Length == 0 ? name : $"{relativePrefix}/{name}";
                 nodes.Add(new AchxTreeNode
                 {
                     Name = name,
                     Entry = null,
-                    Children = folder.ToSortedNodes(),
+                    RelativePath = folderRelativePath,
+                    Children = folder.ToSortedNodes(folderRelativePath),
                 });
             }
 
@@ -66,6 +68,7 @@ public static class AchxFolderTreeBuilder
                 {
                     Name = file.FileName,
                     Entry = file,
+                    RelativePath = file.RelativePath,
                     Children = Array.Empty<AchxTreeNode>(),
                 });
             }
@@ -83,4 +86,9 @@ public sealed class AchxTreeNode
     public AchxFileEntry? Entry { get; init; }
     public IReadOnlyList<AchxTreeNode> Children { get; init; } = Array.Empty<AchxTreeNode>();
     public bool IsFolder => Entry is null;
+
+    /// <summary>Path from the project root, forward-slash separated (issue #841 follow-up:
+    /// "View in Explorer" on a folder row). For a file node this matches
+    /// <see cref="AchxFileEntry.RelativePath"/>.</summary>
+    public required string RelativePath { get; init; }
 }

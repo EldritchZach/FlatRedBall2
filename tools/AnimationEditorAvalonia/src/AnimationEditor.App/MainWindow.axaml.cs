@@ -79,6 +79,11 @@ public partial class MainWindow : Window
     // self-promote before the user did anything.
     private bool _suppressPreviewPromotion;
 
+    // Set by LoadProjectFolderAsync -- the root ProjectPanel's folder-relative paths resolve
+    // against, for "View in Explorer" on a folder row (#841 follow-up). Null until the user has
+    // opened (or a prior session restored) a project folder.
+    private string? _projectFolderRootPath;
+
     // ── Tab drag state ────────────────────────────────────────────────────────
     private TabEntry? _dragTab;
     private double _dragStartX;
@@ -249,6 +254,11 @@ public partial class MainWindow : Window
         FilesPanel.Initialize(_thumbnailService, this,
             msg => ShowStatusMessage(msg, isError: true), OpenPngAsTab);
         ProjectPanel.Initialize(_projectTreeThumbnailService);
+        // Desktop has a real filesystem to reveal a folder in -- the browser build leaves this
+        // false (its ProjectPanel is constructed the same way, unmodified) so its tree never
+        // shows a "View in Explorer" item it couldn't act on (#654's reasoning, applied here).
+        ProjectPanel.SupportsRevealInExplorer = true;
+        ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
@@ -1826,6 +1836,37 @@ public partial class MainWindow : Window
             Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
     }
 
+    /// <summary>
+    /// Resolves a Project-tree folder row's <see cref="AchxTreeNodeVm.RelativePath"/> to an
+    /// absolute path against <see cref="_projectFolderRootPath"/> (issue #841 follow-up: "View in
+    /// Explorer" on a folder row). Split out from <see cref="RevealProjectFolderInExplorer"/> so
+    /// this pure resolution is unit-testable without going through <c>Process.Start</c>.
+    /// </summary>
+    internal string? ResolveProjectFolderAbsolutePath(string relativePath) =>
+        _projectFolderRootPath is null
+            ? null
+            : relativePath.Length == 0
+                ? _projectFolderRootPath
+                // AchxTreeNodeVm.RelativePath is always forward-slash separated (see
+                // AchxFolderTreeBuilder) -- Path.Combine only joins its two arguments, it doesn't
+                // normalize separators *inside* either one, so an un-normalized "/" here would
+                // survive straight into the path handed to Process.Start.
+                : Path.Combine(_projectFolderRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    private void RevealProjectFolderInExplorer(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        if (!Directory.Exists(absolutePath))
+        {
+            ShowStatusMessage($"Folder not found: {absolutePath}", isError: true);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo { FileName = absolutePath, UseShellExecute = true });
+    }
+
     private void OnTitleFileCopyPathClick(object? sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrEmpty(_projectManager.FileName))
@@ -2055,6 +2096,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task LoadProjectFolderAsync(string path)
     {
+        _projectFolderRootPath = path;
         var rootFolder = new DiskEditorFolder(path);
         var entries = await AchxFolderScanner.ScanAsync(rootFolder);
         ProjectPanel.SetEntries(entries);

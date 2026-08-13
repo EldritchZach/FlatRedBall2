@@ -1,5 +1,6 @@
 using AnimationEditor.App.Services;
 using AnimationEditor.Core.IO;
+using Controls = AnimationEditor.Views.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -155,6 +156,108 @@ public class ProjectPanelControlTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.Same(entry, doubleClicked);
+        }
+        finally { window.Close(); }
+    }
+
+    // Issue #841 follow-up: right-click a folder row -> "View in Explorer". Real right-click
+    // (MouseDown/MouseUp, not reflection) through the pointer pipeline, same reasoning as
+    // PreviewRevealInExplorerTests' RealRightClick_* tests -- ContextRequested fires off the
+    // *release* event's own Handled flag, so only driving the full press+release proves routing.
+    private static Window ShowInWindow(Controls.ProjectPanelControl control)
+    {
+        var window = new Window { Content = control, Width = 400, Height = 400 };
+        window.Show();
+        window.Measure(new Size(400, 400));
+        window.Arrange(new Rect(0, 0, 400, 400));
+        Dispatcher.UIThread.RunJobs();
+        return window;
+    }
+
+    private static void RightClick(Window window, Controls.ProjectPanelControl control, Controls.AchxTreeNodeVm node)
+    {
+        var tvi = control.ProjectTree.GetVisualDescendants().OfType<TreeViewItem>()
+            .First(t => ReferenceEquals(t.DataContext, node));
+        // TreeViewItem.Bounds spans its own header row *plus* any expanded children, so a folder
+        // with children is much taller than its 24px header (see XAML's TreeViewItem MinHeight).
+        // Click near the top -- the header itself -- not the vertical centre of the whole subtree.
+        var local = new Point(tvi.Bounds.Width / 2, 8);
+        var p = tvi.TranslatePoint(local, window)!.Value;
+        window.MouseDown(p, MouseButton.Right);
+        window.MouseUp(p, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public void RightClickingFolderRow_WithRevealSupported_ShowsViewInExplorerItem()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0]); // "Sprites" folder
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>().Single();
+            Assert.Equal("View in Explorer", item.Header);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ClickingViewInExplorer_RaisesFolderRevealRequestedWithRelativePath()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/Enemies/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0]); // "Sprites"
+            string? requested = null;
+            control.FolderRevealRequested += path => requested = path;
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>().Single();
+            item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.Equal("Sprites", requested);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void RightClickingFileRow_DoesNotShowViewInExplorerItem()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0]); // "hero.achx" file
+
+            Assert.Empty(control.ProjectTree.ContextMenu!.Items);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void RightClickingFolderRow_WithRevealNotSupported_ShowsNoItems()
+    {
+        var control = new Controls.ProjectPanelControl(); // SupportsRevealInExplorer defaults false
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0]); // "Sprites" folder
+
+            Assert.Empty(control.ProjectTree.ContextMenu!.Items);
         }
         finally { window.Close(); }
     }

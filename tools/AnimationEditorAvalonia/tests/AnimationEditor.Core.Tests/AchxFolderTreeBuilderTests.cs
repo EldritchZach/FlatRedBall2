@@ -51,4 +51,45 @@ public class AchxFolderTreeBuilderTests
         Assert.Equal("hero.achx", tree[0].Name);
         Assert.Same(file, tree[0].Entry!.File);
     }
+
+    // ── RelativePath (issue #841 follow-up: "View in Explorer" on a folder row) ────────────────
+
+    [Fact]
+    public void Build_TopLevelFolder_RelativePathIsJustTheFolderName()
+    {
+        var sprites = new FakeEditorFolder("Sprites");
+        var heroFile = new FakeEditorFile("hero.achx");
+        var files = new[] { new AchxFileEntry(heroFile, sprites, "Sprites/hero.achx") };
+
+        var tree = AchxFolderTreeBuilder.Build(files);
+
+        Assert.Equal("Sprites", tree[0].RelativePath);
+    }
+
+    [Fact]
+    public void Build_NestedFolder_RelativePathIncludesEveryAncestorSegment()
+    {
+        var enemies = new FakeEditorFolder("Enemies");
+        var heroFile = new FakeEditorFile("hero.achx");
+        var files = new[] { new AchxFileEntry(heroFile, enemies, "Sprites/Enemies/hero.achx") };
+
+        var tree = AchxFolderTreeBuilder.Build(files);
+
+        var spritesFolder = tree[0];
+        Assert.Equal("Sprites", spritesFolder.RelativePath);
+        var enemiesFolder = spritesFolder.Children[0];
+        Assert.Equal("Sprites/Enemies", enemiesFolder.RelativePath);
+    }
+
+    [Fact]
+    public void Build_File_RelativePathMatchesTheEntrysOwnRelativePath()
+    {
+        var root = new FakeEditorFolder("Content");
+        var file = new FakeEditorFile("hero.achx");
+        var files = new[] { new AchxFileEntry(file, root, "hero.achx") };
+
+        var tree = AchxFolderTreeBuilder.Build(files);
+
+        Assert.Equal("hero.achx", tree[0].RelativePath);
+    }
 }
