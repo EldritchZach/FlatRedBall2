@@ -79,4 +79,40 @@ public class MultiSelectPropertyPanelTests
         }
         finally { window.Close(); }
     }
+
+    /// <summary>
+    /// Issue #860: the Core-level bulk command (<c>SetFrameRelative_MultipleFrames_AppliesToAllAsOneUndoStep</c>
+    /// in InspectorPropertyUndoTests) proves <c>IAppCommands.SetFrameRelative</c> itself works, but nothing
+    /// previously drove the real property-panel Apply path (<c>ApplyFrameRelative</c>, wired to
+    /// <c>PropRelX</c>/<c>PropRelY</c>'s <c>ValueChanged</c>) the way a user actually would.
+    /// </summary>
+    [AvaloniaFact]
+    public void ApplyFrameRelative_MultipleFramesSelected_AppliesXAndYToBoth()
+    {
+        var (window, ctx) = CreateWindow();
+        try
+        {
+            var chain = new AnimationChainSave { Name = "Walk" };
+            var f0 = new AnimationFrameSave { TextureName = "a.png", FrameLength = 0.1f, RelativeX = 1f, RelativeY = 2f };
+            var f1 = new AnimationFrameSave { TextureName = "b.png", FrameLength = 0.1f, RelativeX = 3f, RelativeY = 4f };
+            chain.Frames.AddRange(new[] { f0, f1 });
+            ctx.ProjectManager.AnimationChainListSave!.AnimationChains.Add(chain);
+
+            ctx.SelectedState.SelectedFrame = f0;
+            ctx.SelectedState.SelectedNodes = new List<object> { f0, f1 };
+            FlushUi();
+
+            var propRelX = window.FindControl<NumericUpDown>("PropRelX")!;
+            var propRelY = window.FindControl<NumericUpDown>("PropRelY")!;
+            propRelX.Value = 10m;
+            propRelY.Value = 20m;
+            FlushUi();
+
+            Assert.Equal(10f, f0.RelativeX);
+            Assert.Equal(20f, f0.RelativeY);
+            Assert.Equal(10f, f1.RelativeX);
+            Assert.Equal(20f, f1.RelativeY);
+        }
+        finally { window.Close(); }
+    }
 }

@@ -252,6 +252,14 @@ namespace AnimationEditor.Core.CommandsAndState
         void SetFrameTextureName(AnimationFrameSave frame, string? textureName);
 
         /// <summary>
+        /// Assigns <paramref name="textureName"/> to every frame in <paramref name="frames"/>
+        /// as a single undoable operation — the multi-select counterpart to the single-frame
+        /// overload, mirroring <see cref="SetFrameLength"/> and friends. No-op when
+        /// <paramref name="frames"/> is empty.
+        /// </summary>
+        void SetFrameTextureName(IReadOnlyList<AnimationFrameSave> frames, string? textureName);
+
+        /// <summary>
         /// Assigns <paramref name="textureName"/> to every frame in <paramref name="chain"/>
         /// as a single undoable operation. No-op when the chain has no frames.
         /// </summary>

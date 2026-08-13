@@ -4162,29 +4162,27 @@ public partial class MainWindow : Window
     private void ApplyTextureName()
     {
         if (_suppressPropRefresh) return;
-        var frame = _selectedState.SelectedFrame;
-        if (frame is null) return;
+        var frames = _selectedState.SelectedFrames;
+        if (frames.Count == 0) return;
 
         var inputText = PropTextureName.Text?.Trim() ?? string.Empty;
 
-        // Clearing the field clears the frame's texture and blanks the wireframe, rather than being
-        // ignored (which left the old texture showing). Only act when there's a texture to clear, so
-        // re-committing an already-empty field adds no spurious undo entry. SetFrameTextureName doesn't
-        // refresh the wireframe on its own, so blank it explicitly (DetermineTexturePath now resolves
-        // to no texture for the selected frame).
+        // Clearing the field clears every selected frame's texture and blanks the wireframe, rather
+        // than being ignored (which left the old texture showing). Only touch frames that actually
+        // have a texture to clear, so re-committing an already-empty field adds no spurious undo
+        // entry. SetFrameTextureName doesn't refresh the wireframe on its own, so blank it explicitly
+        // (DetermineTexturePath now resolves to no texture for the selected frame).
         if (string.IsNullOrEmpty(inputText))
         {
-            if (!string.IsNullOrEmpty(frame.TextureName))
+            var toClear = frames.Where(f => !string.IsNullOrEmpty(f.TextureName)).ToList();
+            if (toClear.Count > 0)
             {
-                _appCommands.SetFrameTextureName(frame, string.Empty);
+                _appCommands.SetFrameTextureName(toClear, string.Empty);
                 WireframeCtrl.RefreshAll();
                 RefreshPropertyPanel();
             }
             return;
         }
-
-        var currentDisplay = TexturePathHelper.ComputeDisplayPath(frame.TextureName, _projectManager.FileName);
-        if (inputText == currentDisplay) return;
 
         string achxFolder = string.IsNullOrEmpty(_projectManager.FileName)
             ? string.Empty
@@ -4193,17 +4191,25 @@ public partial class MainWindow : Window
         string absolutePath = TexturePathHelper.ResolveDisplayPath(inputText, achxFolder);
         string storePath    = TexturePathHelper.ComputeStorePath(absolutePath, achxFolder);
 
-        CommitFrameTexture(frame, storePath, absolutePath);
+        // Only frames whose displayed path actually differs get touched, so committing an
+        // unedited (or already-shared) value adds no spurious undo entry.
+        var toChange = frames
+            .Where(f => TexturePathHelper.ComputeDisplayPath(f.TextureName, _projectManager.FileName) != inputText)
+            .ToList();
+        if (toChange.Count == 0) return;
+
+        CommitFrameTexture(toChange, storePath, absolutePath);
     }
 
     /// <summary>
     /// Displays <paramref name="absolutePath"/> and, only if it decodes, commits
-    /// <paramref name="storePath"/> as the frame's texture name. If the image can't be loaded
-    /// (corrupt/undecodable/missing — see issue #479), the name is left untouched so no broken
-    /// reference reaches the undo stack or the saved .achx, the wireframe is restored to the
-    /// frame's current texture, and a non-fatal status message is shown.
+    /// <paramref name="storePath"/> as the texture name for every frame in <paramref name="frames"/>
+    /// as one undo step. If the image can't be loaded (corrupt/undecodable/missing — see issue
+    /// #479), every frame's name is left untouched so no broken reference reaches the undo stack or
+    /// the saved .achx, the wireframe is restored to the current texture, and a non-fatal status
+    /// message is shown.
     /// </summary>
-    private void CommitFrameTexture(AnimationFrameSave frame, string storePath, string absolutePath)
+    private void CommitFrameTexture(IReadOnlyList<AnimationFrameSave> frames, string storePath, string absolutePath)
     {
         if (!WireframeCtrl.LoadTexture(absolutePath))
         {
@@ -4212,7 +4218,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _appCommands.SetFrameTextureName(frame, storePath);
+        _appCommands.SetFrameTextureName(frames, storePath);
         RefreshPropertyPanel();
     }
 
@@ -4266,7 +4272,7 @@ public partial class MainWindow : Window
                             try
                             {
                                 File.Copy(capturedSource, capturedDest, overwrite: true);
-                                CommitFrameTexture(frame, TexturePathHelper.ComputeStorePath(capturedDest, achxFolder), capturedDest);
+                                CommitFrameTexture(new[] { frame }, TexturePathHelper.ComputeStorePath(capturedDest, achxFolder), capturedDest);
                             }
                             catch (Exception retryEx)
                             {
@@ -4284,7 +4290,7 @@ public partial class MainWindow : Window
             ? resolvedAbsPath
             : TexturePathHelper.ComputeStorePath(resolvedAbsPath, achxFolder);
 
-        CommitFrameTexture(frame, storePath, resolvedAbsPath);
+        CommitFrameTexture(new[] { frame }, storePath, resolvedAbsPath);
     }
 
     private enum TextureCopyChoice { Copy, Keep, Cancel }
@@ -4467,8 +4473,9 @@ public partial class MainWindow : Window
                 {
                     PropColorMode.SelectedIndex = 0; // None
                 }
-                PropTextureName.Text = TexturePathHelper.ComputeDisplayPath(
-                    frame.TextureName, _projectManager.FileName);
+                SetNameOrMixed(PropTextureName,
+                    frames.Select(f => TexturePathHelper.ComputeDisplayPath(f.TextureName, _projectManager.FileName)).ToList(),
+                    disableForCollision: false);
 
                 var (bmpW, bmpH) = WireframeCtrl.BitmapSize;
                 if (bmpW > 0 && bmpH > 0)
