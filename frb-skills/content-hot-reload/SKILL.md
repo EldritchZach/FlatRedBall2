@@ -85,7 +85,6 @@ WatchContentDirectory("Content", rel =>
     else RestartScreen(RestartMode.HotReload);
 });
 ```
-<!-- skill-creator: allow-long-csharp reason="canonical dispatch table — collapsing to prose loses the per-type pattern that makes the section useful" -->
 
 - **`.png`** — auto-reloaded before the callback (`AutoReloadAction` → `Engine.Content.TryReload`, patches `Texture2D` pixels in place). Only tracks PNGs loaded via `Engine.Content.Load<Texture2D>("path.png")` (extension required; xnb pipeline loads are not tracked). Opt out: set `watcher.AutoReloadAction = null`. Dimension change silently fails — add an explicit `.png → Engine.Content.TryReload` + restart fallback if you edit resolutions.
 - **`.tmx`** — `TileMap.TryReloadFrom` patches tile IDs and rebuilds every TSC registered via `GenerateCollisionFromClass`/`Property`, including shapes sourced from object-layer rectangles/polygons. Returns `false` on structural change (map/layer/tileset diff). Hand-authored mutations on a generated TSC are **wiped** — put augmentations in `CustomInitialize`.

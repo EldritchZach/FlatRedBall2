@@ -55,7 +55,6 @@ Each frame runs in this order:
 
 A screen creates its `Factory<T>` instances in `CustomInitialize`, spawns entities with `Create()`, and wires `AddCollisionRelationship` over those factories — the gestalt the per-topic skills show piecewise:
 
-<!-- skill-creator: allow-long-csharp reason="canonical screen gestalt — factory fields + Create + collision wiring composed in one place; the composition is the point and isn't shown together elsewhere" -->
 ```csharp
 public class GameScreen : Screen
 {
