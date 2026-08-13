@@ -100,7 +100,7 @@ public class MainWindowMenuFlowTests
 
             typeof(MainWindow)
                 .GetMethod("LoadAnimationFileAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(window, [path]);
+                .Invoke(window, [path, false]);
 
             Dispatcher.UIThread.RunJobs();
 

@@ -161,7 +161,7 @@ public class NewAndLoadResetTests
             var path = WriteAchx(dir, "NewRun");
             typeof(MainWindow)
                 .GetMethod("LoadAnimationFileAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(window, [path]);
+                .Invoke(window, [path, false]);
             Dispatcher.UIThread.RunJobs();
 
             Assert.Null(ctx.SelectedState.SelectedFrame);
@@ -190,7 +190,7 @@ public class NewAndLoadResetTests
             var path = WriteAchx(dir, "Walk", "Run", "Idle");
             typeof(MainWindow)
                 .GetMethod("LoadAnimationFileAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(window, [path]);
+                .Invoke(window, [path, false]);
             Dispatcher.UIThread.RunJobs();
 
             var tree  = window.FindControl<TreeView>("AnimTree")!;
