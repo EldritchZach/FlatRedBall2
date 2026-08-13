@@ -266,7 +266,7 @@ Test-first throughout. **§6.1 first — it is the blocker.**
 - [x] XML docs on every public member — this is the epic's only user-facing surface.
 - [x] Write the `glue-project-loading` skill. Phase 1 §7.7 deferred the decision until there was
       enough surface to justify the context budget; this phase is that surface. Consult
-      `skill-creator` first.
+      `skills-writer` first.
 - [x] Update this document and `plan/plan.md`; mark the epic complete.
 
 ### 6.6 — What differed from the plan
