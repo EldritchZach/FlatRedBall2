@@ -1,6 +1,8 @@
 using AnimationEditor.App.Services;
 using AnimationEditor.Core.IO;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using System;
@@ -30,6 +32,7 @@ public partial class ProjectPanelControl : UserControl
     private string _searchQuery = string.Empty;
     private ProjectTreeThumbnailService? _thumbnailService;
     private CancellationTokenSource? _thumbnailLoadCts;
+    private AchxTreeNodeVm? _contextNode;
 
     // Guards against re-entrant SelectionChanged while ClearSearchAndReveal restores the
     // selection post-rebuild -- without it, that restore would re-fire FileSelected for the
@@ -40,6 +43,28 @@ public partial class ProjectPanelControl : UserControl
 
     /// <summary>Raised when the user clicks a file row.</summary>
     public event Action<AchxFileEntry>? FileSelected;
+
+    /// <summary>
+    /// Raised when the user double-clicks a file row (issue #841) -- promotes an existing
+    /// preview tab for that file to a permanent one.
+    /// </summary>
+    public event Action<AchxFileEntry>? FileDoubleClicked;
+
+    /// <summary>
+    /// True when the host can reveal a folder in the OS shell (desktop only -- issue #654 dropped
+    /// the equivalent "Open Containing Folder" on the browser build since there's no real
+    /// filesystem to reveal). Desktop's <c>MainWindow</c> sets this after construction; left false
+    /// (the default) the tree's context menu never shows "View in Explorer" for a folder row.
+    /// </summary>
+    public bool SupportsRevealInExplorer { get; set; }
+
+    /// <summary>
+    /// Raised when the user picks "View in Explorer" for a folder row (issue #841 follow-up).
+    /// Carries the folder's <see cref="AchxTreeNodeVm.RelativePath"/> -- this control has no
+    /// absolute path for a folder node, only the host (which knows the project root) can resolve
+    /// one.
+    /// </summary>
+    public event Action<string>? FolderRevealRequested;
 
     /// <summary>
     /// Completes once every thumbnail from the most recent <see cref="Rebuild"/> has finished
@@ -54,6 +79,15 @@ public partial class ProjectPanelControl : UserControl
         DataContext = this;
         ExcludeBinObjCheck.IsCheckedChanged += (_, _) => Rebuild();
         ProjectTree.SelectionChanged += OnTreeSelectionChanged;
+        // Tunnel-phase, matching MainWindow.OnTreePointerPressed's ClickCount==2 pattern (#716):
+        // TreeViewItem's own pointer handling toggles IsExpanded on the second click before a
+        // Bubble-registered DoubleTapped handler on an ancestor would ever see it.
+        ProjectTree.AddHandler(InputElement.PointerPressedEvent, OnProjectTreePointerPressed, RoutingStrategies.Tunnel);
+
+        var contextMenu = new ContextMenu();
+        contextMenu.Opening += OnTreeContextMenuOpening;
+        ProjectTree.ContextMenu = contextMenu;
+
         Rebuild();
     }
 
@@ -218,6 +252,43 @@ public partial class ProjectPanelControl : UserControl
         return null;
     }
 
+    private void OnProjectTreePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var props = e.GetCurrentPoint(ProjectTree).Properties;
+
+        if (props.IsRightButtonPressed)
+        {
+            _contextNode = GetNodeVmFromSource(e.Source);
+            return;
+        }
+
+        if (!props.IsLeftButtonPressed || e.ClickCount != 2) return;
+
+        if (GetNodeVmFromSource(e.Source) is not { IsFile: true, Entry: { } entry }) return;
+
+        FileDoubleClicked?.Invoke(entry);
+    }
+
+    private static AchxTreeNodeVm? GetNodeVmFromSource(object? source)
+    {
+        if (source is not Control src) return null;
+        var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
+        return tvi?.DataContext as AchxTreeNodeVm;
+    }
+
+    private void OnTreeContextMenuOpening(object? sender, CancelEventArgs e)
+    {
+        if (ProjectTree.ContextMenu is null) return;
+        ProjectTree.ContextMenu.Items.Clear();
+
+        if (!SupportsRevealInExplorer) return;
+        if (_contextNode is not { IsFolder: true } node) return;
+
+        var revealItem = new MenuItem { Header = "View in Explorer" };
+        revealItem.Click += (_, _) => FolderRevealRequested?.Invoke(node.RelativePath);
+        ProjectTree.ContextMenu.Items.Add(revealItem);
+    }
+
     private void OnFolderExpanderToggled(object? sender, EventArgs e)
     {
         if (sender is not Control control) return;
@@ -238,6 +309,12 @@ public sealed class AchxTreeNodeVm : INotifyPropertyChanged
     public AchxFileEntry? Entry { get; }
     public bool IsFolder => Entry is null;
     public bool IsFile => Entry is not null;
+
+    /// <summary>Path from the project root, forward-slash separated -- see
+    /// <see cref="AchxTreeNode.RelativePath"/>. Used to resolve a folder row's absolute path for
+    /// "View in Explorer" (issue #841 follow-up), since folder nodes carry no <see cref="Entry"/>.</summary>
+    public string RelativePath { get; }
+
     public ObservableCollection<AchxTreeNodeVm> Children { get; } = new();
 
     public bool IsFolderOpen => _isExpanded;
@@ -273,15 +350,16 @@ public sealed class AchxTreeNodeVm : INotifyPropertyChanged
         }
     }
 
-    private AchxTreeNodeVm(string name, AchxFileEntry? entry)
+    private AchxTreeNodeVm(string name, AchxFileEntry? entry, string relativePath)
     {
         Name = name;
         Entry = entry;
+        RelativePath = relativePath;
     }
 
     public static AchxTreeNodeVm FromNode(AchxTreeNode node)
     {
-        var vm = new AchxTreeNodeVm(node.Name, node.Entry);
+        var vm = new AchxTreeNodeVm(node.Name, node.Entry, node.RelativePath);
         foreach (var child in node.Children)
             vm.Children.Add(FromNode(child));
         return vm;

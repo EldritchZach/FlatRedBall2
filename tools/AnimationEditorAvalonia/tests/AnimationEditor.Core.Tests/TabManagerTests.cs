@@ -828,4 +828,89 @@ public class TabManagerTests
         Assert.Single(tm.Tabs);
         Assert.Equal("a.achx", tm.Tabs[0].Path.NoPath);
     }
+
+    // ── OpenPreview / Promote (issue #841) ──────────────────────────────────────
+
+    [Fact]
+    public void OpenPreview_FirstFile_AddsPreviewTab()
+    {
+        var tm = new TabManager();
+
+        tm.OpenPreview(P(@"C:\Games\hero.achx"));
+
+        Assert.Single(tm.Tabs);
+        Assert.True(tm.Tabs[0].IsPreview);
+    }
+
+    [Fact]
+    public void OpenPreview_SecondFile_ReplacesPreviewTabInPlace()
+    {
+        var tm = new TabManager();
+        tm.OpenPreview(P(@"C:\Games\hero.achx"));
+
+        tm.OpenPreview(P(@"C:\Games\enemy.achx"));
+
+        Assert.Single(tm.Tabs);
+        Assert.Equal(P(@"C:\Games\enemy.achx"), tm.Tabs[0].Path);
+        Assert.True(tm.Tabs[0].IsPreview);
+    }
+
+    [Fact]
+    public void OpenPreview_ExistingPermanentTabSamePath_DoesNotChangePreviewState()
+    {
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\hero.achx"));
+
+        var result = tm.OpenPreview(P(@"C:\Games\hero.achx"));
+
+        Assert.Equal(TabOpenResult.Focused, result);
+        Assert.False(tm.Tabs[0].IsPreview);
+    }
+
+    [Fact]
+    public void OpenPreview_WithExistingPermanentTab_LeavesPermanentTabUntouched()
+    {
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\hero.achx"));
+
+        tm.OpenPreview(P(@"C:\Games\enemy.achx"));
+
+        Assert.Equal(2, tm.Tabs.Count);
+        Assert.False(tm.Tabs[0].IsPreview);
+        Assert.True(tm.Tabs[1].IsPreview);
+    }
+
+    [Fact]
+    public void OpenOrFocus_ExistingPreviewTab_PromotesToPermanent()
+    {
+        var tm = new TabManager();
+        tm.OpenPreview(P(@"C:\Games\hero.achx"));
+
+        var result = tm.OpenOrFocus(P(@"C:\Games\hero.achx"));
+
+        Assert.Equal(TabOpenResult.Focused, result);
+        Assert.False(tm.Tabs[0].IsPreview);
+    }
+
+    [Fact]
+    public void Promote_PreviewTab_ClearsIsPreview()
+    {
+        var tm = new TabManager();
+        tm.OpenPreview(P(@"C:\Games\hero.achx"));
+
+        tm.Promote(P(@"C:\Games\hero.achx"));
+
+        Assert.False(tm.Tabs[0].IsPreview);
+    }
+
+    [Fact]
+    public void Promote_UnknownPath_IsNoOp()
+    {
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\hero.achx"));
+
+        tm.Promote(P(@"C:\Games\unknown.achx")); // must not throw
+
+        Assert.Single(tm.Tabs);
+    }
 }

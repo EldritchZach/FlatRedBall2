@@ -73,6 +73,16 @@ public partial class MainWindow : Window
     private AppSettingsModel _appSettings = new();
     private readonly TabManager _tabManager = new();
     private readonly TabController _tabController;
+    // Guards _undoManager.StackChanged's preview-promote reaction (#841) against the Clear()/
+    // RestoreSnapshot() calls LoadAnimationFileAsync itself makes while loading a file -- those
+    // fire StackChanged too, and without this guard every preview-open would immediately
+    // self-promote before the user did anything.
+    private bool _suppressPreviewPromotion;
+
+    // Set by LoadProjectFolderAsync -- the root ProjectPanel's folder-relative paths resolve
+    // against, for "View in Explorer" on a folder row (#841 follow-up). Null until the user has
+    // opened (or a prior session restored) a project folder.
+    private string? _projectFolderRootPath;
 
     // ── Tab drag state ────────────────────────────────────────────────────────
     private TabEntry? _dragTab;
@@ -244,13 +254,29 @@ public partial class MainWindow : Window
         FilesPanel.Initialize(_thumbnailService, this,
             msg => ShowStatusMessage(msg, isError: true), OpenPngAsTab);
         ProjectPanel.Initialize(_projectTreeThumbnailService);
+        // Desktop has a real filesystem to reveal a folder in -- the browser build leaves this
+        // false (its ProjectPanel is constructed the same way, unmodified) so its tree never
+        // shows a "View in Explorer" item it couldn't act on (#654's reasoning, applied here).
+        ProjectPanel.SupportsRevealInExplorer = true;
+        ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
+        // Single click previews the file in the one reusable preview tab; double-click (or
+        // editing it -- see the _undoManager.StackChanged subscription in WireTabBar) promotes
+        // it to a permanent tab (#841).
         ProjectPanel.FileSelected += entry =>
         {
             if (entry.File is DiskEditorFile diskFile)
-                _ = OpenFileAsTab(diskFile.FullPath);
+                _ = LoadAnimationFileAsync(diskFile.FullPath, asPreview: true);
+        };
+        ProjectPanel.FileDoubleClicked += entry =>
+        {
+            if (entry.File is DiskEditorFile diskFile)
+            {
+                _tabManager.Promote(new FilePath(diskFile.FullPath));
+                RebuildTabStrip();
+            }
         };
         _pngFolderWatcher.FolderContentsChanged += changed =>
             Dispatcher.UIThread.InvokeAsync(() =>
@@ -286,6 +312,19 @@ public partial class MainWindow : Window
         // lose the session (issue #439). Called synchronously so the write lands before any kill;
         // SaveTabsToSettings only reads tab state and writes a file, touching no UI controls.
         _tabManager.TabsChanged += SaveTabsToSettings;
+        // Any recorded edit to the active preview tab promotes it to permanent (#841) -- leaving
+        // it previewable would silently discard the edit the next time a different file is
+        // single-clicked in the Project tree. Guarded against the load sequence's own
+        // Clear()/RestoreSnapshot() calls via _suppressPreviewPromotion.
+        _undoManager.StackChanged += () =>
+        {
+            if (_suppressPreviewPromotion) return;
+            if (_tabManager.ActiveTab is { IsPreview: true } active)
+            {
+                _tabManager.Promote(active.Path);
+                RebuildTabStrip();
+            }
+        };
     }
 
     private void RebuildTabStrip()
@@ -322,6 +361,9 @@ public partial class MainWindow : Window
             {
                 Text = tab.DisplayName,
                 FontSize = 11,
+                // Preview tabs (#841) render italicized -- the standard VS Code/JetBrains cue
+                // that this tab is reused by the next single click instead of staying open.
+                FontStyle = tab.IsPreview ? Avalonia.Media.FontStyle.Italic : Avalonia.Media.FontStyle.Normal,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Foreground = isActive ? ThemedBrush("Ink") : ThemedBrush("InkMid"),
             };
@@ -472,6 +514,10 @@ public partial class MainWindow : Window
                 if (_isDragging)
                 {
                     int targetIdx = ComputeTabIndexAt(args.GetPosition(TabStrip).X);
+                    // Dragging a preview tab to reorder it is a deliberate action (#841) --
+                    // promote it, or the next single click elsewhere would silently replace the
+                    // tab the user just spent effort repositioning.
+                    _tabManager.Promote(captured.Path);
                     _tabManager.Move(captured.Path, targetIdx);
                     RebuildTabStrip();
                 }
@@ -823,7 +869,11 @@ public partial class MainWindow : Window
             await LoadProjectFolderAsync(lastProjectFolder);
 
         RefreshFilesPanel();
-        ShowDefaultHandlerBannerIfAppropriate();
+        // Not auto-shown (issue #849): RegisterAsDefault() doesn't work for the current
+        // dev/portable distribution — no installer yet (#493) — so the banner would just
+        // offer a "Make default" button that does nothing useful. The manual "Set as
+        // default" / "Don't show again" controls in Settings still work for anyone who
+        // wants to try it.
         _ = RunStartupUpdateCheckAsync();
     }
 
@@ -1786,6 +1836,37 @@ public partial class MainWindow : Window
             Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
     }
 
+    /// <summary>
+    /// Resolves a Project-tree folder row's <see cref="AchxTreeNodeVm.RelativePath"/> to an
+    /// absolute path against <see cref="_projectFolderRootPath"/> (issue #841 follow-up: "View in
+    /// Explorer" on a folder row). Split out from <see cref="RevealProjectFolderInExplorer"/> so
+    /// this pure resolution is unit-testable without going through <c>Process.Start</c>.
+    /// </summary>
+    internal string? ResolveProjectFolderAbsolutePath(string relativePath) =>
+        _projectFolderRootPath is null
+            ? null
+            : relativePath.Length == 0
+                ? _projectFolderRootPath
+                // AchxTreeNodeVm.RelativePath is always forward-slash separated (see
+                // AchxFolderTreeBuilder) -- Path.Combine only joins its two arguments, it doesn't
+                // normalize separators *inside* either one, so an un-normalized "/" here would
+                // survive straight into the path handed to Process.Start.
+                : Path.Combine(_projectFolderRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    private void RevealProjectFolderInExplorer(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        if (!Directory.Exists(absolutePath))
+        {
+            ShowStatusMessage($"Folder not found: {absolutePath}", isError: true);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo { FileName = absolutePath, UseShellExecute = true });
+    }
+
     private void OnTitleFileCopyPathClick(object? sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrEmpty(_projectManager.FileName))
@@ -2015,6 +2096,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task LoadProjectFolderAsync(string path)
     {
+        _projectFolderRootPath = path;
         var rootFolder = new DiskEditorFolder(path);
         var entries = await AchxFolderScanner.ScanAsync(rootFolder);
         ProjectPanel.SetEntries(entries);
@@ -2211,7 +2293,11 @@ public partial class MainWindow : Window
         };
 
     /// <summary>
-    /// Builds the content panel for the About dialog.
+    /// Builds the content panel for the About dialog. <paramref name="updateCheck"/> is <c>null</c>
+    /// when no check has run yet; a non-null result with a populated <see cref="UpdateCheckResult.LatestVersion"/>
+    /// and <see cref="UpdateCheckResult.IsUpdateAvailable"/> <c>false</c> means the check succeeded
+    /// and the running version is already current (issue #845 — this used to be indistinguishable
+    /// from "never checked").
     /// Extracted for testability.
     /// </summary>
     internal static Control BuildAboutContent(UpdateCheckResult? updateCheck = null)
@@ -2219,9 +2305,12 @@ public partial class MainWindow : Window
         var ver = typeof(MainWindow).Assembly.GetName().Version;
         var versionText = ver is null ? "unknown" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
 
-        var updatePromptText = updateCheck?.IsUpdateAvailable == true
-            ? $"Update available: v{updateCheck.LatestVersion}"
-            : "Check here for updates:";
+        var updatePromptText = updateCheck switch
+        {
+            { IsUpdateAvailable: true } => $"Update available: v{updateCheck.LatestVersion}",
+            { LatestVersion: not null } => $"You're up to date (v{updateCheck.LatestVersion})",
+            _ => "Check here for updates:",
+        };
         var releaseUrl = updateCheck?.ReleaseUrl ?? ReleasesUrl;
         var buttonLabel = updateCheck?.IsUpdateAvailable == true ? "Get Update" : "View Releases on GitHub";
 
@@ -4668,7 +4757,13 @@ public partial class MainWindow : Window
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task LoadAnimationFileAsync(string fileName)
+    /// <param name="asPreview">
+    /// True for a single click in the Open Project Folder tree (#841): the file opens in the
+    /// single reusable preview tab (<see cref="TabManager.OpenPreview"/>) instead of a permanent
+    /// one. False (default) for every explicit open — File &gt; Open, recent files, drag-drop,
+    /// double-click — which always yields a permanent tab via <see cref="TabManager.OpenOrFocus"/>.
+    /// </param>
+    private async Task LoadAnimationFileAsync(string fileName, bool asPreview = false)
     {
         if (string.IsNullOrEmpty(fileName)) return;
 
@@ -4689,32 +4784,44 @@ public partial class MainWindow : Window
         EnsureCurrentEditorContentHasTab();
 
         var filePath = new FilePath(fileName);
-        var result = _tabManager.OpenOrFocus(filePath);
-        var arrivedTab = _tabManager.ActiveTab;
 
-        if (result == TabOpenResult.Focused)
+        // The load below clears/restores undo history as a side effect of loading content, not
+        // of the user editing anything -- suppress the StackChanged preview-promote reaction
+        // (WireTabBar) for the duration, or every preview-open would immediately self-promote.
+        _suppressPreviewPromotion = true;
+        try
         {
-            // The tab is already registered and now active in TabManager, but the editor
-            // may still be displaying a different tab's content (e.g. user was on tab 1
-            // and re-opened tab 2's file via File > Open).  Load the file to ensure the
-            // panels and previews reflect the focused tab.
-            bool alreadyShown = string.Equals(_projectManager.FileName, fileName,
-                StringComparison.OrdinalIgnoreCase);
-            if (!alreadyShown && !string.IsNullOrEmpty(fileName))
-            {
-                await _appCommands.ActivateTabContentAsync(arrivedTab!);
-                if (arrivedTab?.UndoSnapshot != null)
-                    _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
-            }
-            RebuildTabStrip();
-            return;
-        }
+            var result = asPreview ? _tabManager.OpenPreview(filePath) : _tabManager.OpenOrFocus(filePath);
+            var arrivedTab = _tabManager.ActiveTab;
 
-        await _appCommands.OpenAchxWorkflowAsync(fileName);
-        // Restore this tab's prior history if it was previously open (snapshot normally
-        // null on first open; non-null if the tab was closed and re-opened mid-session).
-        if (arrivedTab?.UndoSnapshot != null)
-            _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+            if (result == TabOpenResult.Focused)
+            {
+                // The tab is already registered and now active in TabManager, but the editor
+                // may still be displaying a different tab's content (e.g. user was on tab 1
+                // and re-opened tab 2's file via File > Open).  Load the file to ensure the
+                // panels and previews reflect the focused tab.
+                bool alreadyShown = string.Equals(_projectManager.FileName, fileName,
+                    StringComparison.OrdinalIgnoreCase);
+                if (!alreadyShown && !string.IsNullOrEmpty(fileName))
+                {
+                    await _appCommands.ActivateTabContentAsync(arrivedTab!);
+                    if (arrivedTab?.UndoSnapshot != null)
+                        _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+                }
+                RebuildTabStrip();
+                return;
+            }
+
+            await _appCommands.OpenAchxWorkflowAsync(fileName);
+            // Restore this tab's prior history if it was previously open (snapshot normally
+            // null on first open; non-null if the tab was closed and re-opened mid-session).
+            if (arrivedTab?.UndoSnapshot != null)
+                _undoManager.RestoreSnapshot(arrivedTab.UndoSnapshot);
+        }
+        finally
+        {
+            _suppressPreviewPromotion = false;
+        }
     }
 
     /// <summary>

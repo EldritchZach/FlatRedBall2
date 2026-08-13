@@ -44,6 +44,8 @@ A third #716 facet: two `window.MouseDown`/`MouseUp` pairs at the same point bac
 
 A fourth: `window.MouseDown`/`MouseUp` fully pump any `Dispatcher.UIThread.InvokeAsync`-queued continuation before returning (no `RunJobs()` needed) — so a test cannot freeze-frame the gap between a synchronous Tunnel-phase click handler and an async `SelectionChanged` reaction the way a real 60fps render loop can catch mid-flight (exactly the #716 flash: an unconditional reveal-restart call at the click site reset progress on the *previous* selection's still-rendered frames a beat before the async catch-up moved the highlight). Guard fixes for this class of race by asserting the *condition* that prevents the early call (e.g. "only replay when the clicked item already equals the current selection"), not by trying to observe the intermediate state headless can't expose. Also: `Console.WriteLine` from application code is invisible in `dotnet test` output even on failure; `System.IO.File.AppendAllText` to a scratch path is the reliable way to trace through a headless run when reasoning alone isn't converging.
 
+A fifth: a `TreeViewItem`'s `Bounds` spans its own header row *plus* the rendered content of any expanded children — a folder row with children visible is much taller than one row, so a click point computed at `Bounds.Height / 2` lands inside a child row instead of the folder itself (a real click there resolves the wrong node, not a routing failure). Compute the click point from a small fixed Y offset from the top (inside the header's own `MinHeight`), not the vertical center of the whole container, whenever the target row might have expanded children.
+
 ## Undo labels vs screenshots
 
 - **Correctness of a command's `Description`:** Core.Tests (`CommandDescriptionTests` / `FeatureDemosTests` / `BrowserUiDriveLabelTests`).
@@ -65,6 +67,10 @@ Assign `ProjectManager.AnimationChainListSave` **after** `window.Show()` (+ a `R
 ## Names inside an extracted `UserControl` are invisible to `window.FindControl`
 
 A `UserControl` (e.g. `ZoomControl`) defines its **own** namescope, so `window.FindControl<T>("Combo")` — from a test or from `MainWindow` — cannot resolve a control named *inside* it; only names in the same namescope resolve. Test an extracted control through its **public surface**: fetch the control itself (`window.FindControl<ZoomControl>("PngZoom")`) and assert on public members it exposes (`ZoomControl.Text`, `.StepUp()`, `.StepDown()`). This is the tax on pulling a widget into a reusable control — any test that reached it by an inner element's name must re-target the wrapper's public API.
+
+## Manually verifying the update-check: force a specific outcome with `-p:Version`
+
+`AnimationEditor.App.csproj` self-stamps `Version` to today's date (`yyyy.MM.dd`) when not passed in, so a plain `dotnet run`/`dotnet build` already exercises the real GitHub comparison (`AnimationEditor.Core/Update/UpdateChecker.cs`) instead of being skipped — and will normally report "up to date" since a local build's date is almost always ≥ the last release's. To force a specific state in the About dialog for a manual check, override it: `-p:Version=2099.1.1` guarantees "up to date"; `-p:Version=2000.1.1` guarantees "update available" against whatever the latest real GitHub release is (needs network access). Below `Major` 2000 the check is skipped entirely (`MinReleaseYear` guard) — that state is otherwise unreachable through normal builds now.
 
 ## Tests must never write the developer's real settings
 

@@ -93,6 +93,14 @@ namespace AnimationEditor.Core.Models
         public Dictionary<object, bool>? CachedTreeExpandState { get; set; }
 
         /// <summary>
+        /// True while this is the single reusable "preview" tab (issue #841): a click in the
+        /// Open Project Folder tree opens/replaces this tab instead of adding a new permanent
+        /// one. Cleared by <see cref="TabManager.Promote"/> when the tree row is double-clicked
+        /// or the file is edited, after which the tab behaves like any other.
+        /// </summary>
+        public bool IsPreview { get; set; }
+
+        /// <summary>
         /// The tab label. Returns <see cref="_displayNameOverride"/> when set;
         /// otherwise the filename without directory.
         /// </summary>
