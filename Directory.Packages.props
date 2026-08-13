@@ -28,7 +28,11 @@
     packages are pinned to the same version here since they track the same upstream release.
   -->
   <PropertyGroup>
-    <AposShapesVersion>0.7.8</AposShapesVersion>
+    <!-- 0.7.8 shipped ~10 hours before ShadowDusk fixed a trunc() lowering bug in its GLSL
+         rewriter (Apos.Shapes #34) that crashed any shape draw on macOS DesktopGL — see
+         AposShapesEmbeddedShaderPortabilityTests and issue #853. Keep at or above the first
+         fixed release (0.7.9). -->
+    <AposShapesVersion>0.8.1</AposShapesVersion>
   </PropertyGroup>
 
   <ItemGroup>
