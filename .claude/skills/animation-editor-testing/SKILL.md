@@ -11,6 +11,7 @@ Headless-test discipline for the Avalonia Animation Editor. Tool layout lives in
 
 ```
 dotnet test tools/AnimationEditorAvalonia/tests/AnimationEditor.Core.Tests/
+dotnet test tools/AnimationEditorAvalonia/tests/AnimationEditor.Views.Tests/
 dotnet test tools/AnimationEditorAvalonia/tests/AnimationEditor.App.Tests/
 ```
 
@@ -19,8 +20,9 @@ dotnet test tools/AnimationEditorAvalonia/tests/AnimationEditor.App.Tests/
 | Layer | Project | Use when | Do not use for |
 |---|---|---|---|
 | **Core** | `AnimationEditor.Core.Tests` | Commands, undo `Description`s, selection/state, pure logic | Layout, pointer routing, pixels |
-| **Headless UI** | `AnimationEditor.App.Tests` (`[AvaloniaFact]`) | Desktop visual tree, input routing, control templates — the bug *is* UI | Re-proving Core math; Browser/WASM |
-| **Browser smoke** | `AnimationEditor.Browser.Ui` (Playwright) | Browser-*only* gaps (WASM boot, Browser host wiring, Debug automation bridge). See that folder’s README | Cloning Core/App tests; primary label gate |
+| **Headless control** | `AnimationEditor.Views.Tests` (`[AvaloniaFact]`) | A single `AnimationEditor.Views` control in isolation (e.g. `ProjectPanelControl`), using `FakeFolder`/`FakeFile` doubles — no `MainWindow`/DI | Cross-control wiring, `MainWindow` integration, real service graph |
+| **Headless integration** | `AnimationEditor.App.Tests` (`[AvaloniaFact]`, `TestServices`) | Desktop visual tree *through* `MainWindow`, input routing, real DI-wired services — the bug involves wiring, not just one control | Re-proving Core math or a single control's own logic; Browser/WASM |
+| **Browser smoke** | `AnimationEditor.Browser.Ui` (Playwright) | Browser-*only* gaps (WASM boot, Browser host wiring, Debug automation bridge). See that folder’s README | Cloning Core/App/Views tests; primary label gate |
 
 Default: **Core `[Fact]`**. Reach for `[AvaloniaFact]` only when the behavior under test genuinely *is* UI. Reach for Browser Playwright only when Headless/desktop cannot catch it — a small smoke set, not a 1:1 port.
 
