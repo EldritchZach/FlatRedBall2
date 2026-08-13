@@ -129,6 +129,18 @@ public class UnitTypePropPanelTests
         finally { window.Close(); }
     }
 
+    [AvaloniaFact]
+    public void PropNoneLabel_WrapsInsteadOfClippingWhenColumnNarrow()
+    {
+        var window = CreateWindowWithFrame(out _);
+        try
+        {
+            var label = FindCtrl<TextBlock>(window, "PropNoneLabel");
+            Assert.Equal(Avalonia.Media.TextWrapping.Wrap, label.TextWrapping);
+        }
+        finally { window.Close(); }
+    }
+
     // ── Pixel section always visible ──────────────────────────────────────────
 
     [AvaloniaFact]
