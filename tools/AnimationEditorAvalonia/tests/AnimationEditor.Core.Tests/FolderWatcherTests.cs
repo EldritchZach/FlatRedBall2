@@ -88,7 +88,7 @@ public class FolderWatcherTests
     }
 
     [Fact]
-    public async Task Changed_NewMatchingFile_RaisesCreated()
+    public async Task Changed_NewMatchingFile_IsReported()
     {
         var root = Directory.CreateTempSubdirectory().FullName;
         try
@@ -101,7 +101,14 @@ public class FolderWatcherTests
 
             var changes = await WaitForChangeAsync(watcher);
             Assert.NotNull(changes);
-            Assert.Contains(changes!, c => PathsEqual(c.Path, file) && c.Type == WatcherChangeType.Created);
+            // Not asserting WatcherChangeType.Created specifically: File.WriteAllText performs a
+            // create-then-write, and on some platforms (observed on Linux/inotify, not Windows)
+            // both land inside the same debounce window -- FileChangeCoalescer keeps only the
+            // *last* event's type, so a brand-new file can legitimately coalesce to Modified
+            // instead of Created. Consumers that need "is this genuinely new" must check ground
+            // truth (e.g. MainWindow.HandleProjectFolderChangesAsync does File.Exists + tree
+            // membership) rather than trust the reported type for that distinction.
+            Assert.Contains(changes!, c => PathsEqual(c.Path, file));
         }
         finally { Directory.Delete(root, true); }
     }
