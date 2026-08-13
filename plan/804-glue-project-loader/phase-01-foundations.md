@@ -774,7 +774,7 @@ Build this **before** the POCOs in 7.2 — the mirror's bag-backed accessors dep
 - [x] Update the Phase 1 row in [`plan/plan.md`](../plan.md).
 - [ ] Decide whether a `glue-project-loading` skill is warranted yet, or whether it should wait
       until Phase 2 gives it enough surface to be worth the context budget. Consult
-      `skill-creator` before writing one.
+      `skills-writer` before writing one.
 
 ---
 
