@@ -58,7 +58,12 @@ public partial class MainWindow : Window
     private readonly IFileAssociationService _fileAssociation;
     private readonly IUpdateChecker _updateChecker;
     private readonly IEditorDialogHost _dialogHost;
-    private readonly PngFolderWatcher _pngFolderWatcher = new();
+    private readonly FolderWatcher _pngFolderWatcher = new(PngFolderScanner.IsPngPath);
+
+    // Watches the Open Project Folder tree for .achx changes that never went through an open tab
+    // (#843) -- e.g. a git pull or another editor touching a file the user never clicked. The
+    // active tab's own .achx/PNGs are already covered by _appCommands.HotReloadWatcher.
+    private readonly FolderWatcher _projectFolderWatcher = new(AchxFolderScanner.IsAchxPath);
 
     /// <summary>
     /// Completes once the most recent <see cref="IAppCommands.EditorProjectModelChanged"/>
@@ -69,6 +74,13 @@ public partial class MainWindow : Window
     /// it with a matching path -- see issue #839's path-normalization bug).
     /// </summary>
     internal Task LastEditorProjectModelChangedTask { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Completes once the most recent <see cref="_projectFolderWatcher"/> change (or overflow) has
+    /// been handled by <see cref="HandleProjectFolderChangesAsync"/>. Test seam, same pattern as
+    /// <see cref="LastEditorProjectModelChangedTask"/> -- production code never awaits this.
+    /// </summary>
+    internal Task LastProjectFolderWatcherHandledTask { get; private set; } = Task.CompletedTask;
 
     private AppSettingsModel _appSettings = new();
     private readonly TabManager _tabManager = new();
@@ -278,15 +290,22 @@ public partial class MainWindow : Window
                 RebuildTabStrip();
             }
         };
-        _pngFolderWatcher.FolderContentsChanged += changed =>
+        _pngFolderWatcher.Changed += changed =>
             Dispatcher.UIThread.InvokeAsync(() =>
             {
                 // Evict the changed PNGs so the rebuild re-decodes them (and re-renders their
                 // cached Files-panel thumbnails) instead of serving the stale pre-change image.
-                foreach (var path in changed)
+                foreach (var (path, _) in changed)
                     _thumbnailService.InvalidatePath(path);
                 RefreshFilesPanel();
             });
+
+        _projectFolderWatcher.Changed += changes =>
+            Dispatcher.UIThread.InvokeAsync(() =>
+                LastProjectFolderWatcherHandledTask = HandleProjectFolderChangesAsync(changes));
+        _projectFolderWatcher.Overflowed += () =>
+            Dispatcher.UIThread.InvokeAsync(() =>
+                LastProjectFolderWatcherHandledTask = HandleProjectFolderChangesAsync(null));
 
         Opened += OnOpened;
         Closed += (_, _) =>
@@ -299,6 +318,7 @@ public partial class MainWindow : Window
             // releases them all (and the decoded source sheets) as the window tears down.
             _thumbnailService.Dispose();
             _pngFolderWatcher.Dispose();
+            _projectFolderWatcher.Dispose();
         };
     }
 
@@ -2097,6 +2117,7 @@ public partial class MainWindow : Window
     private async Task LoadProjectFolderAsync(string path)
     {
         _projectFolderRootPath = path;
+        _projectFolderWatcher.Watch(path);
         var rootFolder = new DiskEditorFolder(path);
         var entries = await AchxFolderScanner.ScanAsync(rootFolder);
         ProjectPanel.SetEntries(entries);
@@ -2119,6 +2140,52 @@ public partial class MainWindow : Window
 
         var entry = FindProjectPanelEntry(ProjectPanel.TreeRoots, savedPath);
         return entry is not null ? ProjectPanel.InvalidateThumbnail(entry) : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reacts to the Project-tree folder watcher for <c>.achx</c> files that were never opened as
+    /// a tab (#843) -- e.g. a git pull or another editor touching a file external to this app.
+    /// <see cref="IAppCommands.EditorProjectModelChanged"/> (wired in <see cref="WireAppCommands"/>)
+    /// already covers the *currently open* tab via <see cref="IAppCommands.HotReloadWatcher"/>;
+    /// this covers everything else still visible in the Project tree.
+    /// </summary>
+    /// <param name="changes">
+    /// The changed paths, or <c>null</c> when the folder watcher overflowed and individual paths
+    /// were lost -- treated the same as "everything changed."
+    /// </param>
+    private async Task HandleProjectFolderChangesAsync(
+        IReadOnlyList<(string Path, WatcherChangeType Type)>? changes)
+    {
+        if (_projectFolderRootPath is null) return;
+
+        // A create or delete changes tree *structure*, not just a thumbnail -- and a full rescan
+        // is exactly what LoadProjectFolderAsync already does on every Open Project Folder, so
+        // reuse it rather than hand-rolling incremental tree add/remove. Detected from ground
+        // truth (does the path exist on disk / is it already a tree node) rather than the
+        // coalesced WatcherChangeType: a brand-new file's Create is immediately followed by a
+        // Modified from the save's own content write (File.Create then write the same stream is
+        // the common pattern, e.g. AnimationChainListSave.Save), and FileChangeCoalescer.Record's
+        // same-path upsert keeps only the *last* event's type -- so a new file's coalesced type
+        // is Modified, not Created, and gating on the type alone would silently miss it.
+        bool structureChanged = changes is null || changes.Any(c =>
+            !File.Exists(c.Path) || FindProjectPanelEntry(ProjectPanel.TreeRoots, c.Path) is null);
+        if (structureChanged)
+        {
+            await LoadProjectFolderAsync(_projectFolderRootPath);
+            return;
+        }
+
+        foreach (var (path, _) in changes!)
+        {
+            // If this is the currently-open document, EditorProjectModelChanged (wired above)
+            // already invalidated its thumbnail -- skip to avoid double-decoding the same file.
+            if (_projectManager.FileName is { } active && new FilePath(active) == new FilePath(path))
+                continue;
+
+            var entry = FindProjectPanelEntry(ProjectPanel.TreeRoots, path);
+            if (entry is not null)
+                await ProjectPanel.InvalidateThumbnail(entry);
+        }
     }
 
     private static AchxFileEntry? FindProjectPanelEntry(

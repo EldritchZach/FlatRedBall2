@@ -72,7 +72,12 @@ public static class PngFolderScanner
         return subfolderPath;
     }
 
-    internal static bool IsPngPath(string path) =>
+    /// <summary>
+    /// True when <paramref name="path"/> — an absolute path, a relative path, or a bare file
+    /// name — has a <c>.png</c> extension. Public so <see cref="FolderWatcher"/> callers outside
+    /// this assembly (e.g. <c>MainWindow</c>) can pass it as a watch filter.
+    /// </summary>
+    public static bool IsPngPath(string path) =>
         Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase);
 }
 

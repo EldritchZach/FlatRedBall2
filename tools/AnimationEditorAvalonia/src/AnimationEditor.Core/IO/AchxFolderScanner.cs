@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace AnimationEditor.Core.IO;
@@ -21,12 +22,21 @@ public static class AchxFolderScanner
         return results;
     }
 
+    /// <summary>
+    /// True when <paramref name="path"/> — an absolute path, a relative path, or a bare file
+    /// name — has a <c>.achx</c> extension. Shared by the recursive scan above and by
+    /// <see cref="FolderWatcher"/>'s live Project-tree watch (#843), so both agree on what
+    /// counts as an achx.
+    /// </summary>
+    public static bool IsAchxPath(string path) =>
+        Path.GetExtension(path).Equals(".achx", StringComparison.OrdinalIgnoreCase);
+
     private static async Task ScanAsync(
         IEditorFolder folder, string relativePrefix, List<AchxFileEntry> results)
     {
         await foreach (var file in folder.GetItemsAsync())
         {
-            if (!file.Name.EndsWith(".achx", StringComparison.OrdinalIgnoreCase))
+            if (!IsAchxPath(file.Name))
                 continue;
 
             results.Add(new AchxFileEntry(file, folder, CombineRelativePath(relativePrefix, file.Name)));
