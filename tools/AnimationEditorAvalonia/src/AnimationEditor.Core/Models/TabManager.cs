@@ -52,6 +52,10 @@ namespace AnimationEditor.Core.Models
         var existing = FindTab(path);
         if (existing != null)
         {
+            // An explicit open of an already-previewed file (#841) is a deliberate action --
+            // File > Open, a recent-files pick, drag-drop -- so it promotes the preview tab to
+            // permanent rather than leaving it reusable.
+            existing.IsPreview = false;
             SetActive(existing);
             RaiseTabsChanged();
             return TabOpenResult.Focused;
@@ -69,6 +73,48 @@ namespace AnimationEditor.Core.Models
     /// already open. The <see cref="ActiveTab"/> is updated in either case.
     /// </summary>
     public TabOpenResult OpenOrFocus(FilePath path) => OpenOrFocus(path, null);
+
+    /// <summary>
+    /// Opens <paramref name="path"/> as the single reusable "preview" tab (issue #841): if a
+    /// preview tab already exists it is replaced in place, so a click in the Open Project
+    /// Folder tree never accumulates more than one extra tab. Focuses <paramref name="path"/>'s
+    /// tab without changing its preview/permanent state if it is already open (whether preview
+    /// or permanent). Permanent tabs are never touched.
+    /// </summary>
+    public TabOpenResult OpenPreview(FilePath path, string? displayNameOverride = null)
+    {
+        var existing = FindTab(path);
+        if (existing != null)
+        {
+            SetActive(existing);
+            RaiseTabsChanged();
+            return TabOpenResult.Focused;
+        }
+
+        var entry = new TabEntry(path, displayNameOverride) { IsPreview = true };
+        var previewTab = _tabs.FirstOrDefault(t => t.IsPreview);
+        if (previewTab != null)
+            _tabs[_tabs.IndexOf(previewTab)] = entry;
+        else
+            _tabs.Add(entry);
+
+        SetActive(entry);
+        RaiseTabsChanged();
+        return TabOpenResult.Opened;
+    }
+
+    /// <summary>
+    /// Promotes <paramref name="path"/>'s preview tab (issue #841) to a permanent tab -- the
+    /// tree row was double-clicked, the file was edited, or its tab was dragged. No-op if
+    /// <paramref name="path"/> is not open or is not currently a preview tab.
+    /// </summary>
+    public void Promote(FilePath path)
+    {
+        var tab = FindTab(path);
+        if (tab is not { IsPreview: true }) return;
+        tab.IsPreview = false;
+        RaiseTabsChanged();
+    }
 
     /// <summary>
     /// Computes the next unique "Untitled" display name given the set of names already in
