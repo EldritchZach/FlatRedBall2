@@ -60,7 +60,7 @@ public class AppCommandsSetFrameTextureTests
     {
         var ctx = TestHelpers.SetupFreshAcls();
         // Should be a silent no-op
-        ctx.AppCommands.SetFrameTextureName(null!, "hero.png");
+        ctx.AppCommands.SetFrameTextureName((AnimationFrameSave)null!, "hero.png");
     }
 
     // ── Event firing ──────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ public class AppCommandsSetFrameTextureTests
         bool changed = false;
         ctx.ApplicationEvents.AnimationChainsChanged += () => changed = true;
 
-        ctx.AppCommands.SetFrameTextureName(null!, "hero.png");
+        ctx.AppCommands.SetFrameTextureName((AnimationFrameSave)null!, "hero.png");
 
         Assert.False(changed);
     }

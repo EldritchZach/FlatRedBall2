@@ -1568,6 +1568,15 @@ namespace AnimationEditor.Core.CommandsAndState
             _undoManager.Execute(new SetFrameTextureNameCommand(frame, frame.TextureName, textureName, this, _events));
         }
 
+        public void SetFrameTextureName(IReadOnlyList<AnimationFrameSave> frames, string? textureName)
+        {
+            if (frames.Count == 0) return;
+            var cmds = frames
+                .Select(f => (IUndoableCommand)new SetFrameTextureNameCommand(f, f.TextureName, textureName, this, _events))
+                .ToArray();
+            _undoManager.Execute(new CompositeCommand(cmds, "Set Frame Texture"));
+        }
+
         public void SetAllFramesTextureName(AnimationChainSave chain, string? textureName)
         {
             if (chain.Frames.Count == 0) return;
