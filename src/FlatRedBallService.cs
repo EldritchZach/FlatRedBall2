@@ -841,6 +841,7 @@ public class FlatRedBallService
         DisplaySettings.ResolutionHeight = source.ResolutionHeight;
         DisplaySettings.LetterboxColor = source.LetterboxColor;
         DisplaySettings.WindowMode = source.WindowMode;
+        DisplaySettings.TextureFilterMode = source.TextureFilterMode;
     }
 
     /// <summary>

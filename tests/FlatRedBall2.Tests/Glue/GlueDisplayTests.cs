@@ -159,6 +159,13 @@ public class GlueDisplayTests
         diagnostics.ShouldContain(d => d.Message.Contains(expected));
     }
 
+    // XNA's TextureFilter enum: 0 is Linear, 1 is Point (see Glue.Model.DisplaySettings.TextureFilter).
+    [Theory]
+    [InlineData(1, TextureFilterMode.Point)]
+    [InlineData(0, TextureFilterMode.Linear)]
+    public void Apply_ATextureFilterFrb2CanHonor_MapsOntoTextureFilterMode(int filter, TextureFilterMode expected) =>
+        Applied(s => s.TextureFilter = filter).TextureFilterMode.ShouldBe(expected);
+
     [Fact]
     public void Apply_AGumScaleFrb2CannotHonor_IsReported()
     {

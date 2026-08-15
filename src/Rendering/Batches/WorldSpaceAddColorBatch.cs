@@ -1,3 +1,4 @@
+using FlatRedBall2;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall2.Rendering.Batches;
@@ -27,7 +28,7 @@ public class WorldSpaceAddColorBatch : IRenderBatch
         => spriteBatch.Begin(
             sortMode: SpriteSortMode.Immediate,
             transformMatrix: camera.GetTransformMatrix(),
-            samplerState: SamplerState.PointClamp,
+            samplerState: FlatRedBallService.Default.DisplaySettings.GetSamplerState(),
             rasterizerState: RasterizerState.CullNone,
             effect: AddColorEffect.Get(spriteBatch.GraphicsDevice));
 

@@ -1,3 +1,4 @@
+using FlatRedBall2;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall2.Rendering.Batches;
@@ -17,7 +18,7 @@ public class WorldSpaceBatch : IRenderBatch
     public void Begin(SpriteBatch spriteBatch, Camera camera)
         => spriteBatch.Begin(
             transformMatrix: camera.GetTransformMatrix(),
-            samplerState: SamplerState.PointClamp,
+            samplerState: FlatRedBallService.Default.DisplaySettings.GetSamplerState(),
             rasterizerState: RasterizerState.CullNone);
 
     /// <inheritdoc/>

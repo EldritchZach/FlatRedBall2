@@ -1,3 +1,4 @@
+using FlatRedBall2;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall2.Rendering.Batches;
@@ -19,7 +20,7 @@ public class ScreenSpaceAddColorBatch : IRenderBatch
     public void Begin(SpriteBatch spriteBatch, Camera camera)
         => spriteBatch.Begin(
             sortMode: SpriteSortMode.Immediate,
-            samplerState: SamplerState.PointClamp,
+            samplerState: FlatRedBallService.Default.DisplaySettings.GetSamplerState(),
             effect: AddColorEffect.Get(spriteBatch.GraphicsDevice));
 
     /// <inheritdoc/>

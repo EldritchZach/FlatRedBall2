@@ -492,6 +492,22 @@ public class ScreenTests
         ((ConfigurableTestScreen)engine.CurrentScreen).X.ShouldBe(99);
     }
 
+    private class LinearFilterScreen : Screen
+    {
+        public override FlatRedBall2.Rendering.DisplaySettings PreferredDisplaySettings { get; }
+            = new() { TextureFilterMode = FlatRedBall2.Rendering.TextureFilterMode.Linear };
+    }
+
+    [Fact]
+    public void Start_ScreenWithPreferredDisplaySettings_AppliesTextureFilterModeToEngineDisplaySettings()
+    {
+        var engine = new FlatRedBallService();
+
+        engine.Start<LinearFilterScreen>();
+
+        engine.DisplaySettings.TextureFilterMode.ShouldBe(FlatRedBall2.Rendering.TextureFilterMode.Linear);
+    }
+
     // ---------- Increment 2: Hot-reload restart ----------
 
     private class HotReloadTrackingScreen : Screen

@@ -56,12 +56,20 @@ public static class GlueDisplayMapper
                               "so it was loaded as 2D anyway.");
         }
 
-        // FRB2 hardcodes point sampling. 1 is Point in XNA's enum, which is what nearly every real
-        // project uses, so anything else is a genuine difference worth naming.
-        if (source.TextureFilter != 1)
+        // XNA's TextureFilter enum: 0 is Linear, 1 is Point. Those are the only two FRB2 supports;
+        // anything else (Anisotropic, the filtered-mip modes) is left unmapped and reported.
+        switch (source.TextureFilter)
         {
-            Warn(diagnostics, $"Texture filter {source.TextureFilter} was authored, but FRB2 samples " +
-                              "with point filtering and exposes no setting for it.");
+            case 0:
+                target.TextureFilterMode = Frb.TextureFilterMode.Linear;
+                break;
+            case 1:
+                target.TextureFilterMode = Frb.TextureFilterMode.Point;
+                break;
+            default:
+                Warn(diagnostics, $"Texture filter {source.TextureFilter} was authored, but FRB2 only " +
+                                  "supports Point and Linear sampling.");
+                break;
         }
 
         if (source.ScaleGum != 100)

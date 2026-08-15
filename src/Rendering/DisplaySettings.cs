@@ -77,6 +77,20 @@ public enum DominantAxis
 }
 
 /// <summary>
+/// How textures are sampled when scaled. Applies to every sprite drawn by the engine — there is no
+/// per-sprite override (FlatRedBall 1 had one; FRB2 does not, to avoid flushing/splitting sprite
+/// batches mid-draw).
+/// </summary>
+public enum TextureFilterMode
+{
+    /// <summary>Nearest-neighbor sampling. Crisp, blocky edges — the right choice for pixel art.</summary>
+    Point,
+
+    /// <summary>Bilinear sampling. Smooths scaled edges — the right choice for hand-drawn/high-res art.</summary>
+    Linear,
+}
+
+/// <summary>
 /// Display configuration that controls both camera behavior and (optionally) window properties.
 /// <para>
 /// The engine owns a default instance (<see cref="FlatRedBallService.DisplaySettings"/>) that is set once
@@ -176,6 +190,17 @@ public class DisplaySettings
 
     /// <summary>Color of letterbox/pillarbox bars. Only painted when <see cref="AspectPolicy"/> is <see cref="AspectPolicy.Locked"/>.</summary>
     public Color LetterboxColor { get; set; } = Color.Black;
+
+    /// <summary>
+    /// How textures are sampled when scaled. Defaults to <see cref="TextureFilterMode.Point"/> —
+    /// the engine's original hardcoded behavior, correct for pixel art. Set to
+    /// <see cref="TextureFilterMode.Linear"/> for smoother scaling of hand-drawn/high-res art.
+    /// </summary>
+    public TextureFilterMode TextureFilterMode { get; set; } = TextureFilterMode.Point;
+
+    /// <summary>Maps <see cref="TextureFilterMode"/> onto the matching clamped <see cref="SamplerState"/>.</summary>
+    internal SamplerState GetSamplerState() =>
+        TextureFilterMode == TextureFilterMode.Linear ? SamplerState.LinearClamp : SamplerState.PointClamp;
 
     /// <summary>
     /// Effective target aspect ratio: <see cref="FixedAspectRatio"/> if set, else
