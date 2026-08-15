@@ -1,3 +1,4 @@
+using FlatRedBall2;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall2.Rendering.Batches;
@@ -15,7 +16,7 @@ public class ScreenSpaceBatch : IRenderBatch
 
     /// <inheritdoc/>
     public void Begin(SpriteBatch spriteBatch, Camera camera)
-        => spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        => spriteBatch.Begin(samplerState: FlatRedBallService.Default.DisplaySettings.GetSamplerState());
 
     /// <inheritdoc/>
     public void End(SpriteBatch spriteBatch) => spriteBatch.End();

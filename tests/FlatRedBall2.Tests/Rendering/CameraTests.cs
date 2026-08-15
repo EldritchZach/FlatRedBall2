@@ -230,4 +230,28 @@ public class DisplaySettingsTests
         vp.Width.ShouldBe(1920);
         vp.Height.ShouldBe(1080);
     }
+
+    [Fact]
+    public void GetSamplerState_Point_ReturnsPointClamp()
+    {
+        var settings = new DisplaySettings { TextureFilterMode = FlatRedBall2.Rendering.TextureFilterMode.Point };
+
+        settings.GetSamplerState().ShouldBeSameAs(SamplerState.PointClamp);
+    }
+
+    [Fact]
+    public void GetSamplerState_Linear_ReturnsLinearClamp()
+    {
+        var settings = new DisplaySettings { TextureFilterMode = FlatRedBall2.Rendering.TextureFilterMode.Linear };
+
+        settings.GetSamplerState().ShouldBeSameAs(SamplerState.LinearClamp);
+    }
+
+    [Fact]
+    public void TextureFilterMode_Default_IsPoint()
+    {
+        var settings = new DisplaySettings();
+
+        settings.TextureFilterMode.ShouldBe(FlatRedBall2.Rendering.TextureFilterMode.Point);
+    }
 }
