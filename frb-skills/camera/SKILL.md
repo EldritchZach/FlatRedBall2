@@ -56,6 +56,7 @@ ds.WindowMode       = WindowMode.Windowed;       // or FullscreenBorderless
 ds.PreferredWindowWidth  = 1280;     // startup window pixel size (null = leave as-is)
 ds.PreferredWindowHeight = 720;
 ds.AllowUserResizing = false;        // default: fixed canvas; set true to let the player resize
+ds.TextureFilterMode = TextureFilterMode.Point; // default: crisp pixel art; Linear for smooth-scaled/card art
 ```
 
 ## Three Knobs: AspectPolicy × ResizeMode × DominantAxis
@@ -290,4 +291,5 @@ if (scroll != 0)
 - **Do not set `OrthogonalWidth`/`OrthogonalHeight` directly.** They have `internal set` and are managed by the engine from `DisplaySettings`. Use `Camera.Zoom` for runtime zoom.
 - **Viewport edge coordinates**: Use `Camera.Left`, `Camera.Right`, `Camera.Top`, `Camera.Bottom` — these are Zoom- and position-correct. Do not compute edges from `Camera.X ± Camera.OrthogonalWidth / 2f`.
 - **Gum HUD (`Camera.Add`/`Screen.Add`) is independent of Camera position, not `Zoom`.** Gum X/Y are screen pixels, Y-down from the top-left — panning (`Camera.X`/`Y`) never shifts them, but `Zoom` rescales them by design (HUD shares `PixelsPerUnit` with world content, for camera-relative HUD effects). For HUD that must ignore `Zoom` — e.g. a cinematic zoom-in that shouldn't touch the leaderboard — use a `Layer { IsScreenSpace = true }` (per-camera, viewport-scoped, correct in split-screen) or `Screen.AddOverlay` (screen-wide). See `gum-integration`.
+- **`TextureFilterMode` (Point/Linear) is per-screen via `PreferredDisplaySettings`**, same override mechanism as everything else above — defaults to `Point`; the four sprite render batches read it from `FlatRedBallService.Default.DisplaySettings`.
 - **`AllowUserResizing` defaults to `false`.** Set to `true` opt-in. The default `Locked` aspect policy means resize is safe (pillarboxes), but you must opt in for the player to be able to drag window borders.
