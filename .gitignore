@@ -29,6 +29,11 @@ CLAUDE.local.md
 # reappear as a stale "previous issue" file in every new worktree.
 /run.ps1
 
+# Manual-test-only diagnostics scratch projects (a human clicks/listens to confirm a feature
+# works, no new engineering finding to preserve) never get committed — unlike a feasibility
+# spike (e.g. MusicPitchSpike), which documents a finding and is kept as repo history.
+diagnostics/MusicPitchManagerSpike/
+
 # Sample folders intentionally excluded from source control
 /samples/auto
 /samples/SlopesSample
