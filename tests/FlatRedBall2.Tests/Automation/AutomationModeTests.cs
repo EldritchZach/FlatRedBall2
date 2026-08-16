@@ -374,6 +374,8 @@ public class AutomationModeReflectionTests
     private class AutoTestEntity : Entity
     {
         public int Health { get; set; } = 5;
+        public bool IsActive { get; set; } = false;
+        public string Label { get; set; } = "";
     }
     private class AutoTestScreen : Screen { }
 
@@ -427,6 +429,69 @@ public class AutomationModeReflectionTests
         mode.TryAdvanceFrame(1);
 
         e.Health.ShouldBe(3);
+    }
+
+    [Fact]
+    public void SetByEntityTypeName_BoolProperty_NonzeroValueConvertsToTrue()
+    {
+        var (_, mode, output) = MakeWithFactory(out var factory);
+        var e = factory.Create();
+
+        mode.ProcessLine("{\"cmd\":\"set\",\"entity\":\"AutoTestEntity\",\"prop\":\"IsActive\",\"value\":1.0}");
+        mode.TryAdvanceFrame(1);
+
+        e.IsActive.ShouldBeTrue();
+        output.ToString().Trim().ShouldContain("\"ok\":true");
+    }
+
+    [Fact]
+    public void SetByEntityTypeName_BoolProperty_ZeroValueConvertsToFalse()
+    {
+        var (_, mode, output) = MakeWithFactory(out var factory);
+        var e = factory.Create();
+        e.IsActive = true;
+
+        mode.ProcessLine("{\"cmd\":\"set\",\"entity\":\"AutoTestEntity\",\"prop\":\"IsActive\",\"value\":0.0}");
+        mode.TryAdvanceFrame(1);
+
+        e.IsActive.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SetByEntityTypeName_StringProperty_JsonStringAssignsDirectly()
+    {
+        var (_, mode, output) = MakeWithFactory(out var factory);
+        var e = factory.Create();
+
+        mode.ProcessLine("{\"cmd\":\"set\",\"entity\":\"AutoTestEntity\",\"prop\":\"Label\",\"value\":\"boss\"}");
+        mode.TryAdvanceFrame(1);
+
+        e.Label.ShouldBe("boss");
+        output.ToString().Trim().ShouldContain("\"ok\":true");
+    }
+
+    [Fact]
+    public void SetByEntityTypeName_IntProperty_JsonStringValueConvertsNumerically()
+    {
+        var (_, mode, output) = MakeWithFactory(out var factory);
+        var e = factory.Create();
+
+        mode.ProcessLine("{\"cmd\":\"set\",\"entity\":\"AutoTestEntity\",\"prop\":\"Health\",\"value\":\"7\"}");
+        mode.TryAdvanceFrame(1);
+
+        e.Health.ShouldBe(7);
+    }
+
+    [Fact]
+    public void SetByEntityTypeName_BoolProperty_JsonStringTrueConvertsToTrue()
+    {
+        var (_, mode, output) = MakeWithFactory(out var factory);
+        var e = factory.Create();
+
+        mode.ProcessLine("{\"cmd\":\"set\",\"entity\":\"AutoTestEntity\",\"prop\":\"IsActive\",\"value\":\"true\"}");
+        mode.TryAdvanceFrame(1);
+
+        e.IsActive.ShouldBeTrue();
     }
 
     [Fact]
