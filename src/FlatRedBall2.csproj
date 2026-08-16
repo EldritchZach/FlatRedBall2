@@ -54,6 +54,8 @@
   <ItemGroup>
     <PackageReference Include="AsepriteDotNet" />
     <PackageReference Include="FlatRedBall.InterpolationCore" />
+    <!-- Pure managed OGG decoder for the pitchable streaming music path (StreamingOggMusicBackend). -->
+    <PackageReference Include="NVorbis" />
   </ItemGroup>
 
   <!--
