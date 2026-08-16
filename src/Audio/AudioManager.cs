@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Media;
+using NVorbis;
+using XnaTitleContainer = Microsoft.Xna.Framework.TitleContainer;
 
 namespace FlatRedBall2.Audio;
 
@@ -15,19 +17,11 @@ public class AudioManager
 
     private float _soundVolume = 1f;
     private float _musicVolume = 1f;
+    private float _musicPitch = 0f;
     private bool _soundEnabled = true;
     private bool _musicEnabled = true;
 
-    private Song? _currentSong;
-    private Song[]? _playlist;
-    private int _playlistIndex;
-    private bool _songLoops;
-
-    /// <summary>Constructs a new AudioManager.</summary>
-    public AudioManager()
-    {
-        MediaPlayer.MediaStateChanged += OnMediaStateChanged;
-    }
+    private IMusicBackend? _musicBackend;
 
     // ── Sound effects ──────────────────────────────────────────────────────────
 
@@ -66,32 +60,27 @@ public class AudioManager
 
     // ── Music ──────────────────────────────────────────────────────────────────
 
-    /// <summary>The song that is currently queued (may be paused or stopped).</summary>
-    public Song? CurrentSong => _currentSong;
+    /// <summary>
+    /// The song that is currently queued (may be paused or stopped). Always <c>null</c> while a
+    /// <see cref="PlayPitchableSong"/> track is active, since that path bypasses <see cref="Song"/>.
+    /// </summary>
+    public Song? CurrentSong => (_musicBackend as MediaPlayerMusicBackend)?.CurrentSong;
 
     /// <summary>
     /// Plays <paramref name="song"/> as the background track.
-    /// Replaces any active song or playlist.
+    /// Replaces any active song, playlist, or <see cref="PlayPitchableSong"/> track.
     /// Has no effect on volume when <see cref="MusicEnabled"/> is <c>false</c> — the song will
     /// begin playing but will immediately be paused by the <see cref="MusicEnabled"/> setter logic;
     /// use <see cref="MusicEnabled"/> to re-enable.
     /// </summary>
     public void PlaySong(Song song, bool loop = true)
     {
-        _currentSong = song;
-        _songLoops = loop;
-        _playlist = null;
-        MediaPlayer.IsRepeating = loop;
-        MediaPlayer.Volume = _musicVolume;
-        MediaPlayer.Play(song);
-
-        if (!_musicEnabled)
-            MediaPlayer.Pause();
+        SetMusicBackend(new MediaPlayerMusicBackend(song, loop));
     }
 
     /// <summary>
     /// Plays <paramref name="songs"/> in sequence, looping the playlist from the beginning after the last track.
-    /// Replaces any active song.
+    /// Replaces any active song or <see cref="PlayPitchableSong"/> track.
     /// </summary>
     /// <exception cref="ArgumentException">Thrown when <paramref name="songs"/> is empty.</exception>
     public void PlayPlaylist(params Song[] songs)
@@ -99,20 +88,24 @@ public class AudioManager
         if (songs.Length == 0)
             throw new ArgumentException("Playlist must contain at least one song.", nameof(songs));
 
-        _playlist = songs;
-        _playlistIndex = 0;
-        _songLoops = false;
-        MediaPlayer.IsRepeating = false;
-        MediaPlayer.Volume = _musicVolume;
-        _currentSong = songs[0];
-        MediaPlayer.Play(songs[0]);
-
-        if (!_musicEnabled)
-            MediaPlayer.Pause();
+        SetMusicBackend(new MediaPlayerMusicBackend(songs));
     }
 
-    /// <summary>Pauses the current song at its current position.</summary>
-    public void PauseSong() => MediaPlayer.Pause();
+    /// <summary>
+    /// Plays a raw OGG file directly (bypassing <see cref="Song"/>) through a pitchable streaming
+    /// backend, so <see cref="MusicPitch"/> has an audible effect. Replaces any active song,
+    /// playlist, or previous pitchable track. OGG-only, matching <see cref="Song.FromUri"/>'s
+    /// OGG-only convention.
+    /// </summary>
+    public void PlayPitchableSong(string oggFilePath, bool loop = true)
+    {
+        var stream = XnaTitleContainer.OpenStream(oggFilePath);
+        var reader = new VorbisReader(stream, true);
+        SetMusicBackend(new StreamingOggMusicBackend(reader, loop));
+    }
+
+    /// <summary>Pauses the current song at its current position. No-op if nothing is playing.</summary>
+    public void PauseSong() => _musicBackend?.Pause();
 
     /// <summary>
     /// Resumes the current song from its paused position.
@@ -120,16 +113,15 @@ public class AudioManager
     /// </summary>
     public void ResumeSong()
     {
-        if (_currentSong != null && _musicEnabled)
-            MediaPlayer.Resume();
+        if (_musicEnabled)
+            _musicBackend?.Resume();
     }
 
-    /// <summary>Stops the current song or playlist and clears the current song state.</summary>
+    /// <summary>Stops the current song, playlist, or pitchable track and releases its resources.</summary>
     public void StopSong()
     {
-        MediaPlayer.Stop();
-        _currentSong = null;
-        _playlist = null;
+        _musicBackend?.Stop();
+        _musicBackend = null;
     }
 
     // ── Volume / enable ────────────────────────────────────────────────────────
@@ -143,7 +135,7 @@ public class AudioManager
 
     /// <summary>
     /// Master volume for music in the range [0, 1]. Default is 1.
-    /// Setting this immediately updates <see cref="MediaPlayer.Volume"/>.
+    /// Takes effect immediately on whichever music backend is currently active.
     /// </summary>
     public float MusicVolume
     {
@@ -151,7 +143,26 @@ public class AudioManager
         set
         {
             _musicVolume = System.Math.Clamp(value, 0f, 1f);
-            MediaPlayer.Volume = _musicVolume;
+            if (_musicBackend != null)
+                _musicBackend.Volume = _musicVolume;
+        }
+    }
+
+    /// <summary>
+    /// Playback pitch for the currently active <see cref="PlayPitchableSong"/> track, in the range
+    /// [-1, 1] (XNA semantics: +/-1 = one octave up/down = 2x/0.5x rate). Takes effect immediately.
+    /// Setting this while a <see cref="PlaySong"/>/<see cref="PlayPlaylist"/> (MediaPlayer-backed)
+    /// track is active is a silent no-op — <see cref="Song"/>/<see cref="MediaPlayer"/> expose no
+    /// pitch control on any backend.
+    /// </summary>
+    public float MusicPitch
+    {
+        get => _musicPitch;
+        set
+        {
+            _musicPitch = System.Math.Clamp(value, -1f, 1f);
+            if (_musicBackend != null)
+                _musicBackend.Pitch = _musicPitch;
         }
     }
 
@@ -176,9 +187,9 @@ public class AudioManager
         {
             _musicEnabled = value;
             if (!value)
-                MediaPlayer.Pause();
-            else if (_currentSong != null)
-                MediaPlayer.Resume();
+                _musicBackend?.Pause();
+            else
+                _musicBackend?.Resume();
         }
     }
 
@@ -189,6 +200,18 @@ public class AudioManager
 
     /// <summary>Number of currently tracked active sound effect instances.</summary>
     public int ConcurrentSounds => _activeSounds.Count;
+
+    // ── Testing seam ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Test-only seam for injecting a fake <see cref="IMusicBackend"/> so routing (volume, pitch,
+    /// pause/resume/stop) can be asserted without a real audio device.
+    /// </summary>
+    internal IMusicBackend? MusicBackendForTesting
+    {
+        get => _musicBackend;
+        set => _musicBackend = value;
+    }
 
     // ── Internal update ────────────────────────────────────────────────────────
 
@@ -213,16 +236,15 @@ public class AudioManager
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    private void OnMediaStateChanged(object? sender, EventArgs e)
+    private void SetMusicBackend(IMusicBackend backend)
     {
-        if (MediaPlayer.State != MediaState.Stopped) return;
-        if (_playlist == null) return;
-
-        _playlistIndex = (_playlistIndex + 1) % _playlist.Length;
-        _currentSong = _playlist[_playlistIndex];
-        MediaPlayer.Play(_currentSong);
+        _musicBackend?.Stop();
+        _musicBackend = backend;
+        _musicBackend.Volume = _musicVolume;
+        _musicBackend.Pitch = _musicPitch;
+        _musicBackend.Play();
 
         if (!_musicEnabled)
-            MediaPlayer.Pause();
+            _musicBackend.Pause();
     }
 }

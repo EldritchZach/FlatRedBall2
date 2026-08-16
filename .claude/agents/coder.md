@@ -81,6 +81,23 @@ Add XML doc comments only on **public-facing members** where the behavior is **n
 - The member is `internal` or `private` — IDE tooltips won't surface it
 - You'd just be restating the name in prose (e.g., `/// <summary>Gets the width.</summary>` on `Width`)
 
+# Manual-Test Scratch Projects
+
+When a change needs a human to actually see or hear it (audio, rendering, input feel — anything
+not verifiable headlessly), build a runnable harness so they can test it immediately, without
+being asked:
+
+- Put it under `diagnostics/manual-test/<Name>/` — one shared folder, already covered by a single
+  `.gitignore` entry (`diagnostics/manual-test/`). **Never commit or push it.** This is distinct
+  from a feasibility spike (e.g. `diagnostics/MusicPitchSpike`), which documents an engineering
+  finding and *is* committed — a manual-test harness produces no finding, it's just a button to
+  click.
+- Give it a classic `.sln` (`dotnet new sln --format sln`, not the default `.slnx`) so it opens
+  directly in Visual Studio, and open it yourself (`start <name>.sln` from Bash) rather than
+  telling the user to `cd` and `dotnet run`.
+- Do not invent a new gitignore line per project — everything manual-test-only goes in that one
+  shared folder.
+
 # High-Level Project Structure
 
 See CLAUDE.md "Engine Structure" for the full file tree. Key directories:

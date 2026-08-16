@@ -81,6 +81,20 @@ Engine.Audio.StopSong();              // clears position
 Engine.Audio.PlayPlaylist(song1, song2, song3);  // plays sequentially, loops back to start
 ```
 
+### Pitchable music (runtime pitch/speed control)
+
+`PlaySong`/`PlayPlaylist` are backed by `MediaPlayer`, which exposes no pitch/rate control on any
+backend. For a slow-mo effect or similar, use `PlayPitchableSong` instead — it streams a raw OGG
+file through a `DynamicSoundEffectInstance`, which does support real-time pitch:
+
+```csharp
+Engine.Audio.PlayPitchableSong("Content/Audio/song.ogg");   // loops by default
+Engine.Audio.MusicPitch = -0.3f;                            // tape-slowdown; [-1, 1], takes effect immediately
+```
+
+`PauseSong`/`ResumeSong`/`StopSong`/`MusicVolume`/`MusicEnabled` all work the same regardless of
+whether `PlaySong` or `PlayPitchableSong` is active.
+
 ## Volume and Enable/Disable
 
 ```csharp
@@ -97,3 +111,5 @@ Engine.Audio.MusicEnabled = false; // pauses current song immediately; true resu
 - **`Load<>` name drops the source extension** — `Load<Song>("Audio/song")`, not `"Audio/song.ogg"`. Passing the extension makes MonoGame look for `song.ogg.xnb` (the pipeline builds `song.xnb`) and throws `FileNotFoundException`. The `.mgcb` defining it must be in the `.Desktop` head, not `Common`.
 - **Track SoundEffect only when loaded via `FromStream`** — call `Engine.Content.Track(sfx)` when using `SoundEffect.FromStream` so it is disposed on screen transition. MGCB-loaded assets (`Engine.Content.Load<SoundEffect>`) are disposed automatically by the ContentLoader — do not call `Track` for those.
 - **Per-frame dedup in collision handlers** — `Play(sfx)` in a `CollisionOccurred` handler is safe to call unconditionally; it fires at most once per frame regardless of how many pairs collide.
+- **`PlayPitchableSong` is OGG-only**, same as `Song.FromUri`. It loads the raw file directly (not via `Song`), so `Engine.Content.Load<Song>`/MGCB assets don't apply here.
+- **`MusicPitch` is a silent no-op while a `PlaySong`/`PlayPlaylist` track is active** — `Song`/`MediaPlayer` expose no pitch API on any backend. Switch to `PlayPitchableSong` to get real pitch control.
