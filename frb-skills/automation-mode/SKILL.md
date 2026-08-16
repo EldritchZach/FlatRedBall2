@@ -87,9 +87,9 @@ A property the agent expects but doesn't see in the snapshot is almost always ei
 
 ## Setting Values (Zero Config)
 
-`set entity:"Player" prop:"X" value:50.0` looks up the factory for `Player`, takes the first live instance, and assigns via reflection. `value` is always parsed as `double` and converted to the target property's type (including `int`, `float`, enums by ordinal). Errors are specific: missing factory, no live instances, non-existent property, non-writable property.
+`set entity:"Player" prop:"X" value:50.0` looks up the factory for `Player`, takes the first live instance, and assigns via reflection. Errors are specific: missing factory, no live instances, non-existent property, non-writable property.
 
-Boolean/string forcing isn't supported — `value` is numeric only. Register a custom setter if you need that.
+`value` can be a JSON number or a JSON string. A number converts to the target property's type via `Convert.ChangeType` — this covers `int`, `float`, `bool` (nonzero → `true`), and enums (by ordinal). A string also converts via `Convert.ChangeType` — `value:"true"` sets a `bool`, `value:"7"` sets an `int`, and `value:"boss"` sets a `string` directly. Enums only accept a numeric ordinal, not a name string. Registered custom setters (below) only ever receive a `double`, so send a numeric `value` when targeting one.
 
 ## Custom Providers and Setters (Optional)
 

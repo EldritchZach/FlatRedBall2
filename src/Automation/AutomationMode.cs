@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json;
 using System.Threading;
 using FlatRedBall2.Input;
@@ -347,12 +348,19 @@ internal class AutomationMode
     {
         var entity = cmd.TryGetProperty("entity", out var e) ? e.GetString() : null;
         var prop   = cmd.TryGetProperty("prop",   out var p) ? p.GetString() : null;
-        var value  = cmd.TryGetProperty("value",  out var v) ? v.GetDouble() : 0.0;
+        cmd.TryGetProperty("value", out var v);
+
+        // "value" is either a JSON number (the common case — also covers bool/enum targets via
+        // Convert.ChangeType) or a JSON string (for string-typed properties, or any property
+        // whose type has a string-parsing IConvertible path, e.g. "true" -> bool).
+        object value = v.ValueKind == JsonValueKind.String ? (v.GetString() ?? "")
+                     : v.ValueKind == JsonValueKind.Number ? v.GetDouble()
+                     : 0.0;
 
         var key = $"{entity}.{prop}";
-        if (_valueSetters.TryGetValue(key, out var setter))
+        if (value is double d && _valueSetters.TryGetValue(key, out var setter))
         {
-            setter(value);
+            setter(d);
             WriteResponse(new { ok = true, frame });
             return;
         }
@@ -369,7 +377,7 @@ internal class AutomationMode
         }
     }
 
-    private bool TryReflectSet(string entityName, string propName, double value, out string? error)
+    private bool TryReflectSet(string entityName, string propName, object value, out string? error)
     {
         if (!TryFindFactoryByTypeName(entityName, out var factory))
         {
@@ -394,9 +402,18 @@ internal class AutomationMode
         var target = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
         try
         {
-            object? converted = target.IsEnum
-                ? Enum.ToObject(target, (long)value)
-                : Convert.ChangeType(value, target);
+            object? converted;
+            if (target.IsEnum)
+            {
+                if (value is double dv)
+                    converted = Enum.ToObject(target, (long)dv);
+                else
+                    throw new InvalidCastException($"enum property requires a numeric ordinal, got string \"{value}\"");
+            }
+            else
+            {
+                converted = Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
+            }
             p.SetValue(inst, converted);
             error = null;
             return true;
