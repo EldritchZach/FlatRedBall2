@@ -131,6 +131,46 @@ public class AppCommandsSaveAsTests : IDisposable
         Assert.False(fired);
     }
 
+    // ── Default extension (#872: .achj is the default for new files, .achx is preserved) ──────
+
+    [Fact]
+    public async Task SaveCurrentAnimationChainListAsync_NewFile_RequestsAchjDefaultExtension()
+    {
+        var dialog = new CapturingFileDialogService(Path.Combine(_dir.Path, "out.achj"));
+        ctx.AppCommands.FileDialogService = dialog;
+        ctx.ProjectManager.FileName = null;
+
+        await ctx.AppCommands.SaveCurrentAnimationChainListAsync();
+
+        Assert.Equal("achj", dialog.RequestedDefaultExtension);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAnimationChainListAsync_AchxFileAlreadyLoaded_RequestsAchxDefaultExtension()
+    {
+        var loadedPath = Path.Combine(_dir.Path, "loaded.achx");
+        var dialog = new CapturingFileDialogService(Path.Combine(_dir.Path, "out.achx"));
+        ctx.AppCommands.FileDialogService = dialog;
+        ctx.ProjectManager.FileName = loadedPath;
+
+        await ctx.AppCommands.SaveCurrentAnimationChainListAsync();
+
+        Assert.Equal("achx", dialog.RequestedDefaultExtension);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAnimationChainListAsync_AchjFileAlreadyLoaded_RequestsAchjDefaultExtension()
+    {
+        var loadedPath = Path.Combine(_dir.Path, "loaded.achj");
+        var dialog = new CapturingFileDialogService(Path.Combine(_dir.Path, "out.achj"));
+        ctx.AppCommands.FileDialogService = dialog;
+        ctx.ProjectManager.FileName = loadedPath;
+
+        await ctx.AppCommands.SaveCurrentAnimationChainListAsync();
+
+        Assert.Equal("achj", dialog.RequestedDefaultExtension);
+    }
+
     [Fact]
     public async Task SaveCurrentAnimationChainListAsync_SavedFile_ContainsChainData()
     {
@@ -158,6 +198,25 @@ internal sealed class StubFileDialogService : IFileDialogService
 
     public Task<string?> PickSaveFileAsync(string title, string defaultExtension, string fileTypeDescription)
         => Task.FromResult(_path);
+
+    public Task<string?> PickOpenFileAsync(string title, string defaultExtension, string fileTypeDescription)
+        => Task.FromResult(_path);
+}
+
+/// <summary>Test double that records the requested default extension and returns a fixed path.</summary>
+internal sealed class CapturingFileDialogService : IFileDialogService
+{
+    private readonly string? _path;
+
+    public CapturingFileDialogService(string? path) => _path = path;
+
+    public string? RequestedDefaultExtension { get; private set; }
+
+    public Task<string?> PickSaveFileAsync(string title, string defaultExtension, string fileTypeDescription)
+    {
+        RequestedDefaultExtension = defaultExtension;
+        return Task.FromResult(_path);
+    }
 
     public Task<string?> PickOpenFileAsync(string title, string defaultExtension, string fileTypeDescription)
         => Task.FromResult(_path);

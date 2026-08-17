@@ -21,8 +21,15 @@ namespace AnimationEditor.App.Services;
 /// </summary>
 internal sealed class WindowsFileAssociationService : IFileAssociationService
 {
-    /// <summary>The file extension this editor handles, including the leading dot.</summary>
+    /// <summary>The primary file extension this editor handles, including the leading dot.
+    /// Default-handler status (<see cref="GetStatus"/>/<see cref="IsDefault"/>) is tracked for
+    /// this extension only; <see cref="SecondaryExtension"/> is registered to the same ProgId
+    /// alongside it but doesn't affect that status.</summary>
     internal const string Extension = ".achx";
+
+    /// <summary>The .achj (JSON) extension, registered to the same ProgId as <see cref="Extension"/>
+    /// so double-clicking either format opens this editor.</summary>
+    internal const string SecondaryExtension = ".achj";
 
     /// <summary>
     /// The per-user ProgId the editor registers under <c>HKCU\Software\Classes</c>. Namespaced
@@ -107,10 +114,11 @@ internal sealed class WindowsFileAssociationService : IFileAssociationService
             Registry.SetValue($@"{progIdKey}\DefaultIcon", null, $"\"{exe}\",0");
             Registry.SetValue($@"{progIdKey}\shell\open\command", null, BuildOpenCommand(exe));
 
-            // Point the extension at our ProgId. On modern Windows this is only a fallback —
+            // Point both extensions at our ProgId. On modern Windows this is only a fallback —
             // an existing hash-protected UserChoice still wins, which is why we open the
             // default-apps settings below for the user to confirm.
             Registry.SetValue($@"{ClassesRoot}\{Extension}", null, ProgId);
+            Registry.SetValue($@"{ClassesRoot}\{SecondaryExtension}", null, ProgId);
         }
         catch (Exception e)
         {

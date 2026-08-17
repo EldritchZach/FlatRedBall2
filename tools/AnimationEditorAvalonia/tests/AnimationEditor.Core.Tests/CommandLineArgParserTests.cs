@@ -42,6 +42,14 @@ public class CommandLineArgParserTests
     }
 
     [Fact]
+    public void AchjArg_ReturnsPath()
+    {
+        var path = TestPaths.Abs("projects", "anim.achj");
+        string? result = CommandLineArgParser.ParseFileArgument([path]);
+        Assert.Equal(path, result);
+    }
+
+    [Fact]
     public void MultipleArgs_ReturnsFirstAchx()
     {
         var first  = TestPaths.Abs("first.achx");

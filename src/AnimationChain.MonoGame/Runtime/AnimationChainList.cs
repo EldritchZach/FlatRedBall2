@@ -27,16 +27,17 @@ public class AnimationChainList : List<AnimationChain>
     }
 
     /// <summary>
-    /// Re-parses the .achx at <paramref name="achxPath"/> and applies changes in place so any
+    /// Re-parses the .achx/.achj at <paramref name="achxPath"/> and applies changes in place so any
     /// live <see cref="AnimationPlayer"/> reference keeps working. For each chain in the reloaded
     /// file, matches by <see cref="AnimationChain.Name"/>: existing chains have their frames
     /// replaced in place (instance identity preserved); new chains are appended.
     /// <para>
-    /// Returns <c>false</c> on I/O or XML parse failure (e.g. file mid-write). Callers should
-    /// retry after the next file-system debounce window.
+    /// Returns <c>false</c> on I/O or parse failure (e.g. file mid-write) — XML or JSON, depending
+    /// on <paramref name="achxPath"/>'s extension. Callers should retry after the next
+    /// file-system debounce window.
     /// </para>
     /// </summary>
-    /// <param name="achxPath">Absolute path to the .achx file to reload from.</param>
+    /// <param name="achxPath">Absolute path to the .achx/.achj file to reload from.</param>
     /// <param name="textureLoader">
     /// Called with the resolved absolute path of each texture file. May return <c>null</c>
     /// if the texture is unavailable — affected frames keep their existing texture.
@@ -48,27 +49,32 @@ public class AnimationChainList : List<AnimationChain>
         AnimationChainList fresh;
         try
         {
-            var save = Content.AnimationChainListSave.FromFile(achxPath);
+            var save = achxPath.EndsWith(".achj", StringComparison.OrdinalIgnoreCase)
+                ? Content.AnimationChainListSave.FromJsonFile(achxPath)
+                : Content.AnimationChainListSave.FromFile(achxPath);
             fresh = save.ToAnimationChainList(textureLoader);
         }
         catch (IOException) { return false; }
         catch (System.Xml.XmlException) { return false; }
+        catch (System.Text.Json.JsonException) { return false; }
 
         ApplyReloadedChains(fresh);
         return true;
     }
 
     /// <summary>
-    /// Re-parses .achx XML from an already-open <paramref name="achxStream"/> and applies
-    /// changes in place so live <see cref="AnimationPlayer"/> references keep working.
+    /// Re-parses .achx (XML) or .achj (JSON) from an already-open <paramref name="achxStream"/> --
+    /// dialect auto-detected from the content, since no file path is available to inspect an
+    /// extension (see <see cref="Content.AnimationChainListSave.FromDetectedStream"/>) -- and
+    /// applies changes in place so live <see cref="AnimationPlayer"/> references keep working.
     /// For each chain in the reloaded data, matches by <see cref="AnimationChain.Name"/>:
     /// existing chains have their frames replaced in place (instance identity preserved);
     /// new chains are appended.
     /// <para>
-    /// Returns <c>false</c> on I/O or XML parse failure.
+    /// Returns <c>false</c> on I/O or parse failure (XML or JSON).
     /// </para>
     /// </summary>
-    /// <param name="achxStream">Readable stream containing .achx XML. Caller retains ownership.</param>
+    /// <param name="achxStream">Readable stream containing .achx or .achj data. Caller retains ownership.</param>
     /// <param name="textureLoader">
     /// Called with each texture path stored in the .achx data. May return <c>null</c> if
     /// a texture is unavailable — affected frames keep a <c>null</c> texture.
@@ -78,11 +84,12 @@ public class AnimationChainList : List<AnimationChain>
         AnimationChainList fresh;
         try
         {
-            var save = Content.AnimationChainListSave.FromStream(achxStream);
+            var save = Content.AnimationChainListSave.FromDetectedStream(achxStream);
             fresh = save.ToAnimationChainList(textureLoader);
         }
         catch (IOException) { return false; }
         catch (System.Xml.XmlException) { return false; }
+        catch (System.Text.Json.JsonException) { return false; }
 
         ApplyReloadedChains(fresh);
         return true;

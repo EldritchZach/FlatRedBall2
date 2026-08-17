@@ -93,6 +93,57 @@ public class AnimationChainListReloadTests
     }
 
     [Fact]
+    public void TryReloadFrom_InvalidJson_ReturnsFalse()
+    {
+        var content = MakeContent();
+        var list = LoadFresh(WriteAchx("base.achx", ("Walk", 2)), content);
+        WriteRaw("bad.achj", "not valid json at all");
+
+        var result = list.TryReloadFrom("bad.achj", content);
+
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TryReloadFrom_AchjFile_SameChain_PreservesChainInstanceIdentity()
+    {
+        var content = MakeContent();
+        var path = "anim.achj";
+        WriteRaw(path, MakeAchjJson(("Walk", 2)));
+        var list = LoadFresh(path, content);
+        var walkBefore = list["Walk"];
+
+        // Author edits the file — same chain name, grown frame count.
+        WriteRaw(path, MakeAchjJson(("Walk", 4)));
+
+        list.TryReloadFrom(path, content).ShouldBeTrue();
+
+        list["Walk"].ShouldBeSameAs(walkBefore); // identity preserved — live Sprite refs still valid
+        list["Walk"]!.Count.ShouldBe(4);
+    }
+
+    private static string MakeAchjJson(params (string ChainName, int FrameCount)[] chains)
+    {
+        var save = new AnimationChainListSave { CoordinateType = TextureCoordinateType.Pixel };
+        foreach (var (name, count) in chains)
+        {
+            var chain = new AnimationChainSave { Name = name };
+            for (int i = 0; i < count; i++)
+                chain.Frames.Add(new AnimationFrameSave
+                {
+                    TextureName = $"{name}.png",
+                    FrameLength = 0.1f,
+                    LeftCoordinate = i * 16,
+                    RightCoordinate = i * 16 + 16,
+                    TopCoordinate = 0,
+                    BottomCoordinate = 16,
+                });
+            save.AnimationChains.Add(chain);
+        }
+        return save.ToJsonString();
+    }
+
+    [Fact]
     public void TryReloadFrom_NonParseInvalidOperationException_Propagates()
     {
         // A genuine bug (not file mid-write / bad XML) should surface rather than be swallowed as

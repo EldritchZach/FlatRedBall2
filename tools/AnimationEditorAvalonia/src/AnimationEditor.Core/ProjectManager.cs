@@ -75,7 +75,9 @@ namespace AnimationEditor.Core
                     throw new System.IO.InvalidDataException(
                         $"{IO.AchxConflictMarkerDetector.ConflictMarkerMessage} ({fileName.FullPath})");
 
-                acls = AnimationChainListSave.FromFile(fileName.FullPath);
+                acls = IsJsonPath(fileName.FullPath)
+                    ? AnimationChainListSave.FromJsonFile(fileName.FullPath)
+                    : AnimationChainListSave.FromFile(fileName.FullPath);
             }
 
             AddShapeCollectionsToFrames(acls);
@@ -116,8 +118,9 @@ namespace AnimationEditor.Core
         }
 
         /// <summary>
-        /// Save the current animation chain list to <paramref name="targetPath"/> in the
-        /// format specified by <see cref="OnDiskCoordinateType"/>. The editor stores
+        /// Save the current animation chain list to <paramref name="targetPath"/>, as .achj
+        /// (JSON) or .achx (XML) depending on <paramref name="targetPath"/>'s extension, in the
+        /// coordinate format specified by <see cref="OnDiskCoordinateType"/>. The editor stores
         /// frame coordinates as UV internally (so the rendering pipeline can render at
         /// any texture size); when writing as Pixel, this method converts just for the
         /// on-disk write and then converts back so the in-memory model stays UV.
@@ -129,18 +132,19 @@ namespace AnimationEditor.Core
 
             var achxDirectory = System.IO.Path.GetDirectoryName(targetPath) ?? string.Empty;
             var diskFormat = OnDiskCoordinateType;
+            void Write() { if (IsJsonPath(targetPath)) acls.SaveJson(targetPath); else acls.Save(targetPath); }
 
             // No conversion needed when on-disk format matches the in-memory format (UV).
             if (diskFormat == TextureCoordinateType.UV)
             {
-                acls.Save(targetPath);
+                Write();
                 return;
             }
 
             var sizes = ConvertCoordinates(acls, achxDirectory, diskFormat);
             try
             {
-                acls.Save(targetPath);
+                Write();
             }
             finally
             {
@@ -150,11 +154,12 @@ namespace AnimationEditor.Core
         }
 
         /// <summary>
-        /// Save the current animation chain list to <paramref name="stream"/> in the format
-        /// specified by <see cref="OnDiskCoordinateType"/> -- the seam the browser-wasm build
-        /// needs, since it has no filesystem to write a path to. When converting UV back to
-        /// Pixel, texture sizes come from the <c>knownTextureSizes</c> supplied to the most
-        /// recent <see cref="LoadAnimationChain"/> call rather than a disk read: there is no
+        /// Save the current animation chain list to <paramref name="stream"/> -- the seam the
+        /// browser-wasm build needs, since it has no filesystem to write a path to. Written as
+        /// .achj (JSON) when <see cref="FileName"/> ends in .achj, otherwise .achx (XML), in the
+        /// coordinate format specified by <see cref="OnDiskCoordinateType"/>. When converting UV
+        /// back to Pixel, texture sizes come from the <c>knownTextureSizes</c> supplied to the
+        /// most recent <see cref="LoadAnimationChain"/> call rather than a disk read: there is no
         /// directory to resolve a relative <see cref="AnimationFrameSave.TextureName"/> against
         /// on this overload. A texture missing from that dictionary is left in UV coordinates,
         /// same as the path-based overload's behavior when a PNG can't be read.
@@ -164,7 +169,10 @@ namespace AnimationEditor.Core
             var acls = AnimationChainListSave;
             if (acls == null) return;
 
-            RunWithDiskCoordinateConversion(acls, () => acls.Save(stream));
+            RunWithDiskCoordinateConversion(acls, () =>
+            {
+                if (IsJsonPath(FileName)) acls.SaveJson(stream); else acls.Save(stream);
+            });
         }
 
         /// <summary>
@@ -179,8 +187,13 @@ namespace AnimationEditor.Core
             var acls = AnimationChainListSave;
             if (acls == null) return;
 
-            await RunWithDiskCoordinateConversionAsync(acls, () => acls.SaveAsync(stream));
+            await RunWithDiskCoordinateConversionAsync(acls,
+                () => IsJsonPath(FileName) ? acls.SaveJsonAsync(stream) : acls.SaveAsync(stream));
         }
+
+        /// <summary>True when <paramref name="path"/> has a .achj (JSON) extension; false for .achx or anything else.</summary>
+        private static bool IsJsonPath(string? path) =>
+            !string.IsNullOrEmpty(path) && new FilePath(path).Extension == "achj";
 
         /// <summary>
         /// Converts <paramref name="acls"/> to <see cref="OnDiskCoordinateType"/> (using

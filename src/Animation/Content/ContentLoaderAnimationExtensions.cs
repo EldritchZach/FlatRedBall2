@@ -1,3 +1,5 @@
+using System;
+
 namespace FlatRedBall2.Animation.Content;
 
 /// <summary>
@@ -10,12 +12,22 @@ namespace FlatRedBall2.Animation.Content;
 public static class ContentLoaderAnimationExtensions
 {
     /// <summary>
-    /// Loads a .achx file and converts it to a runtime <see cref="AnimationChainList"/>. The .achx
-    /// XML is read through the service's stream seam; referenced textures are loaded through
+    /// Loads a .achx (XML) or .achj (JSON) file — dialect chosen by <paramref name="path"/>'s
+    /// extension — and converts it to a runtime <see cref="AnimationChainList"/>. The file is read
+    /// through the service's stream seam; referenced textures are loaded through
     /// <see cref="ContentLoader.Load{T}"/> (so PNG hot-reload still applies).
     /// </summary>
     public static AnimationChainList LoadAnimationChainList(this ContentLoader content, string path)
-        => AnimationChainListSave.FromFile(path, content.StreamProvider).ToAnimationChainList(content);
+    {
+        var save = IsJsonPath(path)
+            ? AnimationChainListSave.FromJsonFile(path, content.StreamProvider)
+            : AnimationChainListSave.FromFile(path, content.StreamProvider);
+        return save.ToAnimationChainList(content);
+    }
+
+    /// <summary>True when <paramref name="path"/> has a .achj (JSON) extension; false for .achx or anything else.</summary>
+    internal static bool IsJsonPath(string path) =>
+        path.EndsWith(".achj", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Loads an Adobe Animate TextureAtlas XML and converts it to a runtime

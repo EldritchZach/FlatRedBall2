@@ -22,6 +22,14 @@ public class AchxDropProcessorTests
     }
 
     [Fact]
+    public void ContainsAchx_AchjOnly_ReturnsTrue()
+    {
+        var paths = new[] { @"C:\anims\hero.achj" };
+
+        Assert.True(AchxDropProcessor.ContainsAchx(paths));
+    }
+
+    [Fact]
     public void SelectAchxFiles_IsCaseInsensitive()
     {
         // OS file managers preserve on-disk casing; an uppercase extension must still match.

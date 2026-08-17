@@ -47,7 +47,8 @@ internal static class BrowserProjectLoader
         ISelectedState selectedState)
     {
         var achxFile = files.FirstOrDefault(
-            f => f.Name.EndsWith(".achx", StringComparison.OrdinalIgnoreCase));
+            f => f.Name.EndsWith(".achx", StringComparison.OrdinalIgnoreCase) ||
+                 f.Name.EndsWith(".achj", StringComparison.OrdinalIgnoreCase));
         if (achxFile is null) return null;
 
         string achxText;
@@ -55,7 +56,9 @@ internal static class BrowserProjectLoader
         using (var reader = new StreamReader(achxStream))
             achxText = await reader.ReadToEndAsync();
 
-        var acls = AnimationChainListSave.FromString(achxText);
+        var acls = achxFile.Name.EndsWith(".achj", StringComparison.OrdinalIgnoreCase)
+            ? AnimationChainListSave.FromJsonString(achxText)
+            : AnimationChainListSave.FromString(achxText);
         var achxDirectory = RootRelativePath.DirectoryOf(achxFile.Name);
 
         var pngsByPath = new Dictionary<string, IEditorFile>(StringComparer.OrdinalIgnoreCase);

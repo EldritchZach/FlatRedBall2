@@ -8,7 +8,7 @@ namespace AnimationEditor.Core.IO;
 public static class CommandLineArgParser
 {
     /// <summary>
-    /// Returns the first argument that ends with <c>.achx</c> (case-insensitive),
+    /// Returns the first argument that ends with <c>.achx</c> or <c>.achj</c> (case-insensitive),
     /// or <c>null</c> if no such argument is found.
     /// </summary>
     /// <param name="args">The application command-line arguments, as received in <c>Main(string[] args)</c>.</param>
@@ -19,6 +19,7 @@ public static class CommandLineArgParser
 
         return Array.Find(args, a =>
             !string.IsNullOrEmpty(a) &&
-            a.EndsWith(".achx", StringComparison.OrdinalIgnoreCase));
+            (a.EndsWith(".achx", StringComparison.OrdinalIgnoreCase) ||
+             a.EndsWith(".achj", StringComparison.OrdinalIgnoreCase)));
     }
 }

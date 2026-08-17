@@ -32,6 +32,18 @@ public class AchxFolderScannerTests
     }
 
     [Fact]
+    public async Task ScanAsync_AchjFile_IsIncluded()
+    {
+        var root = new FakeEditorFolder("Content");
+        root.Files.Add(new FakeEditorFile("hero.achj"));
+        root.Files.Add(new FakeEditorFile("notes.txt"));
+
+        var entries = await AchxFolderScanner.ScanAsync(root);
+
+        Assert.Equal(["hero.achj"], entries.Select(e => e.FileName).ToArray());
+    }
+
+    [Fact]
     public async Task ScanAsync_NestedSubfolders_ReturnsRelativePathsAndParentFolder()
     {
         var root = new FakeEditorFolder("Content");

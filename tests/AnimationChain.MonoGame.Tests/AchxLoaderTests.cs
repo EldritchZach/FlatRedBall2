@@ -294,6 +294,92 @@ public class AchxLoaderTests
         Assert.Null(list["Slide"]);
     }
 
+    [Fact]
+    public void TryReloadFrom_Stream_JsonContent_AutoDetectsAndReplacesFrames()
+    {
+        var list = AnimationChainListSave.FromFile("dummy.achx", XmlStream(SimpleAchx))
+            .ToAnimationChainList(_ => null);
+
+        var reloadSave = new AnimationChainListSave();
+        var chain = new AnimationChainSave { Name = "Run" };
+        chain.Frames.Add(new AnimationFrameSave { TextureName = "tex.png", FrameLength = 0.25f });
+        reloadSave.AnimationChains.Add(chain);
+
+        using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes(reloadSave.ToJsonString()));
+        var ok = list.TryReloadFrom(reloadStream, _ => null);
+
+        Assert.True(ok);
+        Assert.Single(list["Run"]!);
+        Assert.Equal(TimeSpan.FromSeconds(0.25), list["Run"]![0].FrameLength);
+    }
+
+    [Fact]
+    public void TryReloadFrom_Stream_InvalidJsonContent_ReturnsFalseAndLeavesListUntouched()
+    {
+        var list = AnimationChainListSave.FromFile("dummy.achx", XmlStream(SimpleAchx))
+            .ToAnimationChainList(_ => null);
+        var beforeRunFrames = list["Run"]!.Count;
+
+        using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes("{not valid json"));
+        var ok = list.TryReloadFrom(reloadStream, _ => null);
+
+        Assert.False(ok);
+        Assert.Equal(beforeRunFrames, list["Run"]!.Count);
+    }
+
+    // ─── AnimationChainList.TryReloadFrom(path) — .achj (JSON) dispatch by extension ─────────
+
+    [Fact]
+    public void TryReloadFrom_Path_AchjExtension_ParsesJsonAndReplacesFrames()
+    {
+        var list = AnimationChainListSave.FromFile("dummy.achx", XmlStream(SimpleAchx))
+            .ToAnimationChainList(_ => null);
+
+        var save = new AnimationChainListSave();
+        var chain = new AnimationChainSave { Name = "Run" };
+        chain.Frames.Add(new AnimationFrameSave { TextureName = "tex.png", FrameLength = 0.25f });
+        save.AnimationChains.Add(chain);
+
+        var tempPath = Path.GetTempFileName() + ".achj";
+        try
+        {
+            save.SaveJson(tempPath);
+
+            var ok = list.TryReloadFrom(tempPath, _ => null);
+
+            Assert.True(ok);
+            Assert.Single(list["Run"]!);
+            Assert.Equal(TimeSpan.FromSeconds(0.25), list["Run"]![0].FrameLength);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public void TryReloadFrom_Path_InvalidJson_ReturnsFalseAndLeavesListUntouched()
+    {
+        var list = AnimationChainListSave.FromFile("dummy.achx", XmlStream(SimpleAchx))
+            .ToAnimationChainList(_ => null);
+        var beforeRunFrames = list["Run"]!.Count;
+
+        var tempPath = Path.GetTempFileName() + ".achj";
+        try
+        {
+            File.WriteAllText(tempPath, "not valid json at all");
+
+            var ok = list.TryReloadFrom(tempPath, _ => null);
+
+            Assert.False(ok);
+            Assert.Equal(beforeRunFrames, list["Run"]!.Count);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
+
     // ─── FromStream ──────────────────────────────────────────────────────────────
 
     [Fact]

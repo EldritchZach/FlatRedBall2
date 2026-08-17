@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -35,8 +37,9 @@ public enum TextureCoordinateType
 }
 
 /// <summary>
-/// Deserialized representation of a .achx animation file.
-/// Load with <see cref="FromFile(string)"/> and convert to runtime types with
+/// Deserialized representation of a .achx (XML) or .achj (JSON) animation file — the two
+/// on-disk dialects of the same data model. Load with <see cref="FromFile(string)"/> /
+/// <see cref="FromJsonFile(string)"/> and convert to runtime types with
 /// <c>ToAnimationChainList</c> (an extension method in the main FlatRedBall2 engine
 /// assembly — this type itself has no MonoGame dependency so tooling, like the
 /// Animation Editor, can reference it without pulling MonoGame in at all).
@@ -114,6 +117,34 @@ public class AnimationChainListSave
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
         return FromStream(stream);
     }
+
+    /// <summary>
+    /// Loads a .achj file directly from disk via <see cref="File.OpenRead(string)"/>. JSON
+    /// counterpart of <see cref="FromFile(string)"/>.
+    /// </summary>
+    public static AnimationChainListSave FromJsonFile(string path)
+        => FromJsonFile(path, File.OpenRead!);
+
+    /// <summary>
+    /// Loads a .achj file via manual JSON parsing (AOT-safe). JSON counterpart of
+    /// <see cref="FromFile(string, Func{string, Stream})"/> — see that overload for why
+    /// <paramref name="streamProvider"/> has no default.
+    /// </summary>
+    public static AnimationChainListSave FromJsonFile(string filePath, Func<string, Stream> streamProvider)
+    {
+        using var stream = streamProvider(filePath);
+        var result = ParseJson(JsonNode.Parse(stream)!.AsObject());
+        result.FileName = filePath;
+        return result;
+    }
+
+    /// <summary>Parses .achj JSON from an already-open <paramref name="stream"/>, same contract as <see cref="FromStream(Stream)"/>.</summary>
+    public static AnimationChainListSave FromJsonStream(Stream stream)
+        => ParseJson(JsonNode.Parse(stream)!.AsObject());
+
+    /// <summary>Parses .achj JSON from an in-memory string, same contract as <see cref="FromString(string)"/>.</summary>
+    public static AnimationChainListSave FromJsonString(string json)
+        => ParseJson(JsonNode.Parse(json)!.AsObject());
 
     private static AnimationChainListSave ParseXml(XDocument doc)
     {
@@ -228,6 +259,136 @@ public class AnimationChainListSave
     /// with <see cref="FromString"/> to read it back.
     /// </summary>
     public string ToXmlString() => ToXDocument().ToString();
+
+    /// <summary>
+    /// Writes this save as a .achj file. JSON counterpart of <see cref="Save(string)"/>. Unlike
+    /// the XML dialect, .achj has no legacy byte-format to match, so property names are camelCase
+    /// and optional/default fields are omitted the same way the XML writer omits them (small diffs).
+    /// </summary>
+    public void SaveJson(string path)
+    {
+        using var stream = File.Create(path);
+        SaveJson(stream);
+    }
+
+    /// <summary>
+    /// Writes this save as indented .achj JSON to an already-open stream. JSON counterpart of
+    /// <see cref="Save(Stream)"/> — the caller owns <paramref name="stream"/> and is responsible
+    /// for disposing it; this method does not close it.
+    /// </summary>
+    public void SaveJson(Stream stream)
+    {
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        ToJsonNode().WriteTo(writer);
+    }
+
+    /// <summary>Async-safe counterpart to <see cref="SaveJson(Stream)"/>, same contract as <see cref="SaveAsync(Stream, CancellationToken)"/>.</summary>
+    public async Task SaveJsonAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        SaveJson(buffer);
+        await stream.WriteAsync(buffer.GetBuffer().AsMemory(0, (int)buffer.Length), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Serializes this save to a .achj JSON string. JSON counterpart of <see cref="ToXmlString"/>.</summary>
+    public string ToJsonString() => ToJsonNode().ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+
+    private JsonObject ToJsonNode()
+    {
+        var root = new JsonObject
+        {
+            ["fileRelativeTextures"] = FileRelativeTextures,
+            ["timeMeasurementUnit"] = TimeMeasurementUnit.ToString(),
+            ["coordinateType"] = CoordinateType.ToString(),
+        };
+
+        var chainsArray = new JsonArray();
+        foreach (var chain in AnimationChains)
+        {
+            var framesArray = new JsonArray();
+            foreach (var frame in chain.Frames)
+                framesArray.Add((JsonNode)WriteFrameJson(frame));
+
+            chainsArray.Add((JsonNode)new JsonObject
+            {
+                ["name"] = chain.Name,
+                ["frames"] = framesArray,
+            });
+        }
+        root["animationChains"] = chainsArray;
+
+        if (ProjectFile != null)
+            root["projectFile"] = ProjectFile;
+
+        return root;
+    }
+
+    private static JsonObject WriteFrameJson(AnimationFrameSave frame)
+    {
+        var obj = new JsonObject
+        {
+            ["textureName"] = frame.TextureName,
+            ["frameLength"] = frame.FrameLength,
+            ["leftCoordinate"] = frame.LeftCoordinate,
+            ["rightCoordinate"] = frame.RightCoordinate,
+            ["topCoordinate"] = frame.TopCoordinate,
+            ["bottomCoordinate"] = frame.BottomCoordinate,
+        };
+        if (frame.FlipHorizontal) obj["flipHorizontal"] = true;
+        if (frame.FlipVertical) obj["flipVertical"] = true;
+        if (frame.FlipDiagonal) obj["flipDiagonal"] = true;
+        if (frame.RelativeX != 0f) obj["relativeX"] = frame.RelativeX;
+        if (frame.RelativeY != 0f) obj["relativeY"] = frame.RelativeY;
+        if (frame.Red.HasValue) obj["red"] = frame.Red.Value;
+        if (frame.Green.HasValue) obj["green"] = frame.Green.Value;
+        if (frame.Blue.HasValue) obj["blue"] = frame.Blue.Value;
+        if (frame.Alpha.HasValue) obj["alpha"] = frame.Alpha.Value;
+        if (frame.ColorOperation.HasValue) obj["colorOperation"] = frame.ColorOperation.Value.ToString();
+        if (frame.ShapesSave is { } shapes) obj["shapes"] = WriteShapesJson(shapes);
+        return obj;
+    }
+
+    private static JsonObject WriteShapesJson(ShapesSave shapes)
+    {
+        var rectsArray = new JsonArray();
+        foreach (var r in shapes.AARectSaves)
+            rectsArray.Add((JsonNode)new JsonObject
+            {
+                ["name"] = r.Name, ["x"] = r.X, ["y"] = r.Y, ["scaleX"] = r.ScaleX, ["scaleY"] = r.ScaleY,
+                ["z"] = r.Z, ["alpha"] = r.Alpha, ["red"] = r.Red, ["green"] = r.Green, ["blue"] = r.Blue,
+            });
+
+        var circlesArray = new JsonArray();
+        foreach (var c in shapes.CircleSaves)
+            circlesArray.Add((JsonNode)new JsonObject
+            {
+                ["name"] = c.Name, ["x"] = c.X, ["y"] = c.Y, ["radius"] = c.Radius,
+                ["z"] = c.Z, ["alpha"] = c.Alpha, ["red"] = c.Red, ["green"] = c.Green, ["blue"] = c.Blue,
+            });
+
+        var polysArray = new JsonArray();
+        foreach (var p in shapes.PolygonSaves)
+        {
+            var pointsArray = new JsonArray();
+            foreach (var v in p.Points)
+                pointsArray.Add((JsonNode)new JsonObject { ["x"] = v.X, ["y"] = v.Y });
+
+            polysArray.Add((JsonNode)new JsonObject
+            {
+                ["name"] = p.Name, ["x"] = p.X, ["y"] = p.Y,
+                ["z"] = p.Z, ["alpha"] = p.Alpha, ["red"] = p.Red, ["green"] = p.Green, ["blue"] = p.Blue,
+                ["points"] = pointsArray,
+            });
+        }
+
+        return new JsonObject
+        {
+            ["rectangles"] = rectsArray,
+            ["circles"] = circlesArray,
+            ["polygons"] = polysArray,
+        };
+    }
 
     private XDocument ToXDocument()
     {
@@ -550,4 +711,156 @@ public class AnimationChainListSave
         var el = parent.Element(name);
         return el != null ? Enum.Parse<ColorOperation>(el.Value) : null;
     }
+
+    private static AnimationChainListSave ParseJson(JsonObject root)
+    {
+        var result = new AnimationChainListSave();
+
+        if (root["fileRelativeTextures"] is JsonValue frt)
+            result.FileRelativeTextures = frt.GetValue<bool>();
+
+        if (root["timeMeasurementUnit"] is JsonValue tmu)
+            result.TimeMeasurementUnit = Enum.Parse<TimeMeasurementUnit>(tmu.GetValue<string>()!);
+
+        if (root["coordinateType"] is JsonValue ct)
+            result.CoordinateType = Enum.Parse<TextureCoordinateType>(ct.GetValue<string>()!);
+
+        if (root["animationChains"] is JsonArray chainsArray)
+        {
+            foreach (var chainNode in chainsArray)
+            {
+                var chainObj = chainNode!.AsObject();
+                var chain = new AnimationChainSave
+                {
+                    Name = chainObj["name"]?.GetValue<string>() ?? string.Empty
+                };
+
+                if (chainObj["frames"] is JsonArray framesArray)
+                    foreach (var frameNode in framesArray)
+                        chain.Frames.Add(ParseFrameJson(frameNode!.AsObject()));
+
+                result.AnimationChains.Add(chain);
+            }
+        }
+
+        if (root["projectFile"] is JsonValue pf)
+            result.ProjectFile = pf.GetValue<string>();
+
+        return result;
+    }
+
+    private static AnimationFrameSave ParseFrameJson(JsonObject el)
+    {
+        var frame = new AnimationFrameSave
+        {
+            TextureName = el["textureName"]?.GetValue<string>() ?? string.Empty,
+            FrameLength = FloatProp(el, "frameLength"),
+            LeftCoordinate = FloatProp(el, "leftCoordinate"),
+            RightCoordinate = FloatProp(el, "rightCoordinate", 1f),
+            TopCoordinate = FloatProp(el, "topCoordinate"),
+            BottomCoordinate = FloatProp(el, "bottomCoordinate", 1f),
+            FlipHorizontal = BoolProp(el, "flipHorizontal"),
+            FlipVertical = BoolProp(el, "flipVertical"),
+            FlipDiagonal = BoolProp(el, "flipDiagonal"),
+            RelativeX = FloatProp(el, "relativeX"),
+            RelativeY = FloatProp(el, "relativeY"),
+            Red = IntPropNullable(el, "red"),
+            Green = IntPropNullable(el, "green"),
+            Blue = IntPropNullable(el, "blue"),
+            Alpha = IntPropNullable(el, "alpha"),
+            ColorOperation = ColorOperationProp(el, "colorOperation"),
+        };
+
+        if (el["shapes"] is JsonObject shapesObj)
+            frame.ShapesSave = ParseShapesJson(shapesObj);
+
+        return frame;
+    }
+
+    private static ShapesSave ParseShapesJson(JsonObject el)
+    {
+        var shapes = new ShapesSave();
+
+        if (el["rectangles"] is JsonArray rectsArray)
+        {
+            foreach (var node in rectsArray)
+            {
+                var r = node!.AsObject();
+                var rect = new AARectSave
+                {
+                    Name = r["name"]?.GetValue<string>() ?? string.Empty,
+                    X = FloatProp(r, "x"),
+                    Y = FloatProp(r, "y"),
+                    ScaleX = FloatProp(r, "scaleX", 16f),
+                    ScaleY = FloatProp(r, "scaleY", 16f),
+                };
+                ReadColorJson(r, rect);
+                shapes.Shapes.Add(rect);
+            }
+        }
+
+        if (el["circles"] is JsonArray circlesArray)
+        {
+            foreach (var node in circlesArray)
+            {
+                var c = node!.AsObject();
+                var circle = new CircleSave
+                {
+                    Name = c["name"]?.GetValue<string>() ?? string.Empty,
+                    X = FloatProp(c, "x"),
+                    Y = FloatProp(c, "y"),
+                    Radius = FloatProp(c, "radius", 16f),
+                };
+                ReadColorJson(c, circle);
+                shapes.Shapes.Add(circle);
+            }
+        }
+
+        if (el["polygons"] is JsonArray polysArray)
+        {
+            foreach (var node in polysArray)
+            {
+                var p = node!.AsObject();
+                var poly = new PolygonSave
+                {
+                    Name = p["name"]?.GetValue<string>() ?? string.Empty,
+                    X = FloatProp(p, "x"),
+                    Y = FloatProp(p, "y"),
+                };
+                if (p["points"] is JsonArray pointsArray)
+                    foreach (var ptNode in pointsArray)
+                    {
+                        var pt = ptNode!.AsObject();
+                        poly.Points.Add(new Vector2Save { X = FloatProp(pt, "x"), Y = FloatProp(pt, "y") });
+                    }
+                ReadColorJson(p, poly);
+                shapes.Shapes.Add(poly);
+            }
+        }
+
+        return shapes;
+    }
+
+    // JSON counterpart of ReadColor: reads per-shape Z/Alpha/Red/Green/Blue, falling back to
+    // FRB1 defaults when absent.
+    private static void ReadColorJson(JsonObject el, Frb1ShapeData target)
+    {
+        target.Z = FloatProp(el, "z");
+        target.Alpha = FloatProp(el, "alpha", 1f);
+        target.Red = FloatProp(el, "red", 1f);
+        target.Green = FloatProp(el, "green", 1f);
+        target.Blue = FloatProp(el, "blue", 1f);
+    }
+
+    private static float FloatProp(JsonObject parent, string name, float defaultValue = 0f) =>
+        parent[name] is JsonValue v ? v.GetValue<float>() : defaultValue;
+
+    private static bool BoolProp(JsonObject parent, string name, bool defaultValue = false) =>
+        parent[name] is JsonValue v ? v.GetValue<bool>() : defaultValue;
+
+    private static int? IntPropNullable(JsonObject parent, string name) =>
+        parent[name] is JsonValue v ? v.GetValue<int>() : null;
+
+    private static ColorOperation? ColorOperationProp(JsonObject parent, string name) =>
+        parent[name] is JsonValue v ? Enum.Parse<ColorOperation>(v.GetValue<string>()!) : null;
 }

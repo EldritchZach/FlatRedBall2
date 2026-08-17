@@ -9,9 +9,9 @@
     <PackageId>FlatRedBall.AnimationChain.MonoGame</PackageId>
     <Authors>Victor Chelaru</Authors>
     <Description>
-      A standalone MonoGame (DesktopGL) library for loading and playing .achx animation files
-      created by the FlatRedBall Animation Editor. No FlatRedBall2 engine dependency required.
-      For KNI / Blazor WASM targets, use FlatRedBall.AnimationChain.KNI instead.
+      A standalone MonoGame (DesktopGL) library for loading and playing .achx (XML) or .achj
+      (JSON) animation files created by the FlatRedBall Animation Editor. No FlatRedBall2 engine
+      dependency required. For KNI / Blazor WASM targets, use FlatRedBall.AnimationChain.KNI instead.
     </Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
