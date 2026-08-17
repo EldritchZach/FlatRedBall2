@@ -12,19 +12,20 @@ namespace AnimationEditor.Core.DragDrop;
 public static class AchxDropProcessor
 {
     /// <summary>
-    /// Returns the dropped paths that are <c>.achx</c> files (case-insensitive), preserving
-    /// their original order and skipping null/blank entries. Non-.achx paths (e.g. PNG
-    /// textures) are filtered out so a mixed drop opens the .achx files and ignores the rest.
+    /// Returns the dropped paths that are <c>.achx</c> or <c>.achj</c> files (case-insensitive),
+    /// preserving their original order and skipping null/blank entries. Other paths (e.g. PNG
+    /// textures) are filtered out so a mixed drop opens the animation chain files and ignores the rest.
     /// </summary>
     public static IReadOnlyList<string> SelectAchxFiles(IEnumerable<string?>? droppedFilePaths) =>
         droppedFilePaths is null
             ? new List<string>()
             : droppedFilePaths
-                .Where(p => !string.IsNullOrWhiteSpace(p) && new FilePath(p).Extension == "achx")
+                .Where(p => !string.IsNullOrWhiteSpace(p) &&
+                    (new FilePath(p).Extension == "achx" || new FilePath(p).Extension == "achj"))
                 .Select(p => p!)
                 .ToList();
 
-    /// <summary>True when at least one dropped path is an <c>.achx</c> file.</summary>
+    /// <summary>True when at least one dropped path is an <c>.achx</c> or <c>.achj</c> file.</summary>
     public static bool ContainsAchx(IEnumerable<string?>? droppedFilePaths) =>
         SelectAchxFiles(droppedFilePaths).Count > 0;
 }

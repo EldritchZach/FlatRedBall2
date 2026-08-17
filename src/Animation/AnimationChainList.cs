@@ -55,7 +55,7 @@ public class AnimationChainList : List<AnimationChain>
     }
 
     /// <summary>
-    /// Re-parses the .achx at <paramref name="path"/> and applies the result in place so any
+    /// Re-parses the .achx/.achj at <paramref name="path"/> and applies the result in place so any
     /// live <see cref="FlatRedBall2.Rendering.Sprite.CurrentAnimation"/> reference keeps working.
     /// For each chain in the reloaded file, matches by <see cref="AnimationChain.Name"/>: if the
     /// name exists in this list the existing chain's frames are replaced (instance identity
@@ -63,9 +63,10 @@ public class AnimationChainList : List<AnimationChain>
     /// the file) are left alone — sprites still playing them keep rendering their old art until
     /// the caller switches them.
     /// <para>
-    /// Returns <c>false</c> on I/O or XML parse failure (e.g. file mid-write). Callers should
-    /// fall back to <c>RestartScreen(RestartMode.HotReload)</c> in that case, or retry after
-    /// the next debounce window.
+    /// Returns <c>false</c> on I/O or parse failure (e.g. file mid-write) — XML or JSON, depending
+    /// on <paramref name="path"/>'s extension. Callers should fall back to
+    /// <c>RestartScreen(RestartMode.HotReload)</c> in that case, or retry after the next debounce
+    /// window.
     /// </para>
     /// </summary>
     public bool TryReloadFrom(string path, ContentLoader content)
@@ -77,6 +78,7 @@ public class AnimationChainList : List<AnimationChain>
         }
         catch (IOException) { return false; }
         catch (XmlException) { return false; }
+        catch (System.Text.Json.JsonException) { return false; }
 
         foreach (var freshChain in fresh)
         {

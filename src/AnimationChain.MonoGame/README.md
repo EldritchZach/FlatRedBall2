@@ -1,7 +1,8 @@
 # FlatRedBall.AnimationChain
 
-A standalone library for loading and playing `.achx` sprite animation files created by the
-[FlatRedBall Animation Editor](https://github.com/vchelaru/FlatRedBall2).
+A standalone library for loading and playing `.achx` (XML) or `.achj` (JSON) sprite animation
+files created by the [FlatRedBall Animation Editor](https://github.com/vchelaru/FlatRedBall2) —
+`AchxLoader` picks the dialect from the file extension automatically.
 No FlatRedBall2 engine dependency required — drop it into any MonoGame or KNI project.
 
 ## Choose a variant

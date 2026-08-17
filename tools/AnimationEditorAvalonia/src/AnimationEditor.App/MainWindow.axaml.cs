@@ -2067,7 +2067,7 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Animation Chain") { Patterns = new[] { "*.achx" } }
+                new FilePickerFileType("Animation Chain") { Patterns = new[] { "*.achx", "*.achj" } }
             }
         });
 

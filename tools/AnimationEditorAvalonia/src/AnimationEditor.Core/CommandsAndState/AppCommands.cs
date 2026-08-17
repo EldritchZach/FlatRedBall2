@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FilePath = AnimationEditor.Core.Paths.FilePath;
 using StringFunctions = AnimationEditor.Core.Utilities.StringFunctions;
 
 namespace AnimationEditor.Core.CommandsAndState
@@ -400,10 +401,22 @@ namespace AnimationEditor.Core.CommandsAndState
         /// and <see cref="IApplicationEvents.CurrentFileChanged"/>.
         /// Does nothing if the user cancels the dialog.
         /// </summary>
+        /// <remarks>
+        /// The dialog's default extension follows the currently-loaded file: <c>achj</c> (JSON)
+        /// for a brand-new, never-saved file (#872 -- .achj is the default going forward), or
+        /// whatever extension the loaded file already has (typically <c>achx</c>, preserving the
+        /// on-disk format of an opened legacy file). The user can still pick the other format
+        /// from the dialog's file-type filter.
+        /// </remarks>
         public async Task SaveCurrentAnimationChainListAsync()
         {
+            var currentExtension = string.IsNullOrEmpty(_pm.FileName)
+                ? null
+                : new FilePath(_pm.FileName).Extension;
+            var defaultExtension = string.IsNullOrEmpty(currentExtension) ? "achj" : currentExtension;
+
             var path = await FileDialogService.PickSaveFileAsync(
-                "Save Animation Chain", "achx", "Animation Chain (*.achx)");
+                "Save Animation Chain", defaultExtension, $"Animation Chain (*.{defaultExtension})");
 
             if (string.IsNullOrEmpty(path)) return;
 
