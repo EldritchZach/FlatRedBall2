@@ -149,7 +149,7 @@ public class CollisionRelationship<A, B> : ICollisionRelationship
     {
         var sep = ComputeSeparationVector(GetEffectiveA(a), GetEffectiveB(b), out var axisAligned);
 
-        if (sep == Vector2.Zero || !TryApplyOneWayGate(a, b, ref sep))
+        if (sep == Vector2.Zero || !TryApplyOneWayGate(a, b, ref sep) || SharesTopParent(a, b))
             return false;
 
         ApplyResponse(a, b, sep, axisAligned);
@@ -518,7 +518,7 @@ public class CollisionRelationship<A, B> : ICollisionRelationship
         var sep = ComputeSeparationVector(effectiveA, effectiveB, out var axisAligned);
         if (sep == Vector2.Zero) return;
         if (!TryApplyOneWayGate(a, (B)(object)b, ref sep)) return;
-        if (ArePhysicsAppliedAutomatically)
+        if (ArePhysicsAppliedAutomatically && !SharesTopParent(a, (B)(object)b))
         {
             ApplyResponse(a, (B)(object)b, sep, axisAligned);
             TryTransferPlatformVelocity(a, (B)(object)b, sep);
@@ -548,7 +548,7 @@ public class CollisionRelationship<A, B> : ICollisionRelationship
             TryOfferGroundSnap(a, b);
             return;
         }
-        if (ArePhysicsAppliedAutomatically)
+        if (ArePhysicsAppliedAutomatically && !SharesTopParent(a, b))
         {
             ApplyResponse(a, b, sep, axisAligned);
             TryTransferPlatformVelocity(a, b, sep);
@@ -605,8 +605,11 @@ public class CollisionRelationship<A, B> : ICollisionRelationship
                     TryOfferGroundSnap(a, b);
                     continue;
                 }
-                ApplyResponse(a, b, sep, axisAligned);
-                TryTransferPlatformVelocity(a, b, sep);
+                if (!SharesTopParent(a, b))
+                {
+                    ApplyResponse(a, b, sep, axisAligned);
+                    TryTransferPlatformVelocity(a, b, sep);
+                }
                 RecordContact(a, b);
                 CollisionOccurred?.Invoke(a, b);
                 TryOfferGroundSnap(a, b);
@@ -696,6 +699,22 @@ public class CollisionRelationship<A, B> : ICollisionRelationship
 
     private ICollidable GetEffectiveA(A a) => _firstShapeSelector != null ? _firstShapeSelector(a) : a;
     private ICollidable GetEffectiveB(B b) => _secondShapeSelector != null ? _secondShapeSelector(b) : b;
+
+    // Two objects attached (directly or via a shared ancestor, e.g. ObjectToGrab.Add(other) or
+    // both parented under the same rig) would otherwise have Move/Bounce reposition their shared
+    // ancestor, which does not change their relative offset — they'd still overlap next frame,
+    // causing endless repositioning. Objects with no attachable parent chain (e.g. TileShapes)
+    // always return themselves here, so this only ever matches genuinely attached pairs.
+    private static bool SharesTopParent(ICollidable a, ICollidable b) =>
+        ReferenceEquals(GetTopParent(a), GetTopParent(b));
+
+    private static object GetTopParent(ICollidable obj)
+    {
+        if (obj is not ISpatialAttachable attachable || attachable.Parent == null) return obj;
+        var top = attachable.Parent;
+        while (top.Parent != null) top = top.Parent;
+        return top;
+    }
 
     private static ICollidable? GetSingleLeafShape(ICollidable collidable)
     {
