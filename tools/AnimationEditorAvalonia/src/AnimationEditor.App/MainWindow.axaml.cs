@@ -925,12 +925,7 @@ public partial class MainWindow : Window
         }
 
         _ioManager.DeleteRecoveryFile();
-        _projectManager.AnimationChainListSave = recovered;
-        _projectManager.FileName = null;
-        _selectedState.Reset();
-        _selectedState.SelectedChain = recovered.AnimationChains.FirstOrDefault();
-        _undoManager.Clear();
-        RefreshTreeView();
+        OpenAsNewUnsavedDocument(recovered, recovered.AnimationChains.FirstOrDefault());
         return true;
     }
 
@@ -2058,9 +2053,25 @@ public partial class MainWindow : Window
         // Register the currently-open file (if any) as a tab before we clear it.
         EnsureCurrentEditorContentHasTab();
 
-        _projectManager.AnimationChainListSave = new AnimationChainListSave();
+        OpenAsNewUnsavedDocument(new AnimationChainListSave());
+
+        _ = _appCommands.SaveCurrentAnimationChainListAsync();
+    }
+
+    /// <summary>
+    /// Replaces the in-memory document with <paramref name="content"/> as a new, unsaved
+    /// (Untitled) document, resets selection/undo/tree state, and opens/activates a tab for it.
+    /// Shared by <see cref="OnNewClick"/> and <see cref="TryRestoreRecoveryFileAsync"/> so both
+    /// "start editing from a fresh in-memory document" paths can't drift apart again — #892 was
+    /// exactly that: the recovery path duplicated everything except the tab-opening step.
+    /// </summary>
+    private void OpenAsNewUnsavedDocument(AnimationChainListSave content, AnimationChainSave? selectedChain = null)
+    {
+        _projectManager.AnimationChainListSave = content;
         _projectManager.FileName = null;
         _selectedState.Reset();
+        if (selectedChain is not null)
+            _selectedState.SelectedChain = selectedChain;
         _undoManager.Clear();
         RefreshTreeView();
 
@@ -2070,8 +2081,6 @@ public partial class MainWindow : Window
         var sentinelPath = new FilePath(NewUntitledSentinelPath());
         _tabManager.OpenOrFocus(sentinelPath, displayName);
         RebuildTabStrip();
-
-        _ = _appCommands.SaveCurrentAnimationChainListAsync();
     }
 
     private void OnLoadClick(object? sender, RoutedEventArgs e) => _ = LoadAsync();

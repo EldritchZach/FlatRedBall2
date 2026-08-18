@@ -1,6 +1,8 @@
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using AnimationEditor.Core.IO;
+using AnimationEditor.Core.Models;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using FlatRedBall2.Animation.Content;
@@ -17,6 +19,11 @@ namespace AnimationEditor.App.Tests;
 /// </summary>
 public class StartupRecoveryTests
 {
+    private static TabManager GetTabManager(MainWindow window) =>
+        (TabManager)typeof(MainWindow)
+            .GetField("_tabManager", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(window)!;
+
     [AvaloniaFact]
     public void NoRecoveryFile_StartsNormally_NeverPrompts()
     {
@@ -56,6 +63,30 @@ public class StartupRecoveryTests
         {
             Assert.Contains(ctx.ProjectManager.AnimationChainListSave!.AnimationChains, c => c.Name == "Recovered");
             Assert.Null(ctx.ProjectManager.FileName);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void RecoveryFilePresent_UserConfirms_OpensRestoredContentInATab()
+    {
+        // Issue #892: restoring loaded the content into the model/tree but never registered a
+        // tab for it, so the restored document was invisible/unreachable once you switched away.
+        var ctx = TestHelpers.BuildServices();
+        var seed = new AnimationChainListSave();
+        seed.AnimationChains.Add(new AnimationChainSave { Name = "Recovered" });
+        ctx.IoManager.WriteRecoveryFile(seed);
+
+        var window = ctx.CreateMainWindow();
+        window.ShowTwoButtonDialogAsync = (_, _, _, _) => Task.FromResult(true);
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            var tabManager = GetTabManager(window);
+            Assert.Single(tabManager.Tabs);
+            Assert.Same(tabManager.Tabs[0], tabManager.ActiveTab);
         }
         finally { window.Close(); }
     }
