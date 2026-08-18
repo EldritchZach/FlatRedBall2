@@ -2094,8 +2094,12 @@ public partial class MainWindow : Window
 
     private async Task LoadAndPersistProjectFolderAsync(string path)
     {
-        await LoadProjectFolderAsync(path);
-        SidebarTabs.SelectedItem = ProjectTab;
+        var achxCount = await LoadProjectFolderAsync(path);
+
+        // #875 follow-up: an empty Project tab is a dead end. The Textures tab is immediately
+        // useful in that case -- its Project scope (#875) lists the folder's PNGs without needing
+        // any .achx open.
+        SidebarTabs.SelectedItem = achxCount == 0 ? FilesTab : ProjectTab;
 
         // Immediate, not deferred to window Closed -- a debugger Stop or crash skips Closed
         // entirely (see TabSessionPersistenceTests / issue #439), so this must be safe there too.
@@ -2110,9 +2114,10 @@ public partial class MainWindow : Window
     /// by the interactive Open Project Folder flow and by startup's last-folder restore (#772).
     /// Also sets <see cref="ProjectManager.ProjectFolderPath"/> and refreshes the Files/Textures
     /// panel (#875) so its Project scope reflects the newly-opened folder even with zero .achx
-    /// tabs open.
+    /// tabs open. Returns the number of .achx files found, so callers can react to an empty
+    /// result (e.g. auto-selecting a more useful tab).
     /// </summary>
-    private async Task LoadProjectFolderAsync(string path)
+    private async Task<int> LoadProjectFolderAsync(string path)
     {
         _projectManager.ProjectFolderPath = path;
         _projectFolderWatcher.Watch(path);
@@ -2123,6 +2128,7 @@ public partial class MainWindow : Window
             ? $"No .achx files found under \"{rootFolder.Name}\"."
             : $"Found {entries.Count} .achx file(s) under \"{rootFolder.Name}\".", isError: false);
         RefreshFilesPanel();
+        return entries.Count;
     }
 
     /// <summary>
