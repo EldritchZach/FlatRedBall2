@@ -358,7 +358,8 @@ public class WireframeControl : TextureViewport
     private List<AnimationFrameSave>? _lastRevealedFrames;
     private object? _lastRevealSelectionKey;
 
-    // Lazily-created "+" cursor shown when Ctrl is held and a click would add a frame.
+    // Lazily-created "add frame" cursor (arrow + "+" badge) shown when Ctrl is held and a
+    // click would add a frame.
     private static readonly Lazy<Cursor> _addFrameCursorLazy = new(CreateAddFrameCursor);
     private static Cursor AddFrameCursor => _addFrameCursorLazy.Value;
 
@@ -1966,9 +1967,51 @@ public class WireframeControl : TextureViewport
     }
 
     /// <summary>
-    /// Builds a cross-hair "+" cursor and returns a <see cref="Cursor"/>
-    /// with its hot-spot at the centre pixel.  Called once by <see cref="_addFrameCursorLazy"/>.
+    /// Rasterizes the pure layout in <see cref="AddFrameCursorShape"/> via SkiaSharp: a small
+    /// white arrow (matching the OS default arrow silhouette) with a green "+" badge circle at
+    /// its bottom-right -- the conventional "add" affordance (e.g. Windows Explorer's drag-copy
+    /// cursor), replacing the crosshair (<see cref="StandardCursorType.Cross"/>) previously shown
+    /// here. The hotspot sits at the arrow's tip. Called once by <see cref="_addFrameCursorLazy"/>.
+    /// Untested by design -- a thin adapter over <see cref="AddFrameCursorShape"/>, whose
+    /// structural layout (hotspot, region placement/overlap) is covered by
+    /// <c>AddFrameCursorShapeTests</c> in <c>AnimationEditor.Core.Tests</c>.
     /// </summary>
-    private static Cursor CreateAddFrameCursor() =>
-        new Cursor(StandardCursorType.Cross);
+    private static Cursor CreateAddFrameCursor()
+    {
+        using var bmp = new SKBitmap(AddFrameCursorShape.Width, AddFrameCursorShape.Height);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
+
+        var arrow = AddFrameCursorShape.ArrowRegion;
+        using (var fill = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Fill })
+        using (var outline = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1 })
+        using (var path = new SKPath())
+        {
+            path.MoveTo(arrow.X, arrow.Y);
+            path.LineTo(arrow.X, arrow.Bottom);
+            path.LineTo(arrow.X + arrow.Width * 0.6f, arrow.Bottom - arrow.Height * 0.3f);
+            path.LineTo(arrow.X + arrow.Width * 0.4f, arrow.Bottom - arrow.Height * 0.3f);
+            path.Close();
+            canvas.DrawPath(path, fill);
+            canvas.DrawPath(path, outline);
+        }
+
+        var badge = AddFrameCursorShape.BadgeRegion;
+        float cx = badge.X + badge.Width / 2f;
+        float cy = badge.Y + badge.Height / 2f;
+        float radius = Math.Min(badge.Width, badge.Height) / 2f;
+        using (var badgeFill = new SKPaint { Color = new SKColor(0x2E, 0xA0, 0x43), IsAntialias = true, Style = SKPaintStyle.Fill })
+        using (var badgeOutline = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f })
+        using (var plus = new SKPaint { Color = SKColors.White, IsAntialias = true, StrokeWidth = 1.5f, StrokeCap = SKStrokeCap.Round })
+        {
+            canvas.DrawCircle(cx, cy, radius, badgeFill);
+            canvas.DrawCircle(cx, cy, radius, badgeOutline);
+            float armLength = radius * 0.55f;
+            canvas.DrawLine(cx - armLength, cy, cx + armLength, cy, plus);
+            canvas.DrawLine(cx, cy - armLength, cx, cy + armLength, plus);
+        }
+
+        var avaloniaBitmap = ThumbnailService.ToAvaloniaBitmap(bmp);
+        return new Cursor(avaloniaBitmap, new PixelPoint(AddFrameCursorShape.HotSpotX, AddFrameCursorShape.HotSpotY));
+    }
 }
