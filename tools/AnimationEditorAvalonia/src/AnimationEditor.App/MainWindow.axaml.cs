@@ -269,6 +269,9 @@ public partial class MainWindow : Window
         ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
         ProjectPanel.FileRevealRequested += relativePath => RevealProjectFileInExplorer(relativePath);
         ProjectPanel.FileCopyPathRequested += relativePath => CopyProjectFilePathToClipboard(relativePath);
+        // Right-clicking blank space in the tree offers "New Animation" (#908) -- same flow as
+        // File > New.
+        ProjectPanel.NewAnimationRequested += () => OnNewClick(null, null!);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
@@ -5469,7 +5472,7 @@ public partial class MainWindow : Window
             },
             new()
             {
-                Id = "new", Description = "New", Category = "File",
+                Id = "new", Description = "New Animation", Category = "File",
                 Gestures = new[] { new HotkeyGesture("N", Command) },
                 Action = () => OnNewClick(null, null!),
             },

@@ -88,7 +88,7 @@
                         <!-- InputGesture text for New/Load/Save is set in code from the hotkey
                              registry (MainWindow.ApplyHotkeyMenuGestureText, issue #638) so it
                              can never drift from what the KeyDown handler actually does. -->
-                        <MenuItem Header="_New"          x:Name="MenuNew" />
+                        <MenuItem Header="_New Animation" x:Name="MenuNew" />
                         <MenuItem Header="_Load..."       x:Name="MenuLoad" />
                         <MenuItem Header="Load _Recent"   x:Name="MenuLoadRecent" />
                         <MenuItem Header="Open _Project Folder…" x:Name="MenuOpenProjectFolder" />

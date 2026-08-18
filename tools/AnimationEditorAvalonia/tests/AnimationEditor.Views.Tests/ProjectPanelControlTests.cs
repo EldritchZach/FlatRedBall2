@@ -329,6 +329,59 @@ public class ProjectPanelControlTests
         finally { window.Close(); }
     }
 
+    // Issue #908: right-clicking blank space below the tree rows (no node under the cursor) used
+    // to open a context menu with zero items. It should offer "New Animation" instead, regardless
+    // of SupportsRevealInExplorer (that flag only gates filesystem-reveal items, not this).
+    [AvaloniaFact]
+    public void RightClickingEmptySpace_ShowsNewAnimationItem()
+    {
+        var control = new Controls.ProjectPanelControl();
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClickEmptySpace(window, control);
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>().Single();
+            Assert.Equal("New Animation", item.Header);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ClickingNewAnimation_RaisesNewAnimationRequested()
+    {
+        var control = new Controls.ProjectPanelControl();
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClickEmptySpace(window, control);
+            var raised = false;
+            control.NewAnimationRequested += () => raised = true;
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>().Single();
+            item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.True(raised);
+        }
+        finally { window.Close(); }
+    }
+
+    private static void RightClickEmptySpace(Window window, Controls.ProjectPanelControl control)
+    {
+        // Below the single "hero.achx" row (~24-28px tall) but still inside the tree's bounds.
+        var local = new Point(10, control.ProjectTree.Bounds.Height - 5);
+        var p = control.ProjectTree.TranslatePoint(local, window)!.Value;
+        window.MouseDown(p, MouseButton.Right);
+        window.MouseUp(p, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     // Issue #839: SetEntries kicks off async thumbnail generation via ProjectTreeThumbnailService.
     // ThumbnailLoadTask is the test seam for awaiting it deterministically.
     [AvaloniaFact]

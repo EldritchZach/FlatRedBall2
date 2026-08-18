@@ -81,6 +81,13 @@ public partial class ProjectPanelControl : UserControl
     public event Action<string>? FileCopyPathRequested;
 
     /// <summary>
+    /// Raised when the user picks "New Animation" from the context menu shown on right-clicking
+    /// blank space in the tree, i.e. no node under the cursor (issue #908). The host resolves what
+    /// "new" means (desktop/browser both currently reuse their existing File → New flow).
+    /// </summary>
+    public event Action? NewAnimationRequested;
+
+    /// <summary>
     /// Completes once every thumbnail from the most recent <see cref="Rebuild"/> has finished
     /// loading (or been cancelled by a newer one). Test seam for awaiting the async thumbnail
     /// load -- production code never needs to await this.
@@ -294,6 +301,16 @@ public partial class ProjectPanelControl : UserControl
     {
         if (ProjectTree.ContextMenu is null) return;
         ProjectTree.ContextMenu.Items.Clear();
+
+        // No node under the cursor -- right-clicked blank space below/between rows (issue #908).
+        // Independent of SupportsRevealInExplorer: that flag only gates filesystem-reveal items.
+        if (_contextNode is null)
+        {
+            var newAnimationItem = new MenuItem { Header = "New Animation" };
+            newAnimationItem.Click += (_, _) => NewAnimationRequested?.Invoke();
+            ProjectTree.ContextMenu.Items.Add(newAnimationItem);
+            return;
+        }
 
         if (!SupportsRevealInExplorer) return;
 
