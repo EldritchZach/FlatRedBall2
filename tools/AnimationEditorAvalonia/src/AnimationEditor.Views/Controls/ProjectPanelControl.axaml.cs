@@ -67,6 +67,20 @@ public partial class ProjectPanelControl : UserControl
     public event Action<string>? FolderRevealRequested;
 
     /// <summary>
+    /// Raised when the user picks "Open Containing Folder" for a file row (issue #886). Carries
+    /// the file's <see cref="AchxTreeNodeVm.RelativePath"/> for the host to resolve, same as
+    /// <see cref="FolderRevealRequested"/>.
+    /// </summary>
+    public event Action<string>? FileRevealRequested;
+
+    /// <summary>
+    /// Raised when the user picks "Copy Full Path" for a file row (issue #886). Carries the
+    /// file's <see cref="AchxTreeNodeVm.RelativePath"/> for the host to resolve, same as
+    /// <see cref="FolderRevealRequested"/>.
+    /// </summary>
+    public event Action<string>? FileCopyPathRequested;
+
+    /// <summary>
     /// Completes once every thumbnail from the most recent <see cref="Rebuild"/> has finished
     /// loading (or been cancelled by a newer one). Test seam for awaiting the async thumbnail
     /// load -- production code never needs to await this.
@@ -282,11 +296,27 @@ public partial class ProjectPanelControl : UserControl
         ProjectTree.ContextMenu.Items.Clear();
 
         if (!SupportsRevealInExplorer) return;
-        if (_contextNode is not { IsFolder: true } node) return;
 
-        var revealItem = new MenuItem { Header = "View in Explorer" };
-        revealItem.Click += (_, _) => FolderRevealRequested?.Invoke(node.RelativePath);
-        ProjectTree.ContextMenu.Items.Add(revealItem);
+        if (_contextNode is { IsFolder: true } folderNode)
+        {
+            var revealItem = new MenuItem { Header = "View in Explorer" };
+            revealItem.Click += (_, _) => FolderRevealRequested?.Invoke(folderNode.RelativePath);
+            ProjectTree.ContextMenu.Items.Add(revealItem);
+            return;
+        }
+
+        if (_contextNode is { IsFile: true } fileNode)
+        {
+            // Same two items and headers as the document tab strip's context menu
+            // (MainWindow.axaml.cs, #881/#884) for the equivalent open file.
+            var openFolderItem = new MenuItem { Header = "Open Containing Folder" };
+            openFolderItem.Click += (_, _) => FileRevealRequested?.Invoke(fileNode.RelativePath);
+            ProjectTree.ContextMenu.Items.Add(openFolderItem);
+
+            var copyPathItem = new MenuItem { Header = "Copy Full Path" };
+            copyPathItem.Click += (_, _) => FileCopyPathRequested?.Invoke(fileNode.RelativePath);
+            ProjectTree.ContextMenu.Items.Add(copyPathItem);
+        }
     }
 
     private void OnFolderExpanderToggled(object? sender, EventArgs e)
