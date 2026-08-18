@@ -16,6 +16,12 @@ namespace AnimationEditor.Core.Models
         private readonly List<TabEntry> _tabs = new();
         private int _untitledCounter;
 
+        // MRU back-stack (#911): the tab activated before the current one, most-recent on top.
+        // Only ever holds tabs that were genuinely switched away from, never a tab being closed --
+        // see the Contains guard in SetActive. Entries for tabs closed in the background go stale
+        // and are skipped (not removed) lazily by PopValidHistoryEntry.
+        private readonly Stack<TabEntry> _activationHistory = new();
+
         // Sentinel paths use this prefix so they are distinguishable from real on-disk paths.
         // Moved here from MainWindow (#898) so both hosts, and TabController, can generate
         // "no on-disk file yet" tab paths without duplicating the counter.
@@ -167,8 +173,11 @@ namespace AnimationEditor.Core.Models
 
         /// <summary>
         /// Closes the tab for <paramref name="path"/>. No-op if the path is not open.
-        /// When the active tab is closed, the next tab is activated; if none follows,
-        /// the previous tab is activated; if none remain, <see cref="ActiveTab"/> becomes <c>null</c>.
+        /// When the active tab is closed, the tab that was active immediately before it
+        /// (issue #911's MRU back-stack) is reactivated, skipping any entries that were
+        /// themselves closed in the meantime. If no such entry remains, falls back to the
+        /// next tab, or the previous tab if none follows; if no tabs remain, <see cref="ActiveTab"/>
+        /// becomes <c>null</c>.
         /// </summary>
         public void Close(FilePath path)
         {
@@ -183,7 +192,10 @@ namespace AnimationEditor.Core.Models
             // fires regardless (ActiveChanged would not).
             if (tab == ActiveTab)
             {
-                if (_tabs.Count == 0)
+                var previous = PopValidHistoryEntry();
+                if (previous != null)
+                    SetActive(previous);
+                else if (_tabs.Count == 0)
                     SetActive(null);
                 else
                     // Prefer the tab that moved into this slot; fall back to the one before.
@@ -191,6 +203,22 @@ namespace AnimationEditor.Core.Models
             }
 
             RaiseTabsChanged();
+        }
+
+        /// <summary>
+        /// Pops <see cref="_activationHistory"/> until it finds an entry still present in
+        /// <see cref="_tabs"/>, discarding stale entries for tabs closed in the background
+        /// along the way. Returns <c>null</c> if the history holds no still-open tab.
+        /// </summary>
+        private TabEntry? PopValidHistoryEntry()
+        {
+            while (_activationHistory.Count > 0)
+            {
+                var candidate = _activationHistory.Pop();
+                if (_tabs.Contains(candidate))
+                    return candidate;
+            }
+            return null;
         }
 
         /// <summary>
@@ -202,6 +230,10 @@ namespace AnimationEditor.Core.Models
         public void RestoreFrom(IReadOnlyList<string> paths, string? activePath)
         {
             _tabs.Clear();
+            // A restored session starts fresh -- old TabEntry references would never be found by
+            // PopValidHistoryEntry anyway (new entries are distinct instances), but drop them here
+            // rather than let them sit in the stack until popped.
+            _activationHistory.Clear();
             foreach (var p in paths)
                 _tabs.Add(new TabEntry(new FilePath(p)));
 
@@ -285,6 +317,12 @@ namespace AnimationEditor.Core.Models
 
         private void SetActive(TabEntry? tab)
         {
+            // Only push a genuine switch-away, and only while the outgoing tab is still open --
+            // this guard is what keeps a tab being closed (already removed from _tabs by the
+            // time Close calls SetActive) from being pushed onto its own back-stack.
+            if (ActiveTab != null && tab != ActiveTab && _tabs.Contains(ActiveTab))
+                _activationHistory.Push(ActiveTab);
+
             ActiveTab = tab;
             ActiveChanged?.Invoke(tab);
         }
