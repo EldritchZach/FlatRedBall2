@@ -1611,7 +1611,7 @@ namespace AnimationEditor.Core.CommandsAndState
             var desc = $"Set Length: {newLength:0.###}s";
             _undoManager.Execute(new BulkFrameEditCommand(
                 frames, () => { foreach (var f in frames) f.FrameLength = newLength; },
-                this, _events, false, desc));
+                this, _events, false, desc, coalesceKind: "Length"));
         }
 
         public void SetFrameRelative(IReadOnlyList<AnimationFrameSave> frames, float? newRelX, float? newRelY)
@@ -1625,7 +1625,7 @@ namespace AnimationEditor.Core.CommandsAndState
                         if (newRelY.HasValue) f.RelativeY = newRelY.Value;
                     }
                 },
-                this, _events, true, "Set Offset"));
+                this, _events, true, "Set Offset", coalesceKind: "Relative"));
         }
 
         public void SetFrameColor(IReadOnlyList<AnimationFrameSave> frames, int? red, int? green, int? blue)
@@ -1634,7 +1634,7 @@ namespace AnimationEditor.Core.CommandsAndState
             // wireframe refresh is needed. The AnimationChainsChanged raised here rebuilds those.
             _undoManager.Execute(new BulkFrameEditCommand(
                 frames, () => { foreach (var f in frames) { f.Red = red; f.Green = green; f.Blue = blue; } },
-                this, _events, false, "Set Frame Color"));
+                this, _events, false, "Set Frame Color", coalesceKind: "Color"));
         }
 
         public void SetFrameColorOperation(IReadOnlyList<AnimationFrameSave> frames, ColorOperation? operation)
@@ -1652,7 +1652,7 @@ namespace AnimationEditor.Core.CommandsAndState
             // the wireframe, so no wireframe refresh is needed.
             _undoManager.Execute(new BulkFrameEditCommand(
                 frames, () => { foreach (var f in frames) f.Alpha = alpha; },
-                this, _events, false, "Set Frame Alpha"));
+                this, _events, false, "Set Frame Alpha", coalesceKind: "Alpha"));
         }
 
         public void SetFramePixelRegion(IReadOnlyList<AnimationFrameSave> frames,
@@ -1672,7 +1672,7 @@ namespace AnimationEditor.Core.CommandsAndState
                         if (pixelH.HasValue) PixelFrameEditor.SetHeight(f, pixelH.Value, bmpH);
                     }
                 },
-                this, _events, true, "Set Region"));
+                this, _events, true, "Set Region", coalesceKind: "PixelRegion"));
         }
 
         public void SetRectProps(AnimationFrameSave? frame, AARectSave rect,
@@ -1721,6 +1721,9 @@ namespace AnimationEditor.Core.CommandsAndState
                 },
                 this, _events, _objectFinder, "Edit Circles"));
         }
+
+        /// <inheritdoc cref="IAppCommands.SealPendingEdits"/>
+        public void SealPendingEdits() => _undoManager.SealCoalescing();
 
         /// <inheritdoc cref="IAppCommands.HasSameFrameNameCollision"/>
         public bool HasSameFrameNameCollision(IReadOnlyList<object> shapes) =>

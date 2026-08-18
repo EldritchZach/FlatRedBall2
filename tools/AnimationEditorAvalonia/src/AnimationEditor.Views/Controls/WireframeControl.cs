@@ -1285,9 +1285,9 @@ public class WireframeControl : TextureViewport
         }
 
         // 3. Grid mode: Ctrl+click → create a new cell-sized frame; plain click →
-        //    select the frame under the cursor, same as plain mode. Repositioning
-        //    the selected frame to a grid cell is an explicit gesture (double-click,
-        //    issue #363) — a plain click must never silently move it.
+        //    select the frame under the cursor, same as plain mode. Resizing/repositioning
+        //    the selected frame onto a grid cell is an explicit gesture (double-click,
+        //    issue #363/#895) — a plain click must never silently move or resize it.
         if (_showGrid && _gridSize > 0)
         {
             if (isCtrl)
@@ -1761,20 +1761,18 @@ public class WireframeControl : TextureViewport
     }
 
     /// <summary>
-    /// Grid click-to-place: snaps the selected frame's origin to the grid cell
-    /// containing (<paramref name="worldX"/>, <paramref name="worldY"/>) while
-    /// preserving its current pixel size. Grid must never resize an existing
-    /// frame — only reposition it (issue #538).
+    /// Grid double-click: resizes the selected frame to exactly fill the grid cell
+    /// containing (<paramref name="worldX"/>, <paramref name="worldY"/>) — issue #895.
+    /// This is the explicit resize gesture for grid mode (a plain click never resizes
+    /// or repositions — see the call site's comment). It matters most right after
+    /// dropping a PNG onto an animation, which creates one frame sized to the entire
+    /// sheet; double-clicking a cell is how that gets carved down to size without
+    /// dragging edge handles by hand.
     /// </summary>
     private void SnapSelectedFrameToGridCell(float worldX, float worldY)
     {
         if (_selectedState!.SelectedFrame is null || _bitmap is null) return;
-        var frame = _selectedState!.SelectedFrame;
-        float w = _bitmap.Width, h = _bitmap.Height;
-        int frameW = (int)MathF.Round(frame.RightCoordinate  * w) - (int)MathF.Round(frame.LeftCoordinate * w);
-        int frameH = (int)MathF.Round(frame.BottomCoordinate * h) - (int)MathF.Round(frame.TopCoordinate  * h);
-        var (minX, minY, maxX, maxY) = GridPlacementCalculator.SnapOriginPreserveSize(
-            worldX, worldY, _gridSize, frameW, frameH);
+        var (minX, minY, maxX, maxY) = GridPlacementCalculator.SnapToCell(worldX, worldY, _gridSize);
         ApplyRegionToSelectedFrame(minX, minY, maxX, maxY);
     }
 

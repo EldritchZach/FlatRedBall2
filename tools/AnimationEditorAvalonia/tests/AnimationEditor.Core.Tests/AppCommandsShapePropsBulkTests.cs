@@ -63,6 +63,24 @@ public class AppCommandsShapePropsBulkTests
     }
 
     [Fact]
+    public void SetRectPropsBulk_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        // MainWindow's multi-select rect panel commits on every ValueChanged, same as the
+        // single-select path (#897) — typing "32" for X must not create two undo entries.
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk", 1);
+        var rect = new AARectSave { Name = "A", X = 0f, ScaleX = 8f, ScaleY = 8f };
+        chain.Frames[0].ShapesSave!.Shapes.Add(rect);
+
+        ctx.AppCommands.SetRectPropsBulk(new List<AARectSave> { rect }, null, 3f, null, null, null);
+        ctx.AppCommands.SetRectPropsBulk(new List<AARectSave> { rect }, null, 32f, null, null, null);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0f, rect.X);
+    }
+
+    [Fact]
     public void SetCirclePropsBulk_MultipleCircles_AppliesRadiusToAll()
     {
         var ctx = TestHelpers.SetupFreshAcls();
@@ -77,6 +95,22 @@ public class AppCommandsShapePropsBulkTests
 
         Assert.Equal(15f, circleA.Radius);
         Assert.Equal(15f, circleB.Radius);
+    }
+
+    [Fact]
+    public void SetCirclePropsBulk_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Jump", 1);
+        var circle = new CircleSave { Name = "A", X = 0f, Radius = 8f };
+        chain.Frames[0].ShapesSave!.Shapes.Add(circle);
+
+        ctx.AppCommands.SetCirclePropsBulk(new List<CircleSave> { circle }, null, 3f, null, null);
+        ctx.AppCommands.SetCirclePropsBulk(new List<CircleSave> { circle }, null, 32f, null, null);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0f, circle.X);
     }
 
     [Fact]
