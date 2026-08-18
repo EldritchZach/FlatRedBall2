@@ -56,6 +56,25 @@ public class InspectorPropertyUndoTests
         Assert.Single(ctx.UndoManager.UndoHistory);
     }
 
+    [Fact]
+    public void SetFrameAlpha_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        // Reproduces #897: typing "128" into the Alpha NumericUpDown fires one call per keystroke
+        // ("1", "12", "128"). That must collapse to one undo entry that restores the pre-edit value.
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Fade");
+        var frame = TestHelpers.MakeFrame(); // starts with null alpha
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFrameAlpha(new[] { frame }, 1);
+        ctx.AppCommands.SetFrameAlpha(new[] { frame }, 12);
+        ctx.AppCommands.SetFrameAlpha(new[] { frame }, 128);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Null(frame.Alpha);
+    }
+
     // ── SetFrameColor ─────────────────────────────────────────────────────────
 
     [Fact]
@@ -107,6 +126,22 @@ public class InspectorPropertyUndoTests
         Assert.All(frames, f => Assert.Equal(200, f.Green));
         Assert.All(frames, f => Assert.Equal(128, f.Blue));
         Assert.Single(ctx.UndoManager.UndoHistory);
+    }
+
+    [Fact]
+    public void SetFrameColor_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Flash");
+        var frame = TestHelpers.MakeFrame();
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFrameColor(new[] { frame }, 2, null, null);
+        ctx.AppCommands.SetFrameColor(new[] { frame }, 255, null, null);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Null(frame.Red);
     }
 
     // ── SetFrameColorOperation ────────────────────────────────────────────────
@@ -218,6 +253,23 @@ public class InspectorPropertyUndoTests
         Assert.All(frames, f => Assert.Equal(0.1f, f.FrameLength));
     }
 
+    [Fact]
+    public void SetFrameLength_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        frame.FrameLength = 0.1f;
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFrameLength(new[] { frame }, 0.3f);
+        ctx.AppCommands.SetFrameLength(new[] { frame }, 0.5f);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0.1f, frame.FrameLength);
+    }
+
     // ── SetFrameRelative ──────────────────────────────────────────────────────
 
     [Fact]
@@ -236,6 +288,45 @@ public class InspectorPropertyUndoTests
 
         Assert.Equal(10f, frame.RelativeX);
         Assert.Equal(20f, frame.RelativeY);
+    }
+
+    [Fact]
+    public void SetFrameRelative_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        // Reproduces #897's exact repro: typing "32" for a frame's X offset fires SetFrameRelative
+        // once per keystroke ("3", then "32"). That must be one undo entry, not two, and Undo must
+        // restore the value from before the whole typed edit (0f), not just the "3" midpoint.
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        frame.RelativeX = 0f;
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFrameRelative(new[] { frame }, newRelX: 3f, newRelY: null);
+        ctx.AppCommands.SetFrameRelative(new[] { frame }, newRelX: 32f, newRelY: null);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        Assert.Equal(32f, frame.RelativeX);
+
+        ctx.UndoManager.Undo();
+
+        Assert.Equal(0f, frame.RelativeX);
+    }
+
+    [Fact]
+    public void SetFrameRelative_SealPendingEditsBetweenCalls_CreatesSeparateUndoEntries()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        frame.RelativeX = 0f;
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFrameRelative(new[] { frame }, newRelX: 3f, newRelY: null);
+        ctx.AppCommands.SealPendingEdits(); // simulates the NumericUpDown losing focus
+        ctx.AppCommands.SetFrameRelative(new[] { frame }, newRelX: 32f, newRelY: null);
+
+        Assert.Equal(2, ctx.UndoManager.UndoHistory.Count);
     }
 
     [Fact]
@@ -318,6 +409,24 @@ public class InspectorPropertyUndoTests
     }
 
     [Fact]
+    public void SetFramePixelRegion_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        frame.LeftCoordinate = 0f; frame.RightCoordinate = 1f;
+        frame.TopCoordinate = 0f; frame.BottomCoordinate = 1f;
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetFramePixelRegion(new[] { frame }, pixelX: 3, pixelY: null, pixelW: null, pixelH: null, bmpW: 64, bmpH: 64);
+        ctx.AppCommands.SetFramePixelRegion(new[] { frame }, pixelX: 32, pixelY: null, pixelW: null, pixelH: null, bmpW: 64, bmpH: 64);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0f, frame.LeftCoordinate, precision: 5);
+    }
+
+    [Fact]
     public void SetFramePixelRegion_OnlyXSpecified_LeavesEachFrameOwnYWidthHeightUntouched()
     {
         // Reproduces issue #571 follow-up: two frames at different positions/sizes on the sheet
@@ -380,6 +489,24 @@ public class InspectorPropertyUndoTests
         Assert.False(ctx.UndoManager.CanUndo);
     }
 
+    [Fact]
+    public void SetRectProps_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        var rect = new AARectSave { Name = "Hitbox", X = 0f, Y = 2f, ScaleX = 3f, ScaleY = 4f };
+        frame.ShapesSave!.Shapes.Add(rect);
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetRectProps(frame, rect, "Hitbox", 3f, 2f, 3f, 4f);
+        ctx.AppCommands.SetRectProps(frame, rect, "Hitbox", 32f, 2f, 3f, 4f);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0f, rect.X);
+    }
+
     // ── SetCircleProps ────────────────────────────────────────────────────────
 
     [Fact]
@@ -401,5 +528,23 @@ public class InspectorPropertyUndoTests
         Assert.Equal(5f, circ.X);
         Assert.Equal(6f, circ.Y);
         Assert.Equal(7f, circ.Radius);
+    }
+
+    [Fact]
+    public void SetCircleProps_ConsecutiveEdits_CoalesceIntoSingleUndoEntryRestoringOriginalValue()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        var frame = TestHelpers.MakeFrame();
+        var circ = new CircleSave { Name = "Hurtbox", X = 0f, Y = 6f, Radius = 7f };
+        frame.ShapesSave!.Shapes.Add(circ);
+        chain.Frames.Add(frame);
+
+        ctx.AppCommands.SetCircleProps(frame, circ, "Hurtbox", 3f, 6f, 7f);
+        ctx.AppCommands.SetCircleProps(frame, circ, "Hurtbox", 32f, 6f, 7f);
+
+        Assert.Single(ctx.UndoManager.UndoHistory);
+        ctx.UndoManager.Undo();
+        Assert.Equal(0f, circ.X);
     }
 }

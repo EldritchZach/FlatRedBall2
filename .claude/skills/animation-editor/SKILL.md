@@ -100,3 +100,13 @@ Tests that exercise path logic **must** use Windows-style backslash literals (e.
 ## Tree reorder — chains and frames; shape order is fixed
 
 Drag-and-drop tree reorder covers **chains and frames** (pure resolvers `ChainDropResolver` / `FrameDropResolver`, wired in `MainWindow`). **Do not add shape DnD reorder:** collision shapes in `.achx` keep a **fixed list order** for FRB1 runtime compatibility — order is meaningful to legacy consumers, not a cosmetic tree sort. Menu/Alt+Arrow shape reorder exists in `AppCommands.MoveShape` today; treat new reorder UX as chain/frame-only unless an issue explicitly revisits shape ordering across runtimes.
+
+## Grid mode: double-click resizes; click/drag only repositions
+
+Grid-mode click-to-place and handle-drag preserve the frame's existing size — only
+double-click resizes it to the full grid cell (`GridPlacementCalculator.SnapToCell`,
+called only from `WireframeControl.SnapSelectedFrameToGridCell`). This is deliberate:
+a fresh PNG drop creates one frame sized to the whole sheet, and double-click-to-carve-
+a-cell is how that gets sized down without dragging edge handles by hand. Don't collapse
+the two gestures onto one shared size-preserving helper again — see
+`GridPlacementCalculator`'s doc comment for why that was tried and reverted.

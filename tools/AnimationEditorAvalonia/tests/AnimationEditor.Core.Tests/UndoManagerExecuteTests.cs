@@ -48,17 +48,73 @@ public class UndoManagerExecuteTests
         Assert.False(_undo.CanUndo);
     }
 
+    // ── Coalescing (#897 — one undo entry per edit session, not per keystroke) ──
+
+    [Fact]
+    public void Execute_CoalesceGroupMatches_MergesIntoSingleEntry()
+    {
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+
+        Assert.Single(_undo.UndoHistory);
+        Assert.Equal(1, ((SpyCommand)_undo.UndoHistory[0]).MergeCount);
+    }
+
+    [Fact]
+    public void Execute_CoalesceGroupDiffers_DoesNotMerge()
+    {
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "B"));
+
+        Assert.Equal(2, _undo.UndoHistory.Count);
+    }
+
+    [Fact]
+    public void Execute_CoalesceGroupMatchesAfterSealCoalescing_DoesNotMerge()
+    {
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+        _undo.SealCoalescing();
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+
+        Assert.Equal(2, _undo.UndoHistory.Count);
+    }
+
+    [Fact]
+    public void Execute_CoalesceGroupMatchesAfterUndo_DoesNotMerge()
+    {
+        // Undoing seals the coalescing window -- a fresh edit to the same field afterward must not
+        // silently fold into an entry the user just explicitly undid past.
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+        _undo.Undo();
+        _undo.Execute(new SpyCommand(doResult: true, coalesceGroup: "A"));
+
+        Assert.Single(_undo.UndoHistory);
+    }
+
     private sealed class SpyCommand : IUndoableCommand
     {
         private readonly bool _doResult;
 
         public string Description => "Spy";
-        public SpyCommand(bool doResult) => _doResult = doResult;
+        public string? CoalesceGroup { get; }
+        public int MergeCount { get; private set; }
+
+        public SpyCommand(bool doResult, string? coalesceGroup = null)
+        {
+            _doResult = doResult;
+            CoalesceGroup = coalesceGroup;
+        }
 
         public int DoCalls { get; private set; }
 
         public bool Do() { DoCalls++; return _doResult; }
         public void Undo() { }
         public void Redo() { }
+
+        public IUndoableCommand CoalesceWith(IUndoableCommand previous)
+        {
+            MergeCount = ((SpyCommand)previous).MergeCount + 1;
+            return this;
+        }
     }
 }
