@@ -84,9 +84,7 @@ namespace AnimationEditor.Core
                     throw new System.IO.InvalidDataException(
                         $"{IO.AchxConflictMarkerDetector.ConflictMarkerMessage} ({fileName.FullPath})");
 
-                acls = IsJsonPath(fileName.FullPath)
-                    ? AnimationChainListSave.FromJsonFile(fileName.FullPath)
-                    : AnimationChainListSave.FromFile(fileName.FullPath);
+                acls = AnimationChainListSave.FromString(rawContent);
             }
 
             AddShapeCollectionsToFrames(acls);

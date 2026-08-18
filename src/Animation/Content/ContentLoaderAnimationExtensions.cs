@@ -19,15 +19,9 @@ public static class ContentLoaderAnimationExtensions
     /// </summary>
     public static AnimationChainList LoadAnimationChainList(this ContentLoader content, string path)
     {
-        var save = IsJsonPath(path)
-            ? AnimationChainListSave.FromJsonFile(path, content.StreamProvider)
-            : AnimationChainListSave.FromFile(path, content.StreamProvider);
+        var save = AnimationChainListSave.FromFile(path, content.StreamProvider);
         return save.ToAnimationChainList(content);
     }
-
-    /// <summary>True when <paramref name="path"/> has a .achj (JSON) extension; false for .achx or anything else.</summary>
-    internal static bool IsJsonPath(string path) =>
-        path.EndsWith(".achj", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Loads an Adobe Animate TextureAtlas XML and converts it to a runtime
