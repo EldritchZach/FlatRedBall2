@@ -31,5 +31,27 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
         /// that replay a captured "after" snapshot (reorder, bulk edit) override this.
         /// </summary>
         void Redo() => Do();
+
+        /// <summary>
+        /// Identifies the logical edit target this command mutates (e.g. one rectangle's props,
+        /// one frame's offset). When two commands run back-to-back through
+        /// <see cref="IUndoManager.Execute"/> share the same non-null group and coalescing hasn't
+        /// been sealed since (see <see cref="IUndoManager.SealCoalescing"/>), they merge into a
+        /// single undo entry instead of stacking one entry per call — e.g. every keystroke or
+        /// mouse-wheel tick while editing one NumericUpDown collapses to one entry, sealed on
+        /// focus loss. Null (the default) never coalesces.
+        /// </summary>
+        string? CoalesceGroup => null;
+
+        /// <summary>
+        /// Called on the command that was just executed (<c>this</c>, already applied via
+        /// <see cref="Do"/>) when it shares <see cref="CoalesceGroup"/> with the command still on
+        /// top of the undo stack (<paramref name="previous"/>). Returns the single command that
+        /// should replace both on the stack — typically <paramref name="previous"/>'s original
+        /// "before" state combined with this command's already-applied "after" state, so undoing
+        /// the merged entry restores the value from before the whole coalesced edit, not just the
+        /// last increment. Only called when <see cref="CoalesceGroup"/> is non-null.
+        /// </summary>
+        IUndoableCommand CoalesceWith(IUndoableCommand previous) => this;
     }
 }

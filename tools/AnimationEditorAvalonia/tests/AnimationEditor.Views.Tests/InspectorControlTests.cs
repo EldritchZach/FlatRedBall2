@@ -6,6 +6,8 @@ using AnimationEditor.Core.IO;
 using AnimationEditor.Views.Controls;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using FlatRedBall2.Animation;
 using FlatRedBall2.Animation.Content;
 using System;
@@ -430,5 +432,65 @@ public class InspectorControlTests
         Assert.Equal(200f, rectB.Y);
         Assert.Equal(30f, rectB.ScaleX);
         Assert.Equal(40f, rectB.ScaleY);
+    }
+
+    // #897: consecutive ValueChanged commits to the same field (one per keystroke/wheel-tick) must
+    // coalesce into a single undo entry, sealed on LostFocus -- exercised through the real wiring
+    // EnableEditing installs, not by calling CommitRectProps/SealPendingEdits directly.
+
+    private static (InspectorControl Control, AARectSave Rect, UndoManager Undo) BuildWithEditableRectAndUndoManager()
+    {
+        var frame = new AnimationFrameSave { TextureName = "a.png", ShapesSave = new ShapesSave() };
+        var rect = new AARectSave { Name = "Hitbox", X = 0f, Y = 0f, ScaleX = 1f, ScaleY = 1f };
+        frame.ShapesSave!.Shapes.Add(rect);
+        var chain = new AnimationChainSave { Name = "Walk" };
+        chain.Frames.Add(frame);
+        var acls = new AnimationChainListSave();
+        acls.AnimationChains.Add(chain);
+
+        var pm = new FakeProjectManager { AnimationChainListSave = acls };
+        var state = new SelectedState(pm);
+        var events = new ApplicationEvents();
+        var appState = new AppState(events, state);
+        var ioManager = new IoManager(appState);
+        var objectFinder = new ObjectFinder(pm);
+        var undoManager = new UndoManager();
+        var appCommands = new AppCommands(pm, state, events, ioManager, objectFinder, undoManager);
+
+        var control = new InspectorControl();
+        control.InitializeServices(state);
+        control.EnableEditing(appCommands);
+        state.SelectedFrame = frame;
+        state.SelectedRectangle = rect;
+
+        return (control, rect, undoManager);
+    }
+
+    [AvaloniaFact]
+    public void RectXInput_ValueChangedTwice_CoalescesIntoSingleUndoEntry()
+    {
+        var (control, rect, undo) = BuildWithEditableRectAndUndoManager();
+
+        control.RectXInput.Value = 3m;  // simulates typing "3"
+        control.RectXInput.Value = 32m; // simulates typing "32"
+
+        Assert.Equal(32f, rect.X);
+        Assert.Single(undo.UndoHistory);
+
+        undo.Undo();
+
+        Assert.Equal(0f, rect.X); // restores the value from before the whole typed edit
+    }
+
+    [AvaloniaFact]
+    public void RectXInput_LostFocusBetweenEdits_SealsPendingEditIntoSeparateUndoEntries()
+    {
+        var (control, _, undo) = BuildWithEditableRectAndUndoManager();
+
+        control.RectXInput.Value = 3m;
+        control.RectXInput.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
+        control.RectXInput.Value = 32m;
+
+        Assert.Equal(2, undo.UndoHistory.Count);
     }
 }

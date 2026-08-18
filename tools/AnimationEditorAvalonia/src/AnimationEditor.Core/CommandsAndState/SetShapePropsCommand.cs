@@ -1,4 +1,5 @@
 using FlatRedBall2.Animation.Content;
+using System.Runtime.CompilerServices;
 
 namespace AnimationEditor.Core.CommandsAndState.Commands;
 
@@ -13,6 +14,14 @@ internal sealed class SetShapePropsCommand : IUndoableCommand
     private readonly IApplicationEvents _events;
 
     public string Description { get; }
+
+    /// <summary>
+    /// Keyed on the edited shape's own identity, so consecutive edits to the same rect/circle
+    /// (e.g. one call per keystroke while typing in the X field) coalesce into a single undo entry
+    /// -- see <see cref="IUndoableCommand.CoalesceGroup"/>. Edits to a different shape never share
+    /// a key, since <see cref="RuntimeHelpers.GetHashCode"/> is per-instance.
+    /// </summary>
+    public string? CoalesceGroup { get; }
 
     public static SetShapePropsCommand ForRect(
         AnimationFrameSave? frame, AARectSave rect,
@@ -48,6 +57,7 @@ internal sealed class SetShapePropsCommand : IUndoableCommand
         _newX = newX; _newY = newY; _newP1 = newP1; _newP2 = newP2;
         _commands = commands; _events = events;
         Description = description;
+        CoalesceGroup = $"ShapeProps:{RuntimeHelpers.GetHashCode(shape)}";
     }
 
     public bool Do()
@@ -60,6 +70,21 @@ internal sealed class SetShapePropsCommand : IUndoableCommand
 
     public void Undo() => Apply(_oldName, _oldX, _oldY, _oldP1, _oldP2);
     public void Redo() => Apply(_newName, _newX, _newY, _newP1, _newP2);
+
+    /// <summary>
+    /// Combines <paramref name="previous"/>'s original "before" state with this command's
+    /// already-applied "after" state, so undoing the merged entry restores the value from before
+    /// the whole coalesced edit (see <see cref="IUndoableCommand.CoalesceWith"/>).
+    /// </summary>
+    public IUndoableCommand CoalesceWith(IUndoableCommand previous)
+    {
+        var p = (SetShapePropsCommand)previous;
+        return new SetShapePropsCommand(
+            _frame, _shape, p._oldName, _newName,
+            p._oldX, p._oldY, p._oldP1, p._oldP2,
+            _newX, _newY, _newP1, _newP2,
+            _commands, _events, Description);
+    }
 
     private void Apply(string name, float x, float y, float p1, float p2)
     {

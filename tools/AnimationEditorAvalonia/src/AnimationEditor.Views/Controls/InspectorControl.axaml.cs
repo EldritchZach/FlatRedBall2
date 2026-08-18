@@ -18,8 +18,7 @@ namespace AnimationEditor.Views.Controls;
 /// clicked; see docs/BROWSER_TREE_INSPECTOR_DECISION.md.
 /// <para>
 /// Phase 2 (#610) made the rectangle/circle panels editable, routed through
-/// <see cref="IAppCommands.SetRectProps"/>/<see cref="IAppCommands.SetCircleProps"/> -- the same
-/// commit-boundary pattern (Enter + LostFocus) MainWindow's own PropRect*/PropCircle* fields use.
+/// <see cref="IAppCommands.SetRectProps"/>/<see cref="IAppCommands.SetCircleProps"/>.
 /// Frame fields (pixel region, length, relative offset, flip, color channels/mode) are editable
 /// when <see cref="EnableEditing"/> is given a texture-size resolver; texture name stays
 /// read-only (texture picker deferred).
@@ -50,8 +49,12 @@ public partial class InspectorControl : UserControl
     /// <summary>
     /// Enables editing Rectangle/Circle panels and (when <paramref name="resolveTextureSize"/> is
     /// supplied) Frame pixel/timing/transform fields. Numeric fields commit on <c>ValueChanged</c>
-    /// (matching MainWindow) rather than <c>LostFocus</c> -- a NumericUpDown's spin buttons never
-    /// cause the control itself to lose focus.
+    /// (not <c>LostFocus</c> -- a NumericUpDown's spin buttons never cause the control itself to
+    /// lose focus), so the visual updates live as the user types or scrolls the wheel. Each
+    /// underlying <c>IAppCommands.Set*</c> call coalesces with the previous one for the same field
+    /// group (see <see cref="IUndoableCommand.CoalesceGroup"/>), so a whole typed value collapses
+    /// into a single undo entry; <c>LostFocus</c> calls <see cref="IAppCommands.SealPendingEdits"/>
+    /// to close that entry once editing moves elsewhere (#897).
     /// </summary>
     public void EnableEditing(
         IAppCommands appCommands,
@@ -66,12 +69,14 @@ public partial class InspectorControl : UserControl
         RectScaleXInput.ValueChanged += (_, _) => CommitRectProps();
         RectScaleYInput.ValueChanged += (_, _) => CommitRectProps();
         RectNameBox.KeyDown += CommitOnEnter(CommitRectProps);
+        SealOnLostFocus(RectXInput, RectYInput, RectScaleXInput, RectScaleYInput);
 
         CircleNameBox.LostFocus += (_, _) => CommitCircleProps();
         CircleXInput.ValueChanged += (_, _) => CommitCircleProps();
         CircleYInput.ValueChanged += (_, _) => CommitCircleProps();
         CircleRadiusInput.ValueChanged += (_, _) => CommitCircleProps();
         CircleNameBox.KeyDown += CommitOnEnter(CommitCircleProps);
+        SealOnLostFocus(CircleXInput, CircleYInput, CircleRadiusInput);
 
         FramePixelXInput.ValueChanged += (_, _) => CommitFramePixelRegion();
         FramePixelYInput.ValueChanged += (_, _) => CommitFramePixelRegion();
@@ -83,12 +88,26 @@ public partial class InspectorControl : UserControl
         FrameFlipHToggle.IsCheckedChanged += (_, _) => CommitFrameFlip();
         FrameFlipVToggle.IsCheckedChanged += (_, _) => CommitFrameFlip();
         FrameFlipDToggle.IsCheckedChanged += (_, _) => CommitFrameFlip();
+        SealOnLostFocus(FramePixelXInput, FramePixelYInput, FramePixelWInput, FramePixelHInput,
+            FrameLengthInput, FrameRelXInput, FrameRelYInput);
 
         FrameRedInput.ValueChanged += (_, _) => CommitFrameColor();
         FrameGreenInput.ValueChanged += (_, _) => CommitFrameColor();
         FrameBlueInput.ValueChanged += (_, _) => CommitFrameColor();
         FrameAlphaInput.ValueChanged += (_, _) => CommitFrameAlpha();
         FrameColorModeCombo.SelectionChanged += (_, _) => CommitFrameColorOperation();
+        SealOnLostFocus(FrameRedInput, FrameGreenInput, FrameBlueInput, FrameAlphaInput);
+    }
+
+    /// <summary>
+    /// Ends the undo-coalescing window (see <see cref="IAppCommands.SealPendingEdits"/>) when any
+    /// of <paramref name="inputs"/> loses focus, so the next edit to that field starts a fresh
+    /// undo entry instead of merging into the one just closed (#897).
+    /// </summary>
+    private void SealOnLostFocus(params NumericUpDown[] inputs)
+    {
+        foreach (var input in inputs)
+            input.LostFocus += (_, _) => _appCommands?.SealPendingEdits();
     }
 
     private static EventHandler<KeyEventArgs> CommitOnEnter(Action commit) => (_, e) =>
@@ -227,10 +246,13 @@ public partial class InspectorControl : UserControl
     /// this, setting RectXInput.Value below would fire ValueChanged -> CommitRectProps immediately,
     /// which reads the *other* Rect fields' still-stale values (the previous selection's) since
     /// they haven't been set yet in this same pass -- corrupting the newly selected shape with a
-    /// mix of its own and the old selection's values.
+    /// mix of its own and the old selection's values. Also seals any still-open coalescing window
+    /// (#897) so a field edited just before the selection changed doesn't later merge with an edit
+    /// to the newly selected item's same-named field.
     /// </summary>
     private void Refresh()
     {
+        _appCommands?.SealPendingEdits();
         _suppressCommit = true;
         try
         {

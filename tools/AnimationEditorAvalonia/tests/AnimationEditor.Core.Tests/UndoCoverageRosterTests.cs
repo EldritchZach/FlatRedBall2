@@ -118,6 +118,7 @@ public class UndoCoverageRosterTests
         [nameof(IAppCommands.SetCircleProps)]               = Category.MutatingUndoable,
         [nameof(IAppCommands.SetRectPropsBulk)]             = Category.MutatingUndoable,
         [nameof(IAppCommands.SetCirclePropsBulk)]           = Category.MutatingUndoable,
+        [nameof(IAppCommands.SealPendingEdits)]             = Category.NonMutating, // resets undo-coalescing state only
         [nameof(IAppCommands.HasSameFrameNameCollision)]    = Category.NonMutating,
         [nameof(IAppCommands.PasteChains)]                  = Category.MutatingUndoable,
         [nameof(IAppCommands.PasteFrames)]                  = Category.MutatingUndoable,

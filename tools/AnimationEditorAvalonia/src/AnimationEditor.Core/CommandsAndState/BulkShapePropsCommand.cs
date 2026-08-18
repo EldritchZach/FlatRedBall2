@@ -2,6 +2,7 @@ using FlatRedBall2.Animation.Content;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace AnimationEditor.Core.CommandsAndState.Commands
 {
@@ -50,10 +51,28 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
 
         public string Description { get; }
 
+        /// <summary>
+        /// Keyed on the edited shapes' own identities, so consecutive edits to the same
+        /// selection (e.g. one call per keystroke while typing in the multi-select X field)
+        /// coalesce into a single undo entry -- see <see cref="IUndoableCommand.CoalesceGroup"/>.
+        /// </summary>
+        public string? CoalesceGroup { get; }
+
         public BulkShapePropsCommand(
             IReadOnlyList<object> shapes, Action mutate,
             IAppCommands commands, IApplicationEvents events, IObjectFinder objectFinder,
             string description)
+            : this(shapes, mutate, commands, events, objectFinder, description,
+                  $"BulkShapeProps:{string.Join(",", shapes.Select(RuntimeHelpers.GetHashCode).OrderBy(h => h))}",
+                  [], [])
+        {
+        }
+
+        private BulkShapePropsCommand(
+            IReadOnlyList<object> shapes, Action mutate,
+            IAppCommands commands, IApplicationEvents events, IObjectFinder objectFinder,
+            string description, string? coalesceGroup,
+            ShapeFieldSnapshot[] before, ShapeFieldSnapshot[] after)
         {
             _shapes = shapes;
             _mutate = mutate;
@@ -61,6 +80,9 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             _events = events;
             _objectFinder = objectFinder;
             Description = description;
+            CoalesceGroup = coalesceGroup;
+            _before = before;
+            _after = after;
         }
 
         public bool Do()
@@ -77,6 +99,18 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
 
         public void Undo() => Apply(_before);
         public void Redo() => Apply(_after);
+
+        /// <summary>
+        /// Combines <paramref name="previous"/>'s original "before" snapshot with this command's
+        /// already-captured "after" snapshot (see <see cref="IUndoableCommand.CoalesceWith"/>).
+        /// </summary>
+        public IUndoableCommand CoalesceWith(IUndoableCommand previous)
+        {
+            var p = (BulkShapePropsCommand)previous;
+            return new BulkShapePropsCommand(
+                _shapes, _mutate, _commands, _events, _objectFinder,
+                Description, CoalesceGroup, p._before, _after);
+        }
 
         private void Apply(ShapeFieldSnapshot[] snapshots)
         {

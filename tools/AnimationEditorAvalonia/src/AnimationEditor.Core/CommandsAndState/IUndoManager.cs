@@ -42,6 +42,15 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
         void Execute(IUndoableCommand cmd);
 
         /// <summary>
+        /// Ends the current coalescing window (see <see cref="IUndoableCommand.CoalesceGroup"/>) so
+        /// the next <see cref="Execute"/> call starts a new undo entry instead of merging into the
+        /// last one, even if its <see cref="IUndoableCommand.CoalesceGroup"/> matches. Call this
+        /// when an edit session ends — e.g. a NumericUpDown loses focus — so a later, unrelated
+        /// edit to the same field doesn't silently fold into the earlier undo entry.
+        /// </summary>
+        void SealCoalescing();
+
+        /// <summary>
         /// Records an <em>already-applied</em> command in the undo history and clears the
         /// redo stack. Reserved for interactive-gesture commands (shape drag/resize, region
         /// drag) whose mutation is applied incrementally during the gesture and committed on
