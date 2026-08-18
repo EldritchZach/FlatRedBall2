@@ -900,13 +900,15 @@ public class GridRenderTests
     }
 
     /// <summary>
-    /// Issue #538: grid double-click relocates the frame's origin to the clicked
-    /// grid cell but must preserve its existing size. A 4×4 frame double-clicked at
-    /// screen (20,20) with cellSize=16 snaps its origin to (16,16) and stays 4×4 →
-    /// bounds (16,16,20,20), never (16,16,32,32).
+    /// Issue #895: grid double-click resizes the selected frame to fill the clicked
+    /// grid cell, not just reposition it. A 4×4 frame double-clicked at screen
+    /// (20,20) with cellSize=16 snaps to the cell (16,16,32,32), not (16,16,20,20).
+    /// (This restores #363's original intent; #538's PR briefly made double-click
+    /// preserve size too, but that was a collateral side effect of fixing an
+    /// unrelated display-snap-on-refresh bug, not a deliberate call — see #895.)
     /// </summary>
     [AvaloniaFact]
-    public void GridSnapDoubleClick_SmallFrame_SnapsOriginAndPreservesSize()
+    public void GridSnapDoubleClick_SmallFrame_ResizesToGridCell()
     {
         var ctx = ResetSingletons();
         // 4×4 frame at pixel (5,5).
@@ -917,21 +919,21 @@ public class GridRenderTests
 
             ctrl.SimulateGridSnapDoubleClick(20f, 20f);
 
-            // Origin snaps to (16,16); size stays 4×4 → (16,16,20,20) on 64×64.
+            // Frame becomes the full clicked cell (16,16,32,32) on 64×64.
             Assert.Equal(16f / 64f, frame.LeftCoordinate,   precision: 5);
             Assert.Equal(16f / 64f, frame.TopCoordinate,    precision: 5);
-            Assert.Equal(20f / 64f, frame.RightCoordinate,  precision: 5);
-            Assert.Equal(20f / 64f, frame.BottomCoordinate, precision: 5);
+            Assert.Equal(32f / 64f, frame.RightCoordinate,  precision: 5);
+            Assert.Equal(32f / 64f, frame.BottomCoordinate, precision: 5);
         }
         finally { System.IO.Directory.Delete(dir, true); }
     }
 
     /// <summary>
-    /// Verifies the grid-snap math preserves size at the top-left cell: a 4×4 frame
-    /// double-clicked at (5,5) snaps its origin to (0,0) and stays 4×4 → (0,0,4,4).
+    /// Verifies the grid-snap math at the top-left cell: a 4×4 frame double-clicked
+    /// at (5,5) with cellSize=16 becomes the full cell (0,0,16,16).
     /// </summary>
     [AvaloniaFact]
-    public void GridSnapDoubleClick_SnapsOriginToGridCell_PreservesSize()
+    public void GridSnapDoubleClick_SnapsToGridCell_ResizesToCell()
     {
         var ctx = ResetSingletons();
         // 4×4 frame at pixel (13,23) — deliberately off-grid.
@@ -942,11 +944,37 @@ public class GridRenderTests
 
             ctrl.SimulateGridSnapDoubleClick(5f, 5f);
 
-            // (5,5) snaps origin to (0,0); size stays 4×4 → (0,0,4,4) on 64×64.
-            Assert.Equal(0f,       frame.LeftCoordinate,   precision: 5);
-            Assert.Equal(0f,       frame.TopCoordinate,    precision: 5);
-            Assert.Equal(4f / 64f, frame.RightCoordinate,  precision: 5);
-            Assert.Equal(4f / 64f, frame.BottomCoordinate, precision: 5);
+            // (5,5) snaps to the top-left cell (0,0,16,16) on 64×64.
+            Assert.Equal(0f,        frame.LeftCoordinate,   precision: 5);
+            Assert.Equal(0f,        frame.TopCoordinate,    precision: 5);
+            Assert.Equal(16f / 64f, frame.RightCoordinate,  precision: 5);
+            Assert.Equal(16f / 64f, frame.BottomCoordinate, precision: 5);
+        }
+        finally { System.IO.Directory.Delete(dir, true); }
+    }
+
+    /// <summary>
+    /// Issue #895's motivating case: dragging a PNG onto an animation creates a new
+    /// frame sized to the *entire* image (see <c>FrameCreatedFromRegion</c> at full
+    /// texture bounds). Double-clicking a grid cell must shrink that oversized frame
+    /// down to the cell — not just relocate its origin and leave it full-sheet-sized.
+    /// </summary>
+    [AvaloniaFact]
+    public void GridSnapDoubleClick_FullSheetFrame_ShrinksToClickedCell()
+    {
+        var ctx = ResetSingletons();
+        // Frame covers the entire 64×64 sheet, as a fresh PNG drop would produce.
+        var (ctrl, frame, dir) = BuildCtrlWithFrame(ctx, frameX: 0, frameY: 0, frameW: 64, frameH: 64);
+        try
+        {
+            ctrl.SetGrid(true, 16);
+
+            ctrl.SimulateGridSnapDoubleClick(20f, 20f);
+
+            Assert.Equal(16f / 64f, frame.LeftCoordinate,   precision: 5);
+            Assert.Equal(16f / 64f, frame.TopCoordinate,    precision: 5);
+            Assert.Equal(32f / 64f, frame.RightCoordinate,  precision: 5);
+            Assert.Equal(32f / 64f, frame.BottomCoordinate, precision: 5);
         }
         finally { System.IO.Directory.Delete(dir, true); }
     }
@@ -995,9 +1023,9 @@ public class GridRenderTests
     }
 
     /// <summary>
-    /// Grid click-to-place (single click or double-click, both routed through
-    /// <c>SnapSelectedFrameToGridCell</c> / <c>ApplyRegionToSelectedFrame</c>) must
-    /// push an undo entry when it actually repositions the selected frame — just
+    /// Grid double-click (routed through <c>SnapSelectedFrameToGridCell</c> /
+    /// <c>ApplyRegionToSelectedFrame</c>) must push an undo entry when it actually
+    /// changes the selected frame's bounds — just
     /// like a handle drag does via <c>FrameRegionChangedCommand</c>. Silently
     /// repositioning a frame with no way to undo it is the reported bug.
     /// </summary>
@@ -1049,23 +1077,25 @@ public class GridRenderTests
     }
 
     /// <summary>
-    /// Grid click-to-place at a position that does not actually move the frame
-    /// (already aligned) must not record a no-op undo entry.
+    /// Grid click-to-place at a position that does not actually change the frame
+    /// (already exactly the clicked cell — both position and size) must not record
+    /// a no-op undo entry. A frame smaller than the cell is NOT a no-op even at the
+    /// same origin, since it still gets resized up to fill the cell (#895).
     /// </summary>
     [AvaloniaFact]
-    public void GridSnapDoubleClick_NoActualMovement_DoesNotRecordUndo()
+    public void GridSnapDoubleClick_NoActualChange_DoesNotRecordUndo()
     {
         var ctx = ResetSingletons();
-        // Frame already at the grid-aligned origin (0,0) with cellSize=16.
-        var (ctrl, frame, dir) = BuildCtrlWithFrame(ctx, frameX: 0, frameY: 0, frameW: 4, frameH: 4);
+        // Frame already exactly the top-left cell (0,0,16,16) with cellSize=16.
+        var (ctrl, frame, dir) = BuildCtrlWithFrame(ctx, frameX: 0, frameY: 0, frameW: 16, frameH: 16);
         try
         {
             ctrl.SetGrid(true, 16);
 
-            ctrl.SimulateGridSnapDoubleClick(5f, 5f);   // snaps to (0,0) — same as current origin
+            ctrl.SimulateGridSnapDoubleClick(5f, 5f);   // snaps to (0,0,16,16) — already there
 
             Assert.False(ctx.UndoManager.CanUndo,
-                "Clicking a cell that doesn't change the frame's position must not record undo.");
+                "Clicking a cell that doesn't change the frame's bounds must not record undo.");
         }
         finally { System.IO.Directory.Delete(dir, true); }
     }
