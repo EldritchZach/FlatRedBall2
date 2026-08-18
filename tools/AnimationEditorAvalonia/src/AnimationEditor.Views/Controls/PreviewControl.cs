@@ -150,6 +150,17 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     private float      _shapeDragStartScaleX;  // rect ScaleX or circle Radius at drag start
     private float      _shapeDragStartScaleY;  // rect ScaleY at drag start (0 for circle)
 
+    // -- Frame (sprite position) drag -------------------------------------------
+    // Repositions AnimationFrameSave.RelativeX/Y by dragging the rendered sprite. Only
+    // active when exactly one frame is selected (SelectedFrame set, SelectedFrames.Count
+    // <= 1) and the pointer-down lands on that frame's rendered sprite footprint — checked
+    // last in OnPointerPressed's fallback chain, after guides and shapes, so it never
+    // steals a click meant for shape selection/drag.
+    private AnimationFrameSave? _draggingFrame;
+    private float _frameDragStartX;
+    private float _frameDragStartY;
+    private Point _frameDragAnchor;
+
     // -- Public properties -----------------------------------------------------
 
     public bool ShowOnionSkin
@@ -184,6 +195,13 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         get => _showBoundingBox;
         set { _showBoundingBox = value; InvalidateVisual(); }
     }
+
+    /// <summary>
+    /// Fires on every pointer-move frame during a frame-offset drag (see <see cref="HitTestFrameSprite"/>) —
+    /// no save, just a live refresh — mirroring <see cref="AnimationEditor.App.Controls.WireframeControl.FrameLiveUpdated"/>
+    /// so the property panel tracks the drag instead of only updating on release.
+    /// </summary>
+    public event Action<AnimationFrameSave>? FrameLiveUpdated;
 
     /// <summary>Fires whenever a guide is added, removed, or bulk-replaced via <see cref="SetGuides"/>.</summary>
     public event Action? GuidesChanged;
@@ -870,6 +888,26 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
         CommitShapeResize();
     }
+
+    /// <summary>
+    /// Test-only: applies a world-space drag delta to the currently selected frame's
+    /// <see cref="AnimationFrameSave.RelativeX"/>/<see cref="AnimationFrameSave.RelativeY"/> and
+    /// commits. Bypasses coordinate conversion, so results are independent of zoom/pan/
+    /// OffsetMultiplier. No-op unless exactly one frame is selected, mirroring the gate
+    /// <see cref="OnPointerPressed"/> applies before starting a live frame drag.
+    /// </summary>
+    internal void SimulateFrameDrag(float worldDx, float worldDy)
+    {
+        var frame = _selectedState!.SelectedFrame;
+        if (frame is null || _selectedState!.SelectedFrames.Count > 1) return;
+
+        _draggingFrame   = frame;
+        _frameDragStartX = frame.RelativeX;
+        _frameDragStartY = frame.RelativeY;
+        frame.RelativeX  = SnapToPixel(frame.RelativeX + worldDx);
+        frame.RelativeY  = SnapToPixel(frame.RelativeY + worldDy);
+        CommitFrameDrag();
+    }
     /// control-space point and runs the resulting smooth-zoom animation to completion
     /// synchronously, so the camera lands on its settled state. Mirrors
     /// <see cref="OnPointerWheelChanged"/>. Use <see cref="SimulateWheelZoomBegin"/> instead to
@@ -1215,6 +1253,11 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
                 : StandardCursorType.SizeAll);
             return;
         }
+        if (_draggingFrame is not null)
+        {
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            return;
+        }
         var handle = HitTestShapeHandle((float)pos.X, (float)pos.Y);
         if (handle != HandleKind.None)
         {
@@ -1225,6 +1268,8 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             ? (_draggingHGuide ? StandardCursorType.SizeNorthSouth : StandardCursorType.SizeWestEast)
             : GetGuideCursorAt((float)pos.X, (float)pos.Y);
         if (cursorType is null && HitTestShape((float)pos.X, (float)pos.Y) is not null)
+            cursorType = StandardCursorType.SizeAll;
+        if (cursorType is null && HitTestFrameSprite((float)pos.X, (float)pos.Y))
             cursorType = StandardCursorType.SizeAll;
         Cursor = cursorType is null ? Cursor.Default : new Cursor(cursorType.Value);
     }
@@ -1437,6 +1482,30 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     }
 
     /// <summary>
+    /// Finalises an in-progress frame-offset drag: records an undo command (unless the delta is
+    /// negligible), fires <see cref="ApplicationEvents.RaiseAnimationChainsChanged"/>, and saves.
+    /// </summary>
+    private void CommitFrameDrag()
+    {
+        if (_draggingFrame is null) return;
+
+        float newX = _draggingFrame.RelativeX;
+        float newY = _draggingFrame.RelativeY;
+
+        const float eps = 1e-4f;
+        if (MathF.Abs(newX - _frameDragStartX) > eps || MathF.Abs(newY - _frameDragStartY) > eps)
+        {
+            _undoManager!.Record(new MoveFrameOffsetCommand(
+                _draggingFrame, _frameDragStartX, _frameDragStartY, newX, newY,
+                _appCommands!, _events!));
+            _events!.RaiseAnimationChainsChanged();
+            _appCommands!.SaveCurrentAnimationChainList();
+        }
+
+        _draggingFrame = null;
+    }
+
+    /// <summary>
     /// Returns the resize <see cref="HandleKind"/> under the cursor for the currently selected
     /// shape, or <see cref="HandleKind.None"/> if no resize handle is hit.
     /// Handles are positioned outside the bounding box by <c>Hs</c> pixels.
@@ -1643,6 +1712,34 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         return false;
     }
 
+    /// <summary>
+    /// Returns <c>true</c> if (<paramref name="px"/>, <paramref name="py"/>) lands on the rendered
+    /// footprint of the single selected frame's sprite, in screen space. Gates the frame-offset
+    /// drag fallback in <see cref="OnPointerPressed"/>: only active with exactly one frame
+    /// selected and only once the frame's texture is already decoded (mirrors
+    /// <see cref="ComputeContentExtentScreenPx"/>'s own frame-footprint math).
+    /// </summary>
+    private bool HitTestFrameSprite(float px, float py)
+    {
+        var frame = _selectedState!.SelectedFrame;
+        if (frame is null || _selectedState!.SelectedFrames.Count > 1) return false;
+        if (px < RulerSize || py < RulerSize) return false;
+
+        string? texPath = _thumbnailService!.ResolveTexturePath(frame);
+        if (texPath is null ||
+            !_thumbnailService.BitmapCache.TryGetValue(texPath, out var bm) || bm is null)
+            return false;
+
+        var (_, _, sw, sh) = ComputeSourceRect(frame, bm.Width, bm.Height);
+        float om = _appState!.OffsetMultiplier * _zoom;
+        float sx = GetCenterX() + frame.RelativeX * om;
+        float sy = GetCenterY() - frame.RelativeY * om;
+        float halfW = sw * _zoom / 2f;
+        float halfH = sh * _zoom / 2f;
+
+        return px >= sx - halfW && px <= sx + halfW && py >= sy - halfH && py <= sy + halfH;
+    }
+
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
@@ -1779,7 +1876,18 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         }
 
         // No shape hit — try to select a collision shape.
-        TrySelectShapeAt(px, py);
+        if (TrySelectShapeAt(px, py)) return;
+
+        // Nothing above matched — try to drag the single selected frame's sprite.
+        if (HitTestFrameSprite(px, py))
+        {
+            var frame = _selectedState!.SelectedFrame!;
+            _draggingFrame   = frame;
+            _frameDragAnchor = pos;
+            _frameDragStartX = frame.RelativeX;
+            _frameDragStartY = frame.RelativeY;
+            e.Pointer.Capture(this);
+        }
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -1816,6 +1924,18 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             if (_draggingShape is AARectSave r) { r.X = newX; r.Y = newY; }
             else if (_draggingShape is CircleSave c)          { c.X = newX; c.Y = newY; }
             InvalidateVisual();
+            return;
+        }
+
+        if (_draggingFrame is not null)
+        {
+            float om = _appState!.OffsetMultiplier * _zoom;
+            float dx = (float)(pos.X - _frameDragAnchor.X) / om;
+            float dy = -(float)(pos.Y - _frameDragAnchor.Y) / om;
+            _draggingFrame.RelativeX = SnapToPixel(_frameDragStartX + dx);
+            _draggingFrame.RelativeY = SnapToPixel(_frameDragStartY + dy);
+            InvalidateVisual();
+            FrameLiveUpdated?.Invoke(_draggingFrame);
             return;
         }
 
@@ -1856,6 +1976,13 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         if (_draggingShape is not null)
         {
             CommitShapeDrag();
+            e.Pointer.Capture(null);
+            return;
+        }
+
+        if (_draggingFrame is not null)
+        {
+            CommitFrameDrag();
             e.Pointer.Capture(null);
             return;
         }
