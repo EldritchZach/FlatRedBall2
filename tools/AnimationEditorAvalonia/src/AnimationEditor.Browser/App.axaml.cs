@@ -1492,8 +1492,7 @@ public partial class App : Application
         // see docs/BROWSER_MENU_BAR_DECISION.md. No window controls (minimize/maximize/close) --
         // the browser tab already has real OS chrome for those.
         int untitledCounter = 0;
-        var menuNew = new MenuItem { Header = "_New" };
-        menuNew.Click += (_, _) =>
+        void NewAnimation()
         {
             var leaving = tabManager.ActiveTab;
             if (leaving != null)
@@ -1510,7 +1509,11 @@ public partial class App : Application
             animationTree.InitializeServices(selectedState, projectManager.AnimationChainListSave);
             textureListPanel.SetAnimationChainList(projectManager.AnimationChainListSave);
             RebuildTabStrip();
-        };
+        }
+        var menuNew = new MenuItem { Header = "_New Animation" };
+        menuNew.Click += (_, _) => NewAnimation();
+        // Right-clicking blank space in the Project tree offers "New Animation" too (#908).
+        projectPanel.NewAnimationRequested += NewAnimation;
         var menuLoad = new MenuItem { Header = "Open _Project Folder…" };
         menuLoad.Click += (_, _) => openButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var menuSave = new MenuItem { Header = "_Save" };
