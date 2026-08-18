@@ -630,64 +630,48 @@ public partial class MainWindow : Window
         AchxEditorPane.IsVisible = true;
     }
 
-    // Sidebar state saved when collapsing for a PNG tab, so restoring preserves the user's splitter
-    // position rather than snapping back to the XAML default ("2*,4,3*").
     private bool _sidebarCollapsedForPng;
-    private GridLength _savedTreeRowHeight = new(2, GridUnitType.Star);
-    private GridLength _savedSplitterRowHeight = new(4, GridUnitType.Pixel);
-    // Tool tab selected before Diff was forced for a PNG preview (#686) — restored when returning to achx.
+    // Bottom tab strip's selection just before it was forced away from a now-hidden tab
+    // (Inspector/History) during a PNG preview (#686) — restored when returning to the achx editor.
+    // Null whenever the bottom strip was never touched (the common case, #877).
     private TabItem? _sidebarTabBeforePng;
 
     /// <summary>
-    /// Collapses the animation-editing sidebar surfaces for a read-only PNG-preview tab (issue #604)
-    /// and restores them for the achx editor. A PNG has no animations, no editable frame/shape
-    /// properties, and no undo history, so the ANIMATIONS tree and the Inspector and History tabs
-    /// are hidden. Files/Textures stays visible (#875 follow-up): its Project scope browses PNGs
-    /// under the open project folder independent of any open tab, so it's still useful during a
-    /// PNG preview — hiding it made "double-click a PNG while on the Textures tab" appear to break
-    /// PNG browsing entirely. Diff (#606) becomes the selected tab unless Files was already selected.
+    /// Swaps <c>TopPane</c>'s content between the ANIMATIONS tree and the Diff/blame pane for a
+    /// read-only PNG-preview tab (issue #604), and restores it for the achx editor. Both panes fill
+    /// the same cell (#877) — the row's size never changes, only which one is visible — so resizing
+    /// the sidebar splitter behaves identically in either mode. A PNG has no editable frame/shape
+    /// properties or undo history, so Inspector and History hide too; Files/Textures stays visible (#875 follow-up)
+    /// since its Project scope browses PNGs independent of any open tab. The bottom tab strip's
+    /// selection is otherwise left alone — Diff no longer lives down there, so there's nothing to
+    /// force it to unless the previously-selected tab was Inspector or History and just got hidden.
     /// </summary>
     private void SetSidebarForPng(bool png)
     {
         if (png == _sidebarCollapsedForPng) return;
-        var rows = LeftPanelGrid.RowDefinitions;
         if (png)
         {
-            _savedTreeRowHeight = rows[0].Height;
-            _savedSplitterRowHeight = rows[1].Height;
-            rows[0].Height = new GridLength(0);
-            rows[1].Height = new GridLength(0);
             AnimationsBlock.IsVisible = false;
-            SidebarSplitter.IsVisible = false;
+            DiffBlamePane.IsVisible = true;
             InspectorTab.IsVisible = false;
             HistoryTab.IsVisible = false;
-            // Remember the achx tool tab so returning from Diff restores Files/History/etc. (#686).
-            var previouslySelected = SidebarTabs.SelectedItem as TabItem;
-            _sidebarTabBeforePng = previouslySelected;
-            DiffBlameTab.IsVisible = true;
-            // Files stays visible throughout, so only force the switch when it wasn't already the
-            // selected tab -- otherwise leave the user right where they were.
-            if (!ReferenceEquals(previouslySelected, FilesTab))
-                SidebarTabs.SelectedItem = DiffBlameTab;
+            if (SidebarTabs.SelectedItem is TabItem { IsVisible: false } hidden)
+            {
+                _sidebarTabBeforePng = hidden;
+                SidebarTabs.SelectedItem = FilesTab;
+            }
         }
         else
         {
-            rows[0].Height = _savedTreeRowHeight;
-            rows[1].Height = _savedSplitterRowHeight;
             AnimationsBlock.IsVisible = true;
-            SidebarSplitter.IsVisible = true;
+            DiffBlamePane.IsVisible = false;
             InspectorTab.IsVisible = true;
             HistoryTab.IsVisible = true;
-            FilesTab.IsVisible = true;
-            // Diff must not stay selected once hidden (#604). Prefer the tab that was active before
-            // the PNG forced Diff (#686); fall back to Inspector when that tab is gone or invalid.
-            var restore = _sidebarTabBeforePng;
-            SidebarTabs.SelectedItem =
-                restore is { IsVisible: true } && !ReferenceEquals(restore, DiffBlameTab)
-                    ? restore
-                    : InspectorTab;
-            DiffBlameTab.IsVisible = false;
-            _sidebarTabBeforePng = null;
+            if (_sidebarTabBeforePng is { } restore)
+            {
+                SidebarTabs.SelectedItem = restore;
+                _sidebarTabBeforePng = null;
+            }
         }
         _sidebarCollapsedForPng = png;
     }
