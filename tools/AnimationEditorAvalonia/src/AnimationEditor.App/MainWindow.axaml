@@ -883,14 +883,14 @@
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRelX" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Relative Y" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRelY" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                                     <ToggleButton x:Name="PropFlipH"
@@ -1036,28 +1036,28 @@
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRectX" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Y" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRectY" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Scale X" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRectScaleX" Grid.Column="1"
                                                                    Minimum="0.001" Maximum="10000"
-                                                                   Increment="0.5" FormatString="0.000" />
+                                                                   Increment="0.5" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Scale Y" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropRectScaleY" Grid.Column="1"
                                                                    Minimum="0.001" Maximum="10000"
-                                                                   Increment="0.5" FormatString="0.000" />
+                                                                   Increment="0.5" FormatString="0.###" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
@@ -1083,21 +1083,21 @@
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropCircleX" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Y" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropCircleY" Grid.Column="1"
                                                                    Minimum="-10000" Maximum="10000"
-                                                                   Increment="1" FormatString="0.000" />
+                                                                   Increment="1" FormatString="0.###" />
                                                 </Grid>
                                                 <Grid ColumnDefinitions="78,*">
                                                     <TextBlock Text="Radius" VerticalAlignment="Center"
                                                                Foreground="{DynamicResource InkMid}" FontSize="11" />
                                                     <NumericUpDown x:Name="PropCircleRadius" Grid.Column="1"
                                                                    Minimum="0.001" Maximum="10000"
-                                                                   Increment="0.5" FormatString="0.000" />
+                                                                   Increment="0.5" FormatString="0.###" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
