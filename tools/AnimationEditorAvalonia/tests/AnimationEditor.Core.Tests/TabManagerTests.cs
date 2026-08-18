@@ -119,6 +119,46 @@ public class TabManagerTests
         Assert.Equal("Untitled (1)", result);
     }
 
+    // ── NewUntitledSentinelPath / IsUntitledSentinel ───────────────────────────
+    // Moved here from MainWindow (#898) so TabController can generate sentinel paths for
+    // both hosts without duplicating the counter/prefix.
+
+    [Fact]
+    public void NewUntitledSentinelPath_FirstCall_ReturnsSentinelWithCounter1()
+    {
+        var tm = new TabManager();
+
+        var result = tm.NewUntitledSentinelPath();
+
+        Assert.Equal("__untitled__:1", result);
+    }
+
+    [Fact]
+    public void NewUntitledSentinelPath_SecondCall_IncrementsCounter()
+    {
+        var tm = new TabManager();
+        tm.NewUntitledSentinelPath();
+
+        var result = tm.NewUntitledSentinelPath();
+
+        Assert.Equal("__untitled__:2", result);
+    }
+
+    [Fact]
+    public void IsUntitledSentinel_SentinelPath_ReturnsTrue()
+    {
+        Assert.True(TabManager.IsUntitledSentinel("__untitled__:1"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(@"C:\Games\hero.achx")]
+    public void IsUntitledSentinel_NonSentinelPath_ReturnsFalse(string? path)
+    {
+        Assert.False(TabManager.IsUntitledSentinel(path));
+    }
+
 
     [Fact]
     public void OpenOrFocus_SecondFile_SetsSecondAsActive()

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using AnimationEditor.Core;
 using AnimationEditor.Core.CommandsAndState;
 using AnimationEditor.Core.IO;
+using AnimationEditor.Core.Models;
 using AnimationEditor.Core.ViewModels;
 using AnimationEditor.Views.Dialogs;
 using Avalonia.Controls;
@@ -41,6 +42,8 @@ public partial class AnimationTreeControl : UserControl
     private IEditorDialogHost? _dialogHost;
     private Func<AnimationFrameSave, float?>? _getTextureHeight;
     private Action<string>? _showStatus;
+    private TabController? _tabController;
+    private Action? _onTabsChanged;
     private bool _suppressTreeSelectionHandling;
 
     public AnimationTreeControl()
@@ -56,6 +59,18 @@ public partial class AnimationTreeControl : UserControl
     /// via <c>SetRectProps</c>/<c>SetCircleProps</c>).
     /// </summary>
     public void EnableRename(IAppCommands appCommands) => _appCommands = appCommands;
+
+    /// <summary>
+    /// Wires <see cref="TabController.EnsureCurrentDocumentHasTab"/> into the "Add Animation"
+    /// tree-menu action so a chain added while zero tabs are open (e.g. after loading an empty
+    /// project folder) still gets a visible tab (#898). <paramref name="onTabsChanged"/> is the
+    /// host's tab-strip rebuild -- this control has no tab-strip UI of its own to refresh.
+    /// </summary>
+    public void EnableAddAnimationTab(TabController tabController, Action onTabsChanged)
+    {
+        _tabController = tabController;
+        _onTabsChanged = onTabsChanged;
+    }
 
     /// <summary>
     /// Wires a right-click context menu built from <see cref="TreeMenuPlanBuilder"/> -- the same
@@ -634,6 +649,15 @@ public partial class AnimationTreeControl : UserControl
 
         var chain = _appCommands.AddNewAnimationChain();
         if (chain is null || _roots is null) return;
+
+        // #898: a project with zero open tabs would otherwise add this chain with no tab
+        // visible for it.
+        if (_tabController is not null)
+        {
+            _tabController.EnsureCurrentDocumentHasTab(_projectManager, TabActivation.Activate);
+            _onTabsChanged?.Invoke();
+        }
+
         TreeBuilder.FindNodeForData(_roots, chain)?.BeginEdit();
     }
 }
