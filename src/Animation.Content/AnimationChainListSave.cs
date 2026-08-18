@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -81,41 +81,73 @@ public class AnimationChainListSave
         => FromFile(path, File.OpenRead!);
 
     /// <summary>
-    /// Loads a .achx file via manual XML parsing (AOT-safe). Production code should prefer
-    /// <c>ContentLoader.LoadAnimationChainList(path)</c>, which routes the read through
-    /// the service's stream seam (TitleContainer on DesktopGL, HTTP fetch on Blazor). This
-    /// overload exists for tooling and tests that work without a <c>ContentLoader</c>.
+    /// Loads a .achx (XML) or .achj (JSON) file — dialect chosen by <paramref name="filePath"/>'s
+    /// extension, so callers don't need their own <c>.achj</c>-vs-<c>.achx</c> branch (#887).
+    /// Production code should prefer <c>ContentLoader.LoadAnimationChainList(path)</c>, which
+    /// routes the read through the service's stream seam (TitleContainer on DesktopGL, HTTP
+    /// fetch on Blazor). This overload exists for tooling and tests that work without a
+    /// <c>ContentLoader</c>.
     /// </summary>
-    /// <param name="filePath">Path to the .achx file, interpreted by <paramref name="streamProvider"/>.</param>
+    /// <param name="filePath">Path to the file, interpreted by <paramref name="streamProvider"/>.
+    /// A <c>.achj</c> extension (case-insensitive) selects the JSON parser; anything else parses as XML.</param>
     /// <param name="streamProvider">Byte source. Callers must supply one — there is no default — so this
     /// method has no IL-level reference to <c>TitleContainer</c> and tools that don't ship MonoGame.Framework
     /// (e.g. AnimationEditor on Avalonia) can call it without triggering an assembly load.</param>
     public static AnimationChainListSave FromFile(string filePath, Func<string, Stream> streamProvider)
     {
         using var stream = streamProvider(filePath);
-        var result = ParseXml(XDocument.Load(stream));
+        var result = IsJsonPath(filePath)
+            ? ParseJson(JsonNode.Parse(stream)!.AsObject())
+            : ParseXml(XDocument.Load(stream));
         result.FileName = filePath;
         return result;
     }
 
-    /// <summary>
-    /// Parses .achx XML from an already-open <paramref name="stream"/>. <see cref="FileName"/>
-    /// is set to <see cref="string.Empty"/>; if <see cref="FileRelativeTextures"/> is <c>true</c>,
-    /// texture paths in the file are passed through as-is with no directory prefix prepended.
-    /// The caller retains ownership of <paramref name="stream"/> and is responsible for disposing it.
-    /// </summary>
-    public static AnimationChainListSave FromStream(Stream stream)
-        => ParseXml(XDocument.Load(stream));
+    /// <summary>True when <paramref name="path"/> has a .achj (JSON) extension; false for .achx or anything else.</summary>
+    private static bool IsJsonPath(string path) =>
+        path.EndsWith(".achj", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Parses .achx XML from an in-memory string. <see cref="FileName"/> is set to
-    /// <see cref="string.Empty"/>; if <see cref="FileRelativeTextures"/> is <c>true</c>,
-    /// texture paths in the file are passed through as-is with no directory prefix prepended.
+    /// Parses a .achx (XML) or .achj (JSON) stream — dialect chosen by content-sniffing the first
+    /// non-whitespace character (<c>{</c> for JSON, anything else for XML), for callers with text
+    /// but no path to branch on (e.g. clipboard payloads). Same trick as
+    /// <c>FlatRedBall2.AnimationChain.MonoGame</c>'s <c>FromDetectedStream</c>/<c>LooksLikeJson</c>.
+    /// <see cref="FileName"/> is set to <see cref="string.Empty"/>; if <see cref="FileRelativeTextures"/>
+    /// is <c>true</c>, texture paths in the file are passed through as-is with no directory prefix
+    /// prepended. The caller retains ownership of <paramref name="stream"/> and is responsible for disposing it.
     /// </summary>
-    public static AnimationChainListSave FromString(string xml)
+    public static AnimationChainListSave FromStream(Stream stream)
+    {
+        string text;
+        using (var reader = new StreamReader(stream, leaveOpen: true))
+            text = reader.ReadToEnd();
+        return FromString(text);
+    }
+
+    /// <summary>
+    /// Parses a .achx (XML) or .achj (JSON) in-memory string — dialect chosen by content-sniffing,
+    /// same as <see cref="FromStream(Stream)"/>. <see cref="FileName"/> is set to
+    /// <see cref="string.Empty"/>; if <see cref="FileRelativeTextures"/> is <c>true</c>, texture
+    /// paths in the file are passed through as-is with no directory prefix prepended.
+    /// </summary>
+    public static AnimationChainListSave FromString(string text)
+        => LooksLikeJson(text) ? FromJsonString(text) : FromXmlString(text);
+
+    private static AnimationChainListSave FromXmlString(string xml)
     {
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
-        return FromStream(stream);
+        return ParseXml(XDocument.Load(stream));
+    }
+
+    // A leading UTF-8 BOM (0xEF 0xBB 0xBF) decodes to the single char U+FEFF. StreamReader/
+    // File.ReadAllText strip it automatically, but content already decoded via
+    // Encoding.UTF8.GetString on raw bytes keeps it — and char.IsWhiteSpace matches U+FEFF as false,
+    // so a plain TrimStart() leaves it in place and hides the '{'/'<' this check looks for.
+    // Strip it explicitly so BOM-prefixed text still sniffs correctly.
+    private static bool LooksLikeJson(string text)
+    {
+        var trimmed = text.AsSpan().TrimStart('\uFEFF').TrimStart();
+        return trimmed.Length > 0 && trimmed[0] == '{';
     }
 
     /// <summary>
@@ -144,7 +176,16 @@ public class AnimationChainListSave
 
     /// <summary>Parses .achj JSON from an in-memory string, same contract as <see cref="FromString(string)"/>.</summary>
     public static AnimationChainListSave FromJsonString(string json)
-        => ParseJson(JsonNode.Parse(json)!.AsObject());
+        => ParseJson(JsonNode.Parse(StripLeadingBom(json))!.AsObject());
+
+    // Unlike JsonNode.Parse(Stream) (which treats a UTF-8 BOM as transport-level framing and
+    // skips it automatically), JsonNode.Parse(string) re-encodes the string to UTF-8 bytes and
+    // feeds them to Utf8JsonReader, which rejects a leading BOM byte sequence as invalid JSON.
+    // A leading U+FEFF char reaches this method whenever the caller decoded raw bytes without
+    // going through StreamReader/File.ReadAllText (both of which already strip it) — e.g.
+    // Encoding.UTF8.GetString, or FromString's content-sniffing dispatch. Strip it before parsing.
+    private static string StripLeadingBom(string text) =>
+        text.Length > 0 && text[0] == '\uFEFF' ? text.Substring(1) : text;
 
     private static AnimationChainListSave ParseXml(XDocument doc)
     {
