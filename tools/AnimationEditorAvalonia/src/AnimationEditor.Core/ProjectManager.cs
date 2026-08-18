@@ -201,7 +201,7 @@ namespace AnimationEditor.Core
         }
 
         /// <summary>True when <paramref name="path"/> has a .achj (JSON) extension; false for .achx or anything else.</summary>
-        private static bool IsJsonPath(string? path) =>
+        internal static bool IsJsonPath(string? path) =>
             !string.IsNullOrEmpty(path) && new FilePath(path).Extension == "achj";
 
         /// <summary>

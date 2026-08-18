@@ -42,6 +42,16 @@ public class OpenAchxWorkflowTests : IDisposable
         return path;
     }
 
+    /// <summary>Same as <see cref="WriteMinimalAchx"/> but written as .achj (JSON).</summary>
+    private string WriteMinimalAchj(string chainName = "Idle")
+    {
+        var path = Path.Combine(_dir.Path, "test.achj");
+        var acls = new AnimationChainListSave { CoordinateType = TextureCoordinateType.Pixel };
+        acls.AnimationChains.Add(new AnimationChainSave { Name = chainName });
+        acls.SaveJson(path);
+        return path;
+    }
+
     // ── Data loading ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -64,6 +74,33 @@ public class OpenAchxWorkflowTests : IDisposable
         await _ctx.AppCommands.OpenAchxWorkflowAsync(path);
 
         Assert.Equal(new FilePath(path), new FilePath(_ctx.ProjectManager.FileName!));
+    }
+
+    // #878: the preview-parse step that reads CoordinateType before committing to a full load
+    // must dispatch on extension the same way ProjectManager.LoadAnimationChain does -- otherwise
+    // a .achj (JSON) file hits the XML parser and the open fails with an XmlException toast.
+    [Fact]
+    public async Task OpenAchxWorkflow_WithValidAchjFile_LoadsChainIntoProjectManager()
+    {
+        var path = WriteMinimalAchj("Walk");
+
+        await _ctx.AppCommands.OpenAchxWorkflowAsync(path);
+
+        Assert.NotNull(_ctx.ProjectManager.AnimationChainListSave);
+        Assert.Single(_ctx.ProjectManager.AnimationChainListSave!.AnimationChains);
+        Assert.Equal("Walk", _ctx.ProjectManager.AnimationChainListSave.AnimationChains[0].Name);
+    }
+
+    [Fact]
+    public async Task OpenAchxWorkflow_WithValidAchjFile_DoesNotRaiseLoadFailed()
+    {
+        var path = WriteMinimalAchj();
+        Exception? failure = null;
+        _ctx.AppCommands.LoadFailed += (_, ex) => failure = ex;
+
+        await _ctx.AppCommands.OpenAchxWorkflowAsync(path);
+
+        Assert.Null(failure);
     }
 
     // ── Event ordering ────────────────────────────────────────────────────────

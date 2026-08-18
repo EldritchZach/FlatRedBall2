@@ -156,9 +156,16 @@ namespace AnimationEditor.Core.CommandsAndState
         /// <inheritdoc cref="IAppCommands.OpenAchxWorkflowAsync"/>
         public async Task OpenAchxWorkflowAsync(string path)
         {
-            // Quick-parse to read CoordinateType without committing to a full load.
+            // Quick-parse to read CoordinateType without committing to a full load. Must dispatch
+            // on extension the same way ProjectManager.LoadAnimationChain does (#878) -- a .achj
+            // (JSON) file hits the XML parser otherwise and fails with an XmlException.
             AnimationChainListSave preview;
-            try { preview = AnimationChainListSave.FromFile(path); }
+            try
+            {
+                preview = ProjectManager.IsJsonPath(path)
+                    ? AnimationChainListSave.FromJsonFile(path)
+                    : AnimationChainListSave.FromFile(path);
+            }
             catch (Exception ex) { LoadFailed?.Invoke(path, ex); return; }
 
             string achxDir = System.IO.Path.GetDirectoryName(path) ?? string.Empty;
