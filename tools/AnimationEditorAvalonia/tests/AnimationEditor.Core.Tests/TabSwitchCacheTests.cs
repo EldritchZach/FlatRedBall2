@@ -148,6 +148,7 @@ public class TabSwitchCacheTests : IDisposable
 
         public FilePath[] ReferencedPngs => _inner.ReferencedPngs;
         public string? FileName { get => _inner.FileName; set => _inner.FileName = value; }
+        public string? ProjectFolderPath { get => _inner.ProjectFolderPath; set => _inner.ProjectFolderPath = value; }
         public TextureCoordinateType OnDiskCoordinateType
         {
             get => _inner.OnDiskCoordinateType;

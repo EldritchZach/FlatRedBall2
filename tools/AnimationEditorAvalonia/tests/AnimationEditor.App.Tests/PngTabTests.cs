@@ -115,11 +115,13 @@ public class PngTabTests
     }
 
     [AvaloniaFact]
-    public async Task OpenPngAsTab_HidesEditingTabsAndFiles_SelectsDiff()
+    public async Task OpenPngAsTab_ShowsDiffPaneInTopPane_KeepsFilesTabVisible()
     {
-        // A read-only PNG has no animations, no editable properties, and no undo history — and for now
-        // we don't offer file navigation from a PNG either. Hide the ANIMATIONS tree, Inspector,
-        // History, and Files tabs; show only the Diff tab and select it.
+        // A read-only PNG has no animations, no editable properties, and no undo history, so the
+        // ANIMATIONS tree, Inspector, and History are hidden. Diff (#877) takes over TopPane -- the
+        // same top-half cell the ANIMATIONS tree normally fills -- instead of taking over the
+        // bottom tab strip. Files/Textures stays visible down there (#875 follow-up): its Project
+        // scope browses PNGs under the open project folder independent of any open tab.
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var ctx = TestHelpers.BuildServices();
@@ -132,17 +134,46 @@ public class PngTabTests
             await window.WhenPngTabLoaded();   // drain the off-thread git + decode before cleanup deletes dir
 
             Assert.False(window.FindControl<Grid>("AnimationsBlock")!.IsVisible);
+            Assert.True(window.FindControl<Grid>("DiffBlamePane")!.IsVisible);
             Assert.False(window.FindControl<TabItem>("InspectorTab")!.IsVisible);
             Assert.False(window.FindControl<TabItem>("HistoryTab")!.IsVisible);
-            Assert.False(window.FindControl<TabItem>("FilesTab")!.IsVisible);
-            Assert.True(window.FindControl<TabItem>("DiffBlameTab")!.IsVisible);
+            Assert.True(window.FindControl<TabItem>("FilesTab")!.IsVisible);
 
+            // Inspector was the default-selected bottom tab and just got hidden, so the bottom strip
+            // falls back to Files rather than showing a hidden selected tab.
             var tabs = window.FindControl<TabControl>("SidebarTabs")!;
-            Assert.Same(window.FindControl<TabItem>("DiffBlameTab"), tabs.SelectedItem);
+            Assert.Same(window.FindControl<TabItem>("FilesTab"), tabs.SelectedItem);
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(dir, true);
+        }
+    }
 
-            // The Animations block's row must collapse to zero so the Diff tab fills the column
-            // rather than floating below an empty gap.
-            Assert.Equal(0, window.FindControl<Grid>("LeftPanelGrid")!.RowDefinitions[0].Height.Value);
+    [AvaloniaFact]
+    public async Task OpenPngAsTab_FilesTabWasSelected_StaysOnFilesTab()
+    {
+        // The bug this guards: double-clicking a PNG while looking at Files/Textures used to hide
+        // that very tab and force-switch to Diff, so "the project no longer shows PNGs." Files was
+        // already visible and selected, so opening the PNG must leave it selected.
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var ctx = TestHelpers.BuildServices();
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            var filesTab = window.FindControl<TabItem>("FilesTab")!;
+            var sidebar = window.FindControl<TabControl>("SidebarTabs")!;
+            sidebar.SelectedItem = filesTab;
+
+            window.OpenPngAsTab(WritePng(dir, "sheet.png"));
+            Dispatcher.UIThread.RunJobs();
+            await window.WhenPngTabLoaded();   // drain the off-thread git + decode before cleanup deletes dir
+
+            Assert.True(filesTab.IsVisible);
+            Assert.Same(filesTab, sidebar.SelectedItem);
         }
         finally
         {
@@ -237,10 +268,50 @@ public class PngTabTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.True(window.FindControl<Grid>("AnimationsBlock")!.IsVisible);
+            Assert.False(window.FindControl<Grid>("DiffBlamePane")!.IsVisible);
             Assert.True(window.FindControl<TabItem>("InspectorTab")!.IsVisible);
             Assert.True(window.FindControl<TabItem>("HistoryTab")!.IsVisible);
             Assert.True(window.FindControl<TabItem>("FilesTab")!.IsVisible);   // Files comes back for the achx editor
-            Assert.True(window.FindControl<Grid>("LeftPanelGrid")!.RowDefinitions[0].Height.Value > 0);
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OpenAchxAfterPng_InspectorWasSelected_RestoresInspectorTab()
+    {
+        // #877: Inspector (the default-selected tab) gets hidden and the bottom strip falls back to
+        // Files while a PNG is open (see OpenPngAsTab_ShowsDiffPaneInTopPane_KeepsFilesTabVisible).
+        // Returning to the achx tab must restore Inspector, not leave the fallback selected.
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var ctx = TestHelpers.BuildServices();
+        ctx.AppCommands.ConfirmAsync = (_, _) => Task.FromResult(true);
+        ctx.AppCommands.FileDialogService = NullFileDialogService.Instance;
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            var achxPath = WriteAchx(dir, "hero.achx");
+            await window.OpenFileAsTab(achxPath);
+            Dispatcher.UIThread.RunJobs();
+
+            var inspectorTab = window.FindControl<TabItem>("InspectorTab")!;
+            var sidebar = window.FindControl<TabControl>("SidebarTabs")!;
+            Assert.Same(inspectorTab, sidebar.SelectedItem);   // Inspector is the default
+
+            window.OpenPngAsTab(WritePng(dir, "sheet.png"));
+            Dispatcher.UIThread.RunJobs();
+            await window.WhenPngTabLoaded();
+            Assert.NotSame(inspectorTab, sidebar.SelectedItem);   // fell back to Files while hidden
+
+            await window.OpenFileAsTab(achxPath);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Same(inspectorTab, sidebar.SelectedItem);
         }
         finally
         {
@@ -252,9 +323,8 @@ public class PngTabTests
     [AvaloniaFact]
     public async Task OpenAchxAfterPng_RestoresPriorSidebarTab()
     {
-        // #686: opening a PNG forces the Diff sidebar tab; returning to the achx tab must restore
-        // whichever tool tab (Files/Textures, History, …) was selected beforehand — not hard-reset
-        // to Inspector.
+        // Files/Textures stays visible and selected throughout a PNG preview (#877), so returning
+        // to the achx tab leaves it exactly where the user left it -- not hard-reset to Inspector.
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var ctx = TestHelpers.BuildServices();

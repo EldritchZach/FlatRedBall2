@@ -102,7 +102,10 @@ public partial class FilesPanelControl : UserControl
         _openPng = openPng;
     }
 
-    /// <param name="filesRoot">Root folder to browse (from <c>ProjectManager.ResolveFilesPanelRoot</c>).</param>
+    /// <param name="filesRoot">
+    /// Root folder to browse: <c>ProjectManager.ProjectFolderPath</c> when set, otherwise the
+    /// achx-inferred <c>ProjectManager.ResolveFilesPanelRoot()</c> fallback.
+    /// </param>
     /// <param name="referencedTextureNames">
     /// Texture names referenced by the open .achx (from <c>TextureListBuilder.GetAvailableTextures</c>),
     /// used only in <see cref="FilesPanelScope.ThisFile"/> scope. Pass fresh values on every call so
@@ -130,9 +133,15 @@ public partial class FilesPanelControl : UserControl
         var allFiles = PngFolderScanner.ListFiles(_filesRoot);
         if (allFiles.Count == 0)
         {
+            // No root to scan at all (issue #875): Project scope has nothing to browse until a
+            // project folder is opened -- blaming an unsaved .achx (the old message) is wrong once
+            // ProjectFolderPath exists as a separate concept from the achx-inferred fallback.
+            // ThisFile scope's root still comes from the open .achx, so that message still fits there.
             SetEmptyMessage(
                 string.IsNullOrEmpty(_filesRoot)
-                    ? "Save the .achx to browse folder PNGs."
+                    ? Scope == FilesPanelScope.Project
+                        ? "Open a project folder to browse its images."
+                        : "Save the .achx to browse folder PNGs."
                     : "No PNG files in this folder.",
                 visible: true);
             return;

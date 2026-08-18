@@ -91,11 +91,6 @@ public partial class MainWindow : Window
     // self-promote before the user did anything.
     private bool _suppressPreviewPromotion;
 
-    // Set by LoadProjectFolderAsync -- the root ProjectPanel's folder-relative paths resolve
-    // against, for "View in Explorer" on a folder row (#841 follow-up). Null until the user has
-    // opened (or a prior session restored) a project folder.
-    private string? _projectFolderRootPath;
-
     // ── Tab drag state ────────────────────────────────────────────────────────
     private TabEntry? _dragTab;
     private double _dragStartX;
@@ -635,61 +630,48 @@ public partial class MainWindow : Window
         AchxEditorPane.IsVisible = true;
     }
 
-    // Sidebar state saved when collapsing for a PNG tab, so restoring preserves the user's splitter
-    // position rather than snapping back to the XAML default ("2*,4,3*").
     private bool _sidebarCollapsedForPng;
-    private GridLength _savedTreeRowHeight = new(2, GridUnitType.Star);
-    private GridLength _savedSplitterRowHeight = new(4, GridUnitType.Pixel);
-    // Tool tab selected before Diff was forced for a PNG preview (#686) — restored when returning to achx.
+    // Bottom tab strip's selection just before it was forced away from a now-hidden tab
+    // (Inspector/History) during a PNG preview (#686) — restored when returning to the achx editor.
+    // Null whenever the bottom strip was never touched (the common case, #877).
     private TabItem? _sidebarTabBeforePng;
 
     /// <summary>
-    /// Collapses the animation-editing sidebar surfaces for a read-only PNG-preview tab (issue #604)
-    /// and restores them for the achx editor. A PNG has no animations, no editable frame/shape
-    /// properties, and no undo history — and for now we don't offer file navigation from a PNG either
-    /// — so the ANIMATIONS tree and the Inspector, History, and Files tabs are all hidden; only the
-    /// Diff tab (#606) remains, and it becomes the selected tab.
+    /// Swaps <c>TopPane</c>'s content between the ANIMATIONS tree and the Diff/blame pane for a
+    /// read-only PNG-preview tab (issue #604), and restores it for the achx editor. Both panes fill
+    /// the same cell (#877) — the row's size never changes, only which one is visible — so resizing
+    /// the sidebar splitter behaves identically in either mode. A PNG has no editable frame/shape
+    /// properties or undo history, so Inspector and History hide too; Files/Textures stays visible (#875 follow-up)
+    /// since its Project scope browses PNGs independent of any open tab. The bottom tab strip's
+    /// selection is otherwise left alone — Diff no longer lives down there, so there's nothing to
+    /// force it to unless the previously-selected tab was Inspector or History and just got hidden.
     /// </summary>
     private void SetSidebarForPng(bool png)
     {
         if (png == _sidebarCollapsedForPng) return;
-        var rows = LeftPanelGrid.RowDefinitions;
         if (png)
         {
-            _savedTreeRowHeight = rows[0].Height;
-            _savedSplitterRowHeight = rows[1].Height;
-            rows[0].Height = new GridLength(0);
-            rows[1].Height = new GridLength(0);
             AnimationsBlock.IsVisible = false;
-            SidebarSplitter.IsVisible = false;
+            DiffBlamePane.IsVisible = true;
             InspectorTab.IsVisible = false;
             HistoryTab.IsVisible = false;
-            FilesTab.IsVisible = false;
-            // Remember the achx tool tab so returning from Diff restores Files/History/etc. (#686).
-            _sidebarTabBeforePng = SidebarTabs.SelectedItem as TabItem;
-            // Diff is the only PNG surface; select it before hiding Files so the strip never shows
-            // a hidden selected tab (blank content).
-            DiffBlameTab.IsVisible = true;
-            SidebarTabs.SelectedItem = DiffBlameTab;
+            if (SidebarTabs.SelectedItem is TabItem { IsVisible: false } hidden)
+            {
+                _sidebarTabBeforePng = hidden;
+                SidebarTabs.SelectedItem = FilesTab;
+            }
         }
         else
         {
-            rows[0].Height = _savedTreeRowHeight;
-            rows[1].Height = _savedSplitterRowHeight;
             AnimationsBlock.IsVisible = true;
-            SidebarSplitter.IsVisible = true;
+            DiffBlamePane.IsVisible = false;
             InspectorTab.IsVisible = true;
             HistoryTab.IsVisible = true;
-            FilesTab.IsVisible = true;
-            // Diff must not stay selected once hidden (#604). Prefer the tab that was active before
-            // the PNG forced Diff (#686); fall back to Inspector when that tab is gone or invalid.
-            var restore = _sidebarTabBeforePng;
-            SidebarTabs.SelectedItem =
-                restore is { IsVisible: true } && !ReferenceEquals(restore, DiffBlameTab)
-                    ? restore
-                    : InspectorTab;
-            DiffBlameTab.IsVisible = false;
-            _sidebarTabBeforePng = null;
+            if (_sidebarTabBeforePng is { } restore)
+            {
+                SidebarTabs.SelectedItem = restore;
+                _sidebarTabBeforePng = null;
+            }
         }
         _sidebarCollapsedForPng = png;
     }
@@ -1858,20 +1840,20 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Resolves a Project-tree folder row's <see cref="AchxTreeNodeVm.RelativePath"/> to an
-    /// absolute path against <see cref="_projectFolderRootPath"/> (issue #841 follow-up: "View in
-    /// Explorer" on a folder row). Split out from <see cref="RevealProjectFolderInExplorer"/> so
-    /// this pure resolution is unit-testable without going through <c>Process.Start</c>.
+    /// absolute path against <see cref="ProjectManager.ProjectFolderPath"/> (issue #841 follow-up:
+    /// "View in Explorer" on a folder row). Split out from <see cref="RevealProjectFolderInExplorer"/>
+    /// so this pure resolution is unit-testable without going through <c>Process.Start</c>.
     /// </summary>
     internal string? ResolveProjectFolderAbsolutePath(string relativePath) =>
-        _projectFolderRootPath is null
+        _projectManager.ProjectFolderPath is not { } root
             ? null
             : relativePath.Length == 0
-                ? _projectFolderRootPath
+                ? root
                 // AchxTreeNodeVm.RelativePath is always forward-slash separated (see
                 // AchxFolderTreeBuilder) -- Path.Combine only joins its two arguments, it doesn't
                 // normalize separators *inside* either one, so an un-normalized "/" here would
                 // survive straight into the path handed to Process.Start.
-                : Path.Combine(_projectFolderRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                : Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar));
 
     private void RevealProjectFolderInExplorer(string relativePath)
     {
@@ -2099,8 +2081,12 @@ public partial class MainWindow : Window
 
     private async Task LoadAndPersistProjectFolderAsync(string path)
     {
-        await LoadProjectFolderAsync(path);
-        SidebarTabs.SelectedItem = ProjectTab;
+        var achxCount = await LoadProjectFolderAsync(path);
+
+        // #875 follow-up: an empty Project tab is a dead end. The Textures tab is immediately
+        // useful in that case -- its Project scope (#875) lists the folder's PNGs without needing
+        // any .achx open.
+        SidebarTabs.SelectedItem = achxCount == 0 ? FilesTab : ProjectTab;
 
         // Immediate, not deferred to window Closed -- a debugger Stop or crash skips Closed
         // entirely (see TabSessionPersistenceTests / issue #439), so this must be safe there too.
@@ -2113,10 +2099,14 @@ public partial class MainWindow : Window
     /// <see cref="AchxFolderScanner"/> and populates the Project tab instead of guessing which one
     /// to load -- the folder can have more than one .achx (a normal Content-folder layout). Shared
     /// by the interactive Open Project Folder flow and by startup's last-folder restore (#772).
+    /// Also sets <see cref="ProjectManager.ProjectFolderPath"/> and refreshes the Files/Textures
+    /// panel (#875) so its Project scope reflects the newly-opened folder even with zero .achx
+    /// tabs open. Returns the number of .achx files found, so callers can react to an empty
+    /// result (e.g. auto-selecting a more useful tab).
     /// </summary>
-    private async Task LoadProjectFolderAsync(string path)
+    private async Task<int> LoadProjectFolderAsync(string path)
     {
-        _projectFolderRootPath = path;
+        _projectManager.ProjectFolderPath = path;
         _projectFolderWatcher.Watch(path);
         var rootFolder = new DiskEditorFolder(path);
         var entries = await AchxFolderScanner.ScanAsync(rootFolder);
@@ -2124,6 +2114,8 @@ public partial class MainWindow : Window
         ShowStatusMessage(entries.Count == 0
             ? $"No .achx files found under \"{rootFolder.Name}\"."
             : $"Found {entries.Count} .achx file(s) under \"{rootFolder.Name}\".", isError: false);
+        RefreshFilesPanel();
+        return entries.Count;
     }
 
     /// <summary>
@@ -2156,7 +2148,7 @@ public partial class MainWindow : Window
     private async Task HandleProjectFolderChangesAsync(
         IReadOnlyList<(string Path, WatcherChangeType Type)>? changes)
     {
-        if (_projectFolderRootPath is null) return;
+        if (_projectManager.ProjectFolderPath is null) return;
 
         // A create or delete changes tree *structure*, not just a thumbnail -- and a full rescan
         // is exactly what LoadProjectFolderAsync already does on every Open Project Folder, so
@@ -2171,7 +2163,7 @@ public partial class MainWindow : Window
             !File.Exists(c.Path) || FindProjectPanelEntry(ProjectPanel.TreeRoots, c.Path) is null);
         if (structureChanged)
         {
-            await LoadProjectFolderAsync(_projectFolderRootPath);
+            await LoadProjectFolderAsync(_projectManager.ProjectFolderPath);
             return;
         }
 
@@ -3416,7 +3408,9 @@ public partial class MainWindow : Window
 
     private void RefreshFilesPanel()
     {
-        string? filesRoot = _projectManager.ResolveFilesPanelRoot();
+        // ProjectFolderPath (#875) is the explicit "open project folder" -- it wins over the
+        // achx-inferred ResolveFilesPanelRoot() fallback, and works with zero .achx tabs open.
+        string? filesRoot = _projectManager.ProjectFolderPath ?? _projectManager.ResolveFilesPanelRoot();
         var referenced = TextureListBuilder.GetAvailableTextures(_projectManager.AnimationChainListSave);
         string? achxFolder = string.IsNullOrEmpty(_projectManager.FileName)
             ? null

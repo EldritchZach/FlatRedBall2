@@ -28,6 +28,15 @@ namespace AnimationEditor.Core
         public string? FileName { get; set; }
 
         /// <summary>
+        /// The folder explicitly picked via File → Open Project Folder (or restored from
+        /// <c>LastProjectFolderPath</c> at startup). Unlike <see cref="ResolveFilesPanelRoot"/>,
+        /// this is never inferred from the open .achx -- it stays set (and the Files panel's
+        /// Project scope keeps working) even with zero tabs open. Null until a project folder has
+        /// ever been opened this session.
+        /// </summary>
+        public string? ProjectFolderPath { get; set; }
+
+        /// <summary>
         /// The coordinate format the .achx should be written with. Set from the loaded
         /// file so a UV-format file round-trips as UV; defaults to <see cref="TextureCoordinateType.Pixel"/>
         /// for new files, since that is the preferred format going forward. Independent
