@@ -1,6 +1,7 @@
 using AnimationEditor.App.Services;
 using AnimationEditor.Core.IO;
 using Avalonia.Headless.XUnit;
+using FlatRedBall2.Animation.Content;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -68,10 +69,47 @@ public class ProjectTreeThumbnailServiceTests
         return new AchxFileEntry(achxFile, folder, "hero.achx");
     }
 
+    private static AchxFileEntry MakeJsonEntry(string textureName, byte[] textureBytes)
+    {
+        var acls = new AnimationChainListSave { CoordinateType = TextureCoordinateType.UV };
+        var chain = new AnimationChainSave { Name = "Walk" };
+        chain.Frames.Add(new AnimationFrameSave
+        {
+            TextureName = textureName,
+            FrameLength = 0.1f,
+            LeftCoordinate = 0,
+            RightCoordinate = 1,
+            TopCoordinate = 0,
+            BottomCoordinate = 1,
+        });
+        acls.AnimationChains.Add(chain);
+
+        var folder = new FakeFolder("Content");
+        folder.FilesByName[textureName] = new FakeFile(textureName, textureBytes);
+        var achjFile = new FakeFile("hero.achj", Encoding.UTF8.GetBytes(acls.ToJsonString()));
+        return new AchxFileEntry(achjFile, folder, "hero.achj");
+    }
+
     [AvaloniaFact]
     public async Task GetThumbnailAsync_FrameWithSameFolderTexture_ReturnsBitmapAtRequestedSize()
     {
         var entry = MakeEntry(AchxWithFrame, "hero.png", EncodePng(64, 64, SKColors.Red));
+        var svc = new ProjectTreeThumbnailService(diskCacheDirectory: null);
+
+        var thumb = await svc.GetThumbnailAsync(entry, 28, 28);
+
+        Assert.NotNull(thumb);
+        Assert.Equal(28, thumb!.PixelSize.Width);
+        Assert.Equal(28, thumb.PixelSize.Height);
+    }
+
+    // Issue #880: GenerateAsync always parsed with AnimationChainListSave.FromString (XML)
+    // regardless of extension, so a .achj (JSON) entry hit the XML parser, failed, and silently
+    // fell back to the generic icon via the broad catch.
+    [AvaloniaFact]
+    public async Task GetThumbnailAsync_AchjEntryWithFrame_ReturnsBitmapAtRequestedSize()
+    {
+        var entry = MakeJsonEntry("hero.png", EncodePng(64, 64, SKColors.Red));
         var svc = new ProjectTreeThumbnailService(diskCacheDirectory: null);
 
         var thumb = await svc.GetThumbnailAsync(entry, 28, 28);
