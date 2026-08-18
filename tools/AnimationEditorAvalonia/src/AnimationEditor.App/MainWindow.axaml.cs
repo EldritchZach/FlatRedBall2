@@ -266,6 +266,8 @@ public partial class MainWindow : Window
         // shows a "View in Explorer" item it couldn't act on (#654's reasoning, applied here).
         ProjectPanel.SupportsRevealInExplorer = true;
         ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
+        ProjectPanel.FileRevealRequested += relativePath => RevealProjectFileInExplorer(relativePath);
+        ProjectPanel.FileCopyPathRequested += relativePath => CopyProjectFilePathToClipboard(relativePath);
         // On scope toggle, re-supply the current referenced-texture set so "This File" reflects
         // the live .achx instead of the snapshot cached at the last refresh.
         FilesPanel.ScopeChanged += (_, _) => RefreshFilesPanel();
@@ -1851,9 +1853,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Resolves a Project-tree folder row's <see cref="AchxTreeNodeVm.RelativePath"/> to an
-    /// absolute path against <see cref="ProjectManager.ProjectFolderPath"/> (issue #841 follow-up:
-    /// "View in Explorer" on a folder row). Split out from <see cref="RevealProjectFolderInExplorer"/>
+    /// Resolves a Project-tree row's <see cref="AchxTreeNodeVm.RelativePath"/> (folder or file) to
+    /// an absolute path against <see cref="ProjectManager.ProjectFolderPath"/> (issue #841
+    /// follow-up: "View in Explorer" on a folder row; issue #886: "Copy Full Path" / "Open
+    /// Containing Folder" on a file row). Split out from <see cref="RevealProjectFolderInExplorer"/>
     /// so this pure resolution is unit-testable without going through <c>Process.Start</c>.
     /// </summary>
     internal string? ResolveProjectFolderAbsolutePath(string relativePath) =>
@@ -1879,6 +1882,26 @@ public partial class MainWindow : Window
         }
 
         Process.Start(new ProcessStartInfo { FileName = absolutePath, UseShellExecute = true });
+    }
+
+    // Issue #886: same two actions as the document tab strip's context menu (#881/#884), for a
+    // Project-tree file row instead of an open tab.
+    private void RevealProjectFileInExplorer(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        var error = Services.ShellExplorer.RevealFile(absolutePath);
+        if (error is not null)
+            ShowStatusMessage($"⚠ {error}", isError: true);
+    }
+
+    private void CopyProjectFilePathToClipboard(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(absolutePath);
     }
 
     private void OnTitleFileCopyPathClick(object? sender, RoutedEventArgs e)

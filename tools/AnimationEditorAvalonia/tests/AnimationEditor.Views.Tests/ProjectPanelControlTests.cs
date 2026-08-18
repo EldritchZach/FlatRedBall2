@@ -228,10 +228,77 @@ public class ProjectPanelControlTests
         finally { window.Close(); }
     }
 
+    // Issue #886: right-click a file row -> "Open Containing Folder" + "Copy Full Path", same
+    // headers as the document tab strip's context menu (#881/#884) for the equivalent open file.
     [AvaloniaFact]
-    public void RightClickingFileRow_DoesNotShowViewInExplorerItem()
+    public void RightClickingFileRow_WithRevealSupported_ShowsOpenFolderAndCopyPathItems()
     {
         var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0]); // "hero.achx" file
+
+            var headers = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>()
+                .Select(i => i.Header).ToArray();
+            Assert.Equal(new object?[] { "Open Containing Folder", "Copy Full Path" }, headers);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ClickingOpenContainingFolder_RaisesFileRevealRequestedWithRelativePath()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0].Children[0]); // "hero.achx" under "Sprites"
+            string? requested = null;
+            control.FileRevealRequested += path => requested = path;
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>()
+                .Single(i => (string)i.Header! == "Open Containing Folder");
+            item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.Equal("Sprites/hero.achx", requested);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ClickingCopyFullPath_RaisesFileCopyPathRequestedWithRelativePath()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0].Children[0]); // "hero.achx" under "Sprites"
+            string? requested = null;
+            control.FileCopyPathRequested += path => requested = path;
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>()
+                .Single(i => (string)i.Header! == "Copy Full Path");
+            item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.Equal("Sprites/hero.achx", requested);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void RightClickingFileRow_WithRevealNotSupported_ShowsNoItems()
+    {
+        var control = new Controls.ProjectPanelControl(); // SupportsRevealInExplorer defaults false
         var root = new FakeFolder("Content");
         control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "hero.achx") });
 
