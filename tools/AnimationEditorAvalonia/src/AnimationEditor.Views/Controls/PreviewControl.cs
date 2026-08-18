@@ -161,6 +161,16 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     private float _frameDragStartY;
     private Point _frameDragAnchor;
 
+    // -- Whole-animation (chain) drag -------------------------------------------
+    // Same gesture as the single-frame drag above, but active when a chain is selected with
+    // no single frame pinned (SelectedFrame is null, SelectedFrames empty) — dragging the
+    // currently-playing frame's sprite then shifts every frame in the chain by the same
+    // delta, each keeping its own starting RelativeX/Y (issue #912). Mutually exclusive with
+    // _draggingFrame; reuses _frameDragAnchor for the shared world-space delta math.
+    private AnimationFrameSave[]? _draggingChainFrames;
+    private float[]? _chainFrameStartX;
+    private float[]? _chainFrameStartY;
+
     // -- Public properties -----------------------------------------------------
 
     public bool ShowOnionSkin
@@ -908,6 +918,30 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         frame.RelativeY  = SnapToPixel(frame.RelativeY + worldDy);
         CommitFrameDrag();
     }
+
+    /// <summary>
+    /// Test-only: applies a world-space drag delta to every frame in the selected chain's
+    /// <see cref="AnimationFrameSave.RelativeX"/>/<see cref="AnimationFrameSave.RelativeY"/>,
+    /// each frame keeping its own starting offset, and commits as one undo step. Bypasses
+    /// coordinate conversion, so results are independent of zoom/pan/OffsetMultiplier. No-op
+    /// unless <see cref="IsWholeChainDragTarget"/> holds, mirroring the gate
+    /// <see cref="OnPointerPressed"/> applies before starting a live whole-animation drag.
+    /// </summary>
+    internal void SimulateChainDrag(float worldDx, float worldDy)
+    {
+        if (!IsWholeChainDragTarget) return;
+
+        var chain = _selectedState!.SelectedChain!;
+        _draggingChainFrames = chain.Frames.ToArray();
+        _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
+        _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
+        for (int i = 0; i < _draggingChainFrames.Length; i++)
+        {
+            _draggingChainFrames[i].RelativeX = SnapToPixel(_chainFrameStartX[i] + worldDx);
+            _draggingChainFrames[i].RelativeY = SnapToPixel(_chainFrameStartY[i] + worldDy);
+        }
+        CommitChainDrag();
+    }
     /// control-space point and runs the resulting smooth-zoom animation to completion
     /// synchronously, so the camera lands on its settled state. Mirrors
     /// <see cref="OnPointerWheelChanged"/>. Use <see cref="SimulateWheelZoomBegin"/> instead to
@@ -1246,24 +1280,31 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
     private void UpdateHoverCursor(Point pos)
     {
+        var cursorType = ResolveHoverCursorType(pos);
+        Cursor = cursorType is null ? Cursor.Default : new Cursor(cursorType.Value);
+    }
+
+    /// <summary>
+    /// Pure cursor-type decision behind <see cref="UpdateHoverCursor"/> — extracted so tests can
+    /// assert on the plain <see cref="StandardCursorType"/> result instead of the Avalonia
+    /// <see cref="Control.Cursor"/> property, which exposes no equality on it (same rationale as
+    /// <see cref="AnimationEditor.App.Controls.WireframeControl.IsShowingAddFrameCursor"/>).
+    /// Returns <c>null</c> for the default arrow.
+    /// </summary>
+    private StandardCursorType? ResolveHoverCursorType(Point pos)
+    {
         if (_draggingShape is not null)
-        {
-            Cursor = new Cursor(_shapeResizeHandle != HandleKind.None
+            return _shapeResizeHandle != HandleKind.None
                 ? GetResizeCursor(_shapeResizeHandle)
-                : StandardCursorType.SizeAll);
-            return;
-        }
-        if (_draggingFrame is not null)
-        {
-            Cursor = new Cursor(StandardCursorType.SizeAll);
-            return;
-        }
+                : StandardCursorType.SizeAll;
+
+        if (_draggingFrame is not null || _draggingChainFrames is not null)
+            return StandardCursorType.SizeAll;
+
         var handle = HitTestShapeHandle((float)pos.X, (float)pos.Y);
         if (handle != HandleKind.None)
-        {
-            Cursor = new Cursor(GetResizeCursor(handle));
-            return;
-        }
+            return GetResizeCursor(handle);
+
         StandardCursorType? cursorType = _draggedGuideIdx >= 0
             ? (_draggingHGuide ? StandardCursorType.SizeNorthSouth : StandardCursorType.SizeWestEast)
             : GetGuideCursorAt((float)pos.X, (float)pos.Y);
@@ -1271,8 +1312,13 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             cursorType = StandardCursorType.SizeAll;
         if (cursorType is null && HitTestFrameSprite((float)pos.X, (float)pos.Y))
             cursorType = StandardCursorType.SizeAll;
-        Cursor = cursorType is null ? Cursor.Default : new Cursor(cursorType.Value);
+        return cursorType;
     }
+
+    /// <summary>Test-only: the cursor type <see cref="UpdateHoverCursor"/> would apply at the
+    /// given screen-space point, without touching the Avalonia <see cref="Control.Cursor"/> property.</summary>
+    internal StandardCursorType? GetHoverCursorTypeForTest(float px, float py)
+        => ResolveHoverCursorType(new Point(px, py));
 
     private static StandardCursorType GetResizeCursor(HandleKind kind) => kind switch
     {
@@ -1506,6 +1552,40 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     }
 
     /// <summary>
+    /// Finalises an in-progress whole-animation drag: records a single
+    /// <see cref="MoveFrameOffsetBulkCommand"/> covering every frame that actually moved (unless
+    /// the net delta is negligible), fires <see cref="ApplicationEvents.RaiseAnimationChainsChanged"/>,
+    /// and saves. Mirrors <see cref="CommitFrameDrag"/> for the single-frame case.
+    /// </summary>
+    private void CommitChainDrag()
+    {
+        if (_draggingChainFrames is null) return;
+
+        const float eps = 1e-4f;
+        var snapshots = new List<MoveFrameOffsetBulkCommand.FrameSnapshot>();
+        for (int i = 0; i < _draggingChainFrames.Length; i++)
+        {
+            var frame = _draggingChainFrames[i];
+            float newX = frame.RelativeX;
+            float newY = frame.RelativeY;
+            if (MathF.Abs(newX - _chainFrameStartX![i]) > eps || MathF.Abs(newY - _chainFrameStartY![i]) > eps)
+                snapshots.Add(new MoveFrameOffsetBulkCommand.FrameSnapshot(
+                    frame, _chainFrameStartX[i], _chainFrameStartY![i], newX, newY));
+        }
+
+        if (snapshots.Count > 0)
+        {
+            _undoManager!.Record(new MoveFrameOffsetBulkCommand(snapshots, _appCommands!, _events!));
+            _events!.RaiseAnimationChainsChanged();
+            _appCommands!.SaveCurrentAnimationChainList();
+        }
+
+        _draggingChainFrames = null;
+        _chainFrameStartX    = null;
+        _chainFrameStartY    = null;
+    }
+
+    /// <summary>
     /// Returns the resize <see cref="HandleKind"/> under the cursor for the currently selected
     /// shape, or <see cref="HandleKind.None"/> if no resize handle is hit.
     /// Handles are positioned outside the bounding box by <c>Hs</c> pixels.
@@ -1713,16 +1793,39 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     }
 
     /// <summary>
+    /// <c>true</c> when the target frame <see cref="HitTestFrameSprite"/> would hit is the whole
+    /// selected chain rather than a single pinned frame — i.e. a chain is selected but
+    /// <see cref="ISelectedState.SelectedFrame"/> is null and nothing more specific is
+    /// multi-selected. Mirrors <see cref="AnimationEditor.App.Controls.WireframeControl"/>'s
+    /// <c>PrimaryFrameRect</c>-returns-null fallback into "drag the whole chain" (issue #912).
+    /// </summary>
+    private bool IsWholeChainDragTarget =>
+        _selectedState!.SelectedFrame is null &&
+        _selectedState!.SelectedFrames.Count == 0 &&
+        _selectedState!.SelectedChain is not null;
+
+    /// <summary>
     /// Returns <c>true</c> if (<paramref name="px"/>, <paramref name="py"/>) lands on the rendered
-    /// footprint of the single selected frame's sprite, in screen space. Gates the frame-offset
-    /// drag fallback in <see cref="OnPointerPressed"/>: only active with exactly one frame
-    /// selected and only once the frame's texture is already decoded (mirrors
+    /// footprint of the drag target's sprite, in screen space. Gates the frame-offset drag
+    /// fallback in <see cref="OnPointerPressed"/>. The target is the single selected frame; when
+    /// none is pinned but a chain is selected (<see cref="IsWholeChainDragTarget"/>), it falls
+    /// back to the currently-playing frame so the whole chain can be dragged together. Requires
+    /// the target frame's texture to already be decoded (mirrors
     /// <see cref="ComputeContentExtentScreenPx"/>'s own frame-footprint math).
     /// </summary>
     private bool HitTestFrameSprite(float px, float py)
     {
         var frame = _selectedState!.SelectedFrame;
-        if (frame is null || _selectedState!.SelectedFrames.Count > 1) return false;
+        if (frame is null)
+        {
+            if (!IsWholeChainDragTarget) return false;
+            frame = GetCurrentPlaybackFrame();
+        }
+        else if (_selectedState!.SelectedFrames.Count > 1)
+        {
+            return false;
+        }
+        if (frame is null) return false;
         if (px < RulerSize || py < RulerSize) return false;
 
         string? texPath = _thumbnailService!.ResolveTexturePath(frame);
@@ -1878,14 +1981,26 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         // No shape hit — try to select a collision shape.
         if (TrySelectShapeAt(px, py)) return;
 
-        // Nothing above matched — try to drag the single selected frame's sprite.
+        // Nothing above matched — try to drag the selected frame's sprite, or (when no single
+        // frame is pinned) the whole selected chain together.
         if (HitTestFrameSprite(px, py))
         {
-            var frame = _selectedState!.SelectedFrame!;
-            _draggingFrame   = frame;
-            _frameDragAnchor = pos;
-            _frameDragStartX = frame.RelativeX;
-            _frameDragStartY = frame.RelativeY;
+            if (IsWholeChainDragTarget)
+            {
+                var chain = _selectedState!.SelectedChain!;
+                _draggingChainFrames = chain.Frames.ToArray();
+                _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
+                _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
+                _frameDragAnchor     = pos;
+            }
+            else
+            {
+                var frame = _selectedState!.SelectedFrame!;
+                _draggingFrame   = frame;
+                _frameDragAnchor = pos;
+                _frameDragStartX = frame.RelativeX;
+                _frameDragStartY = frame.RelativeY;
+            }
             e.Pointer.Capture(this);
         }
     }
@@ -1939,6 +2054,23 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             return;
         }
 
+        if (_draggingChainFrames is not null)
+        {
+            float om = _appState!.OffsetMultiplier * _zoom;
+            float dx = (float)(pos.X - _frameDragAnchor.X) / om;
+            float dy = -(float)(pos.Y - _frameDragAnchor.Y) / om;
+            for (int i = 0; i < _draggingChainFrames.Length; i++)
+            {
+                _draggingChainFrames[i].RelativeX = SnapToPixel(_chainFrameStartX![i] + dx);
+                _draggingChainFrames[i].RelativeY = SnapToPixel(_chainFrameStartY![i] + dy);
+            }
+            InvalidateVisual();
+            // Param is unused by MainWindow.OnFrameLiveUpdated (only drives a display refresh),
+            // so any frame in the chain satisfies the event's signature.
+            FrameLiveUpdated?.Invoke(_draggingChainFrames[0]);
+            return;
+        }
+
         if (_draggedGuideIdx >= 0)
         {
             if (_draggingHGuide)
@@ -1983,6 +2115,13 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         if (_draggingFrame is not null)
         {
             CommitFrameDrag();
+            e.Pointer.Capture(null);
+            return;
+        }
+
+        if (_draggingChainFrames is not null)
+        {
+            CommitChainDrag();
             e.Pointer.Capture(null);
             return;
         }
