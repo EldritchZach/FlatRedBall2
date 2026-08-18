@@ -11,6 +11,13 @@ namespace AnimationEditor.Core
         TileMapInformationList TileMapInformationList { get; set; }
         FilePath[] ReferencedPngs { get; }
         string? FileName { get; set; }
+
+        /// <summary>
+        /// The folder explicitly picked via File → Open Project Folder (or restored at startup).
+        /// Never inferred from the open .achx -- see <see cref="ProjectManager.ProjectFolderPath"/>.
+        /// </summary>
+        string? ProjectFolderPath { get; set; }
+
         TextureCoordinateType OnDiskCoordinateType { get; set; }
 
         void LoadAnimationChain(
