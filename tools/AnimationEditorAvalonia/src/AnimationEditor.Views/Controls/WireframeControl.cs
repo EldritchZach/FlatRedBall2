@@ -358,7 +358,8 @@ public class WireframeControl : TextureViewport
     private List<AnimationFrameSave>? _lastRevealedFrames;
     private object? _lastRevealSelectionKey;
 
-    // Lazily-created "+" cursor shown when Ctrl is held and a click would add a frame.
+    // Lazily-created "add frame" cursor (arrow + "+" badge) shown when Ctrl is held and a
+    // click would add a frame.
     private static readonly Lazy<Cursor> _addFrameCursorLazy = new(CreateAddFrameCursor);
     private static Cursor AddFrameCursor => _addFrameCursorLazy.Value;
 
@@ -1398,7 +1399,8 @@ public class WireframeControl : TextureViewport
     private void UpdateHoverCursor(Point pos, bool isCtrl = false)
     {
         // When Ctrl is held and a bitmap is loaded, any click will create a new frame.
-        if (isCtrl && _bitmap != null)
+        IsShowingAddFrameCursor = isCtrl && _bitmap != null;
+        if (IsShowingAddFrameCursor)
         {
             Cursor = AddFrameCursor;
             return;
@@ -1410,6 +1412,21 @@ public class WireframeControl : TextureViewport
             ? Cursor.Default
             : new Cursor(cursorType.Value);
     }
+
+    /// <summary>
+    /// Test-only: true when the add-frame cursor (Ctrl held over a loaded bitmap) is currently
+    /// showing. Avoids asserting on the Avalonia <see cref="Control.Cursor"/> property, which
+    /// exposes no equality on <c>StandardCursorType</c>.
+    /// </summary>
+    public bool IsShowingAddFrameCursor { get; private set; }
+
+    /// <summary>
+    /// Re-evaluates the cursor at the last known pointer position without requiring pointer
+    /// movement -- called by <c>MainWindow</c> when Ctrl is pressed or released while the
+    /// pointer sits still over this control, so the add-frame cursor toggles immediately (#882)
+    /// instead of waiting for the next pointer move.
+    /// </summary>
+    public void RefreshCursorForCtrlChange(bool isCtrl) => UpdateHoverCursor(_lastPointerPos, isCtrl);
 
     /// <inheritdoc />
     protected override void OnEditPointerReleased(PointerReleasedEventArgs e)
@@ -1966,9 +1983,10 @@ public class WireframeControl : TextureViewport
     }
 
     /// <summary>
-    /// Builds a cross-hair "+" cursor and returns a <see cref="Cursor"/>
-    /// with its hot-spot at the centre pixel.  Called once by <see cref="_addFrameCursorLazy"/>.
+    /// The OS "drag-copy" cursor (arrow + small "+" badge) -- the conventional "add" affordance,
+    /// replacing the crosshair (<see cref="StandardCursorType.Cross"/>) previously shown here.
+    /// Called once by <see cref="_addFrameCursorLazy"/>.
     /// </summary>
     private static Cursor CreateAddFrameCursor() =>
-        new Cursor(StandardCursorType.Cross);
+        new Cursor(StandardCursorType.DragCopy);
 }
