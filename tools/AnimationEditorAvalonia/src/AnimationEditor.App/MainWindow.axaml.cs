@@ -1527,6 +1527,11 @@ public partial class MainWindow : Window
 
     private void HandleSelectionChanged()
     {
+        // #897: seal any still-open coalescing window here -- on a genuine selection change --
+        // rather than in RefreshPropertyPanel, which HandleAnimationChainsChanged also calls after
+        // *every* commit (including each one a coalescing session is made of). Sealing there would
+        // close the window right after each tick and defeat coalescing entirely.
+        _appCommands.SealPendingEdits();
         // Sync the texture combo to the texture of the currently selected frame/chain
         Dispatcher.UIThread.InvokeAsync(SyncTextureCombo);
         // Sync tree selection
@@ -4261,6 +4266,20 @@ public partial class MainWindow : Window
         PropTextureName.LostFocus  += (_, _) => ApplyTextureName();
         PropTextureName.KeyDown    += (_, e) => { if (e.Key == Key.Enter) ApplyTextureName(); };
         PropTextureBrowseBtn.Click += async (_, _) => await BrowseForFrameTexture();
+
+        // #897: every field above commits on ValueChanged so the wireframe/preview updates live as
+        // the user types or scrolls the wheel; each commit coalesces with the previous one for the
+        // same field group into a single undo entry (see IUndoableCommand.CoalesceGroup). LostFocus
+        // seals that entry so the next edit — even to the same field — starts a fresh one.
+        SealOnLostFocus(PropFrameLen, PropRelX, PropRelY, PropPixelX, PropPixelY, PropPixelW, PropPixelH,
+            PropRectX, PropRectY, PropRectScaleX, PropRectScaleY,
+            PropCircleX, PropCircleY, PropCircleRadius);
+    }
+
+    private void SealOnLostFocus(params NumericUpDown[] inputs)
+    {
+        foreach (var input in inputs)
+            input.LostFocus += (_, _) => _appCommands.SealPendingEdits();
     }
 
     private void ApplyTextureName()
@@ -4491,6 +4510,9 @@ public partial class MainWindow : Window
 
     private void RefreshPropertyPanel()
     {
+        // Deliberately does NOT call SealPendingEdits here -- this method also runs after every
+        // single commit via HandleAnimationChainsChanged (to resync flip toggles, etc. post-edit),
+        // not just on a genuine selection change. See HandleSelectionChanged for the seal (#897).
         _suppressPropRefresh = true;
         try
         {
