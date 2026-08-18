@@ -3,6 +3,7 @@ using FlatRedBall2.Animation.Content;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace AnimationEditor.Core.CommandsAndState.Commands
 {
@@ -62,10 +63,29 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
 
         public string Description { get; }
 
+        /// <summary>
+        /// Keyed on <paramref name="coalesceKind"/> plus the edited frames' own identities, so
+        /// consecutive edits to the same field on the same frame set (e.g. one call per keystroke
+        /// while typing in the Relative X field) coalesce into a single undo entry -- see
+        /// <see cref="IUndoableCommand.CoalesceGroup"/>. Null (the default) never coalesces, for
+        /// bulk operations that aren't driven by a single continuously-editable control.
+        /// </summary>
+        public string? CoalesceGroup { get; }
+
         public BulkFrameEditCommand(
             IReadOnlyList<AnimationFrameSave> frames, Action mutate,
             IAppCommands commands, IApplicationEvents events, bool refreshWireframe,
-            string description = "Edit Frames")
+            string description = "Edit Frames", string? coalesceKind = null)
+            : this(frames, mutate, commands, events, refreshWireframe, description,
+                  BuildCoalesceGroup(coalesceKind, frames), [], [])
+        {
+        }
+
+        private BulkFrameEditCommand(
+            IReadOnlyList<AnimationFrameSave> frames, Action mutate,
+            IAppCommands commands, IApplicationEvents events, bool refreshWireframe,
+            string description, string? coalesceGroup,
+            FrameFieldSnapshot[] before, FrameFieldSnapshot[] after)
         {
             _frames = frames;
             _mutate = mutate;
@@ -73,7 +93,14 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             _events = events;
             _refreshWireframe = refreshWireframe;
             Description = description;
+            CoalesceGroup = coalesceGroup;
+            _before = before;
+            _after = after;
         }
+
+        private static string? BuildCoalesceGroup(string? kind, IReadOnlyList<AnimationFrameSave> frames) =>
+            kind is null ? null :
+            $"BulkFrameEdit:{kind}:{string.Join(",", frames.Select(RuntimeHelpers.GetHashCode).OrderBy(h => h))}";
 
         public bool Do()
         {
@@ -89,6 +116,18 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
 
         public void Undo() => Apply(_before);
         public void Redo() => Apply(_after);
+
+        /// <summary>
+        /// Combines <paramref name="previous"/>'s original "before" snapshot with this command's
+        /// already-captured "after" snapshot (see <see cref="IUndoableCommand.CoalesceWith"/>).
+        /// </summary>
+        public IUndoableCommand CoalesceWith(IUndoableCommand previous)
+        {
+            var p = (BulkFrameEditCommand)previous;
+            return new BulkFrameEditCommand(
+                _frames, _mutate, _commands, _events, _refreshWireframe,
+                Description, CoalesceGroup, p._before, _after);
+        }
 
         private void Apply(FrameFieldSnapshot[] snapshots)
         {

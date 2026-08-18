@@ -4262,6 +4262,20 @@ public partial class MainWindow : Window
         PropTextureName.LostFocus  += (_, _) => ApplyTextureName();
         PropTextureName.KeyDown    += (_, e) => { if (e.Key == Key.Enter) ApplyTextureName(); };
         PropTextureBrowseBtn.Click += async (_, _) => await BrowseForFrameTexture();
+
+        // #897: every field above commits on ValueChanged so the wireframe/preview updates live as
+        // the user types or scrolls the wheel; each commit coalesces with the previous one for the
+        // same field group into a single undo entry (see IUndoableCommand.CoalesceGroup). LostFocus
+        // seals that entry so the next edit — even to the same field — starts a fresh one.
+        SealOnLostFocus(PropFrameLen, PropRelX, PropRelY, PropPixelX, PropPixelY, PropPixelW, PropPixelH,
+            PropRectX, PropRectY, PropRectScaleX, PropRectScaleY,
+            PropCircleX, PropCircleY, PropCircleRadius);
+    }
+
+    private void SealOnLostFocus(params NumericUpDown[] inputs)
+    {
+        foreach (var input in inputs)
+            input.LostFocus += (_, _) => _appCommands.SealPendingEdits();
     }
 
     private void ApplyTextureName()
@@ -4492,6 +4506,9 @@ public partial class MainWindow : Window
 
     private void RefreshPropertyPanel()
     {
+        // #897: seal any still-open coalescing window before repopulating fields from a (possibly
+        // reselected) target, so a stale pending edit never merges with a later one to the same field.
+        _appCommands.SealPendingEdits();
         _suppressPropRefresh = true;
         try
         {

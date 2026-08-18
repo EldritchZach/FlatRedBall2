@@ -13,6 +13,7 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
         private readonly Stack<IUndoableCommand> _undoStack = new();
         private readonly Stack<IUndoableCommand> _redoStack = new();
         private SaveState _saveState = SaveState.Unsaved;
+        private string? _openCoalesceGroup;
 
         public bool CanUndo => _undoStack.Count > 0;
         public bool CanRedo => _redoStack.Count > 0;
@@ -30,8 +31,15 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
         /// <inheritdoc cref="IUndoManager.Execute"/>
         public void Execute(IUndoableCommand cmd)
         {
-            if (cmd.Do())
-                Record(cmd);
+            if (!cmd.Do()) return;
+
+            if (cmd.CoalesceGroup is { } group && group == _openCoalesceGroup &&
+                _undoStack.Count > 0 && _undoStack.Peek().CoalesceGroup == group)
+            {
+                cmd = cmd.CoalesceWith(_undoStack.Pop());
+            }
+            _openCoalesceGroup = cmd.CoalesceGroup;
+            Record(cmd);
         }
 
         /// <inheritdoc cref="IUndoManager.Record"/>
@@ -42,6 +50,9 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             StackChanged?.Invoke();
         }
 
+        /// <inheritdoc cref="IUndoManager.SealCoalescing"/>
+        public void SealCoalescing() => _openCoalesceGroup = null;
+
         /// <summary>No-op when <see cref="CanUndo"/> is false.</summary>
         public void Undo()
         {
@@ -49,6 +60,7 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             var cmd = _undoStack.Pop();
             cmd.Undo();
             _redoStack.Push(cmd);
+            _openCoalesceGroup = null;
             StackChanged?.Invoke();
         }
 
@@ -59,6 +71,7 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             var cmd = _redoStack.Pop();
             cmd.Redo();
             _undoStack.Push(cmd);
+            _openCoalesceGroup = null;
             StackChanged?.Invoke();
         }
 
@@ -67,6 +80,7 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             _undoStack.Clear();
             _redoStack.Clear();
             _saveState = SaveState.Unsaved;
+            _openCoalesceGroup = null;
             StackChanged?.Invoke();
         }
 
@@ -85,6 +99,7 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
             // RedoStack is stored LIFO (next-to-redo first); push in reverse to restore that order.
             for (int i = snapshot.RedoStack.Count - 1; i >= 0; i--)
                 _redoStack.Push(snapshot.RedoStack[i]);
+            _openCoalesceGroup = null;
             StackChanged?.Invoke();
         }
 

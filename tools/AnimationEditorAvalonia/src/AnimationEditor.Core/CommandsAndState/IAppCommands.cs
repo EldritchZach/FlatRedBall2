@@ -311,6 +311,15 @@ namespace AnimationEditor.Core.CommandsAndState
         void SetCirclePropsBulk(IReadOnlyList<CircleSave> circles, string? name, float? x, float? y, float? radius);
 
         /// <summary>
+        /// Ends the current edit session for the coalescing NumericUpDown fields (rect/circle
+        /// props, frame length/offset/pixel-region/color/alpha — see <see cref="SetRectProps"/> and
+        /// siblings) so the next edit records a fresh undo entry instead of merging into the last
+        /// one. Call on focus loss of the editing control (see
+        /// <see cref="Commands.IUndoManager.SealCoalescing"/> for why this boundary matters).
+        /// </summary>
+        void SealPendingEdits();
+
+        /// <summary>
         /// True when two or more of <paramref name="shapes"/> (AARectSave and/or CircleSave) are
         /// owned by the same frame — batch-applying one literal name to all of them would collide,
         /// since shape names only need to be unique within a frame, not across frames.
