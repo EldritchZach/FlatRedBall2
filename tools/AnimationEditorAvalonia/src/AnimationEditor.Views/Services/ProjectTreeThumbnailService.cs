@@ -1,4 +1,5 @@
 using AnimationEditor.Core.IO;
+using AnimationEditor.Core.Paths;
 using Avalonia.Media.Imaging;
 using FlatRedBall2.Animation.Content;
 using SkiaSharp;
@@ -127,7 +128,9 @@ public sealed class ProjectTreeThumbnailService
             await using (var achxStream = await entry.File.OpenReadAsync())
             using (var reader = new StreamReader(achxStream))
                 achxText = await reader.ReadToEndAsync(cancellationToken);
-            acls = AnimationChainListSave.FromString(achxText);
+            acls = new FilePath(entry.RelativePath).Extension == "achj"
+                ? AnimationChainListSave.FromJsonString(achxText)
+                : AnimationChainListSave.FromString(achxText);
         }
         catch
         {
