@@ -56,9 +56,7 @@ internal static class BrowserProjectLoader
         using (var reader = new StreamReader(achxStream))
             achxText = await reader.ReadToEndAsync();
 
-        var acls = achxFile.Name.EndsWith(".achj", StringComparison.OrdinalIgnoreCase)
-            ? AnimationChainListSave.FromJsonString(achxText)
-            : AnimationChainListSave.FromString(achxText);
+        var acls = AnimationChainListSave.FromString(achxText);
         var achxDirectory = RootRelativePath.DirectoryOf(achxFile.Name);
 
         var pngsByPath = new Dictionary<string, IEditorFile>(StringComparer.OrdinalIgnoreCase);
