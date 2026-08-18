@@ -282,6 +282,58 @@ public class TabManagerTests
         Assert.Equal(before, tm.Tabs.Count);
     }
 
+    // ── Close: MRU reactivation (#911) ──────────────────────────────────────────
+    // Closing the active tab should return to whichever tab was active immediately
+    // before it, not just the tab-strip neighbor -- matching Chrome/VS Code rather
+    // than a purely positional fallback.
+
+    [Fact]
+    public void Close_ActiveTab_ReactivatesPreviouslyActiveTab_EvenWhenNotAdjacent()
+    {
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\anim1.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\anim2.achx"));
+        tm.Activate(P(@"C:\Games\anim1.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\sprite.png")); // opens at the end, active
+
+        tm.Close(P(@"C:\Games\sprite.png"));
+
+        // Positional fallback would land on anim2 (sprite.png's tab-strip neighbor);
+        // MRU should return to anim1, the tab that was active before sprite.png opened.
+        Assert.Equal(P(@"C:\Games\anim1.achx"), tm.ActiveTab!.Path);
+    }
+
+    [Fact]
+    public void Close_ActiveTab_PreviouslyActiveTabAlreadyClosed_SkipsToOlderHistoryEntry()
+    {
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\a.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\b.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\c.achx")); // active; history is [a, b]
+        tm.Close(P(@"C:\Games\b.achx")); // background close; stale history entry for b remains
+
+        tm.Close(P(@"C:\Games\c.achx"));
+
+        Assert.Equal(P(@"C:\Games\a.achx"), tm.ActiveTab!.Path);
+    }
+
+    [Fact]
+    public void Close_ActiveTab_NoHistory_FallsBackToPositional()
+    {
+        // Same scenario as Close_ActiveTabWithNext_ActivatesNextTab: b became active by
+        // being opened (not by switching from elsewhere), so its history entry is the
+        // tab it replaced -- consistent with a plain positional fallback either way.
+        var tm = new TabManager();
+        tm.OpenOrFocus(P(@"C:\Games\a.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\b.achx"));
+        tm.OpenOrFocus(P(@"C:\Games\c.achx"));
+        tm.Activate(P(@"C:\Games\b.achx"));
+
+        tm.Close(P(@"C:\Games\b.achx"));
+
+        Assert.Equal(P(@"C:\Games\c.achx"), tm.ActiveTab!.Path);
+    }
+
     // ── Activate ─────────────────────────────────────────────────────────────
 
     [Fact]
