@@ -464,6 +464,13 @@ public class WireframeControl : TextureViewport
         _selectedState.SelectionChanged     += () => Dispatcher.UIThread.InvokeAsync(OnSelectionChanged);
         _pendingCutState.Changed            += () => Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
         _appCommands.RefreshWireframeRequested += () => Dispatcher.UIThread.InvokeAsync(RefreshAll);
+        // RefreshAnimationFrameDisplayRequested fires from every command that mutates the selected
+        // frame's live properties (offset drag, shape add/move/resize, ...) and their Undo/Redo --
+        // PreviewControl already redraws on it. WireframeControl draws its own frame-derived overlay
+        // (the origin crosshair, from RelativeX/RelativeY) so it needs the same repaint, cheaply
+        // (InvalidateVisual, not a full RefreshAll) -- one subscription here covers every current and
+        // future caller instead of each one having to remember to also refresh the wireframe (#905).
+        _appCommands.RefreshAnimationFrameDisplayRequested += () => Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
         _events.AchxLoaded                  += _ => Dispatcher.UIThread.InvokeAsync(RefreshAll);
         // Post at Background priority so this runs *after* the add/retexture's higher-priority
         // SelectionChanged → RefreshAll (or a synchronous LoadTexture) has loaded the texture — only

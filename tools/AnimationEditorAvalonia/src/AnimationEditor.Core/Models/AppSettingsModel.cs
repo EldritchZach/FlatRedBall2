@@ -72,6 +72,14 @@ namespace AnimationEditor.Core.Models
         /// </summary>
         public string? LastProjectFolderPath { get; set; }
 
+        /// <summary>
+        /// The bottom preview panel's row height in pixels, as last dragged via the horizontal
+        /// GridSplitter (#904). <c>null</c> falls back to the editor's default height —
+        /// see <see cref="Layout.PreviewPaneHeightValidator"/> for the bounds a stored value
+        /// is checked against before use.
+        /// </summary>
+        public double? PreviewPaneHeight { get; set; }
+
         public void AddFile(FilePath filePath)
         {
             RecentFiles.RemoveAll(item => new FilePath(item) == filePath);

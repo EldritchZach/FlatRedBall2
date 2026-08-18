@@ -10,6 +10,7 @@ using AnimationEditor.Core.DragDrop;
 using AnimationEditor.Core.HotReload;
 using AnimationEditor.Core.Hotkeys;
 using AnimationEditor.Core.IO;
+using AnimationEditor.Core.Layout;
 using AnimationEditor.Core.Models;
 using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.Update;
@@ -239,6 +240,7 @@ public partial class MainWindow : Window
         LoadSettingsFile();
         ApplyPersistedTheme();
         ApplyPersistedCanvasColors();
+        ApplyPersistedPreviewPaneHeight();
         WireMenuEvents();
         WireWireframeToolbar();
         WireWireframeControl();
@@ -309,6 +311,8 @@ public partial class MainWindow : Window
         Opened += OnOpened;
         Closed += (_, _) =>
         {
+            // Piggyback on SaveTabsToSettings' write rather than a separate SaveSettingsFile call.
+            _appSettings.PreviewPaneHeight = AchxEditorPane.RowDefinitions[3].Height.Value;
             SaveTabsToSettings();
             _appCommands.HotReloadWatcher.Dispose();
             PreviewCtrl.Playback.FrameIndexChanged -= OnPreviewPlaybackFrameIndexChanged;
@@ -1455,7 +1459,9 @@ public partial class MainWindow : Window
 
     private void OnFrameLiveUpdated(AnimationFrameSave frame)
     {
-        // Called on UI thread during drag — refresh property panel and preview without saving
+        // Called on UI thread during drag — refresh property panel and preview without saving.
+        // RefreshAnimationFrameDisplay also repaints WireframeCtrl (it subscribes to the same
+        // event) so the origin crosshair tracks this drag too — see WireframeControl.InitializeServices.
         RefreshPropertyPanel();
         _appCommands.RefreshAnimationFrameDisplay();
     }
@@ -5123,6 +5129,22 @@ public partial class MainWindow : Window
         _appSettings.GuideLineArgb = argb;
         PreviewCtrl.GuideLineOverride = argb;
         SaveSettingsFile();
+    }
+
+    // ── Preview pane height ──────────────────────────────────────────────────
+    // The AchxEditorPane's row 3 (bottom preview panel) is resized by dragging the
+    // GridSplitter at row 2. See PreviewPaneHeightValidator for the bounds a stored value
+    // is checked against (#904).
+    private const double MinPreviewPaneHeight = 80;
+    private const double MaxPreviewPaneHeight = 2000;
+    private const double DefaultPreviewPaneHeight = 250;
+
+    /// <summary>Applies the persisted (or default, if missing/invalid) preview-pane row height.</summary>
+    private void ApplyPersistedPreviewPaneHeight()
+    {
+        var resolved = PreviewPaneHeightValidator.Resolve(
+            _appSettings.PreviewPaneHeight, MinPreviewPaneHeight, MaxPreviewPaneHeight, DefaultPreviewPaneHeight);
+        AchxEditorPane.RowDefinitions[3].Height = new GridLength(resolved, GridUnitType.Pixel);
     }
 
     private static uint ToArgb(SKColor color) =>
