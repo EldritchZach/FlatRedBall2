@@ -419,6 +419,18 @@ public partial class MainWindow : Window
                     Header = "Detach to New Window",
                     Command = new RelayCommand(() => DetachTab(captured)),
                 });
+            // Issue #881: same action as the title-bar "Open Containing Folder", but for the
+            // right-clicked tab (which may not be the active one).
+            tabMenu.Items.Add(new MenuItem
+            {
+                Header = "Open Containing Folder",
+                Command = new RelayCommand(() =>
+                {
+                    var error = Services.ShellExplorer.RevealFile(captured.Path.FullPath);
+                    if (error is not null)
+                        ShowStatusMessage($"⚠ {error}", isError: true);
+                }),
+            });
             // Issue #546: same action as the title-bar "Copy Full Path", but for the right-clicked
             // tab (which may not be the active one).
             tabMenu.Items.Add(new MenuItem
