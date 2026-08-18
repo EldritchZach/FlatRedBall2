@@ -1399,7 +1399,8 @@ public class WireframeControl : TextureViewport
     private void UpdateHoverCursor(Point pos, bool isCtrl = false)
     {
         // When Ctrl is held and a bitmap is loaded, any click will create a new frame.
-        if (isCtrl && _bitmap != null)
+        IsShowingAddFrameCursor = isCtrl && _bitmap != null;
+        if (IsShowingAddFrameCursor)
         {
             Cursor = AddFrameCursor;
             return;
@@ -1411,6 +1412,21 @@ public class WireframeControl : TextureViewport
             ? Cursor.Default
             : new Cursor(cursorType.Value);
     }
+
+    /// <summary>
+    /// Test-only: true when the add-frame cursor (Ctrl held over a loaded bitmap) is currently
+    /// showing. Avoids asserting on the Avalonia <see cref="Control.Cursor"/> property, which
+    /// exposes no equality on <c>StandardCursorType</c>.
+    /// </summary>
+    public bool IsShowingAddFrameCursor { get; private set; }
+
+    /// <summary>
+    /// Re-evaluates the cursor at the last known pointer position without requiring pointer
+    /// movement -- called by <c>MainWindow</c> when Ctrl is pressed or released while the
+    /// pointer sits still over this control, so the add-frame cursor toggles immediately (#882)
+    /// instead of waiting for the next pointer move.
+    /// </summary>
+    public void RefreshCursorForCtrlChange(bool isCtrl) => UpdateHoverCursor(_lastPointerPos, isCtrl);
 
     /// <inheritdoc />
     protected override void OnEditPointerReleased(PointerReleasedEventArgs e)

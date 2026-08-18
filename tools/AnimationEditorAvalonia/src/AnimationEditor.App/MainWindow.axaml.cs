@@ -5553,6 +5553,11 @@ public partial class MainWindow : Window
         {
             if (e.Handled) return;
 
+            // Ctrl+hover over the wireframe shows the add-frame cursor; refresh it immediately
+            // on press so it doesn't wait for the next pointer move (#882).
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+                WireframeCtrl.RefreshCursorForCtrlChange(isCtrl: true);
+
             var match = HotkeyRegistry.FindMatch(_hotkeys, e.Key.ToString(), ToHotkeyModifiers(e.KeyModifiers));
             if (match is null) return;
             if (match.ShouldSkip?.Invoke() == true) return;
@@ -5566,6 +5571,12 @@ public partial class MainWindow : Window
         AddHandler(KeyUpEvent, (EventHandler<KeyEventArgs>)((_, e) =>
         {
             if (e.Handled) return;
+
+            // Mirror image of the KeyDown branch above: drop the add-frame cursor the instant
+            // Ctrl is released, without requiring a pointer move (#882).
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+                WireframeCtrl.RefreshCursorForCtrlChange(isCtrl: false);
+
             if (e.Key is Key.LeftAlt or Key.RightAlt &&
                 _altMenuActivationSuppressor.TryConsumeIfArmed())
             {
