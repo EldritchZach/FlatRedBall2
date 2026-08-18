@@ -2508,6 +2508,9 @@ public partial class MainWindow : Window
         PreviewCtrl.Playback.PlaybackTicked += OnPlaybackTicked;
         PreviewCtrl.GroupTracksChanged += RefreshGroupTimelineTracks;
         PreviewCtrl.GroupPlaybackTicked += RefreshGroupTimelineScrubbers;
+        // Same "no save, just a live refresh" handler the WireframeControl frame-region drag uses,
+        // so dragging a frame's offset in the Preview panel tracks in the property panel too (#900 follow-up).
+        PreviewCtrl.FrameLiveUpdated += OnFrameLiveUpdated;
 
         // ── Preview scrollbars (#415) ──
         // Persist on scroll-end only (not per tick), matching the pan-drag save semantics.

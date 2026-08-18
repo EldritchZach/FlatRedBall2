@@ -178,4 +178,60 @@ public class PreviewFrameDragTests
         }
         finally { Directory.Delete(dir, true); }
     }
+
+    // ── Live update while dragging (not just on release) ───────────────────────
+
+    [AvaloniaFact]
+    public void RealDrag_OnFrameSprite_FiresFrameLiveUpdatedBeforeRelease()
+    {
+        var ctx = ResetSingletons();
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var texPath = WriteSolidPng(dir);
+            var frame   = MakeFrame();
+            frame.TextureName = texPath;
+
+            var chain = new AnimationChainSave { Name = "Walk" };
+            chain.Frames.Add(frame);
+            ctx.ProjectManager.AnimationChainListSave!.AnimationChains.Add(chain);
+            ctx.SelectedState.SelectedChain = chain;
+            ctx.SelectedState.SelectedFrame = frame;
+            // Pre-warm the bitmap cache the way a real render pass would, so the frame-drag
+            // hit-test (which requires a cached bitmap) is actually eligible to fire.
+            ctx.ThumbnailService.GetBitmap(texPath);
+
+            var window = ctx.CreateMainWindow();
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            var preview = window.FindControl<PreviewControl>("PreviewCtrl")!;
+            float centerX = (float)((preview.Bounds.Width - 20) / 2 + 20);
+            float centerY = (float)((preview.Bounds.Height - 20) / 2 + 20);
+            var localPoint  = new Point(centerX, centerY); // frame sits at world (0,0) == canvas center
+            var windowPoint = preview.TranslatePoint(localPoint, window)!.Value;
+
+            AnimationFrameSave? liveUpdatedFrame = null;
+            preview.FrameLiveUpdated += f => liveUpdatedFrame = f;
+
+            window.MouseDown(windowPoint, MouseButton.Left);
+            var movedPoint = windowPoint + new Point(5, 5);
+            window.MouseMove(movedPoint);
+            Dispatcher.UIThread.RunJobs();
+
+            // Still mid-drag (no mouse-up yet) — the live event, and the property-panel field it
+            // drives, must already reflect the move; not just after release (#900 follow-up).
+            Assert.Same(frame, liveUpdatedFrame);
+            Assert.NotEqual(0f, frame.RelativeX);
+
+            var propRelX = window.FindControl<NumericUpDown>("PropRelX")!;
+            Assert.Equal((decimal)frame.RelativeX, propRelX.Value);
+
+            window.MouseUp(movedPoint, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            window.Close();
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

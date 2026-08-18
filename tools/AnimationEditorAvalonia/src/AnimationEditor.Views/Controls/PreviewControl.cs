@@ -196,6 +196,13 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         set { _showBoundingBox = value; InvalidateVisual(); }
     }
 
+    /// <summary>
+    /// Fires on every pointer-move frame during a frame-offset drag (see <see cref="HitTestFrameSprite"/>) —
+    /// no save, just a live refresh — mirroring <see cref="AnimationEditor.App.Controls.WireframeControl.FrameLiveUpdated"/>
+    /// so the property panel tracks the drag instead of only updating on release.
+    /// </summary>
+    public event Action<AnimationFrameSave>? FrameLiveUpdated;
+
     /// <summary>Fires whenever a guide is added, removed, or bulk-replaced via <see cref="SetGuides"/>.</summary>
     public event Action? GuidesChanged;
 
@@ -1928,6 +1935,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             _draggingFrame.RelativeX = SnapToPixel(_frameDragStartX + dx);
             _draggingFrame.RelativeY = SnapToPixel(_frameDragStartY + dy);
             InvalidateVisual();
+            FrameLiveUpdated?.Invoke(_draggingFrame);
             return;
         }
 
