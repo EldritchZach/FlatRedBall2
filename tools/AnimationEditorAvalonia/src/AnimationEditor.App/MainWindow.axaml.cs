@@ -696,6 +696,20 @@ public partial class MainWindow : Window
         _sidebarCollapsedForPng = png;
     }
 
+    /// <summary>
+    /// Keeps the Project list's selection following whichever tab just became active (#910) --
+    /// the tab strip is otherwise the only way to switch tabs without the Project list itself
+    /// having caused it. PNG tabs and untitled/unsaved tabs have no corresponding Project-list
+    /// row, so those clear the selection instead of leaving a stale highlight.
+    /// </summary>
+    private void SyncProjectPanelSelectionTo(TabEntry tab)
+    {
+        var entry = tab.Kind == TabKind.Achx && !IsUntitledTab(tab)
+            ? FindProjectPanelEntry(ProjectPanel.TreeRoots, tab.Path.FullPath)
+            : null;
+        ProjectPanel.SyncSelectionToActiveFile(entry);
+    }
+
     private async Task ActivateTabAsync(TabEntry tab)
     {
         if (tab == _tabManager.ActiveTab) return;
@@ -717,6 +731,7 @@ public partial class MainWindow : Window
                 SaveCompanionFile();
             _tabManager.Activate(tab.Path);
             ShowPngPane(tab);
+            SyncProjectPanelSelectionTo(tab);
             RebuildTabStrip();
             return;
         }
@@ -737,6 +752,7 @@ public partial class MainWindow : Window
             if (tab.UndoSnapshot != null)
                 _undoManager.RestoreSnapshot(tab.UndoSnapshot);
         }
+        SyncProjectPanelSelectionTo(tab);
         RebuildTabStrip();
     }
 
@@ -780,6 +796,7 @@ public partial class MainWindow : Window
             if (next.Kind == TabKind.Png)
             {
                 ShowPngPane(next);
+                SyncProjectPanelSelectionTo(next);
                 RebuildTabStrip();
             }
             // Use OpenAchxWorkflowAsync directly — bypasses EnsureCurrentEditorContentHasTab
@@ -793,6 +810,7 @@ public partial class MainWindow : Window
             {
                 ShowAchxPane();
                 ActivateUntitledTabContent(next);
+                SyncProjectPanelSelectionTo(next);
                 RebuildTabStrip();
             }
         }
@@ -804,6 +822,7 @@ public partial class MainWindow : Window
             _projectManager.FileName = null;
             _selectedState.Reset();
             _undoManager.Clear();
+            ProjectPanel.SyncSelectionToActiveFile(null);
             RefreshTreeView();
             RefreshFilesPanel();
             UpdateTitle();
@@ -816,6 +835,7 @@ public partial class MainWindow : Window
         await _appCommands.ActivateTabContentAsync(tab);
         if (tab.UndoSnapshot != null)
             _undoManager.RestoreSnapshot(tab.UndoSnapshot);
+        SyncProjectPanelSelectionTo(tab);
         RebuildTabStrip();
     }
 
@@ -889,6 +909,14 @@ public partial class MainWindow : Window
         // document tab is open (#772).
         if (_appSettings.LastProjectFolderPath is { } lastProjectFolder && Directory.Exists(lastProjectFolder))
             await LoadProjectFolderAsync(lastProjectFolder);
+
+        // Whichever branch above set the active tab (RestoreTabsAsync, the CLI-arg open, or
+        // neither) did so directly rather than through ActivateTabAsync, so it never synced the
+        // Project list's own selection (#910 follow-up) -- do it once here, now the tree is
+        // populated. TabManager.ActiveTab is set synchronously by those paths even though their
+        // content load may still be in flight, so this doesn't need to wait on them.
+        if (_tabManager.ActiveTab is { } activeTab)
+            SyncProjectPanelSelectionTo(activeTab);
 
         RefreshFilesPanel();
         // Not auto-shown (issue #849): RegisterAsDefault() doesn't work for the current

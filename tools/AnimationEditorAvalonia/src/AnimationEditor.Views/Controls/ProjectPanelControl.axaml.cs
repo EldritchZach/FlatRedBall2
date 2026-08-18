@@ -34,12 +34,15 @@ public partial class ProjectPanelControl : UserControl
     private CancellationTokenSource? _thumbnailLoadCts;
     private AchxTreeNodeVm? _contextNode;
 
-    // Guards against re-entrant SelectionChanged while ClearSearchAndReveal restores the
-    // selection post-rebuild -- without it, that restore would re-fire FileSelected for the
-    // same entry a second time.
-    private bool _isRestoringSelectionAfterSearchClear;
+    // Guards against re-entrant SelectionChanged while a selection change is programmatic rather
+    // than a real user click -- ClearSearchAndReveal restoring post-rebuild, or SyncSelectionToActiveFile
+    // following the active tab (#910). Without it, either would re-fire FileSelected and re-navigate.
+    private bool _isProgrammaticSelectionChange;
 
     public ObservableCollection<AchxTreeNodeVm> TreeRoots { get; } = new();
+
+    /// <summary>The currently selected file entry, or null when no file row is selected.</summary>
+    public AchxFileEntry? SelectedEntry => (ProjectTree.SelectedItem as AchxTreeNodeVm)?.Entry;
 
     /// <summary>Raised when the user clicks a file row.</summary>
     public event Action<AchxFileEntry>? FileSelected;
@@ -230,7 +233,7 @@ public partial class ProjectPanelControl : UserControl
 
     private void OnTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_isRestoringSelectionAfterSearchClear) return;
+        if (_isProgrammaticSelectionChange) return;
         if (ProjectTree.SelectedItem is not AchxTreeNodeVm { IsFile: true, Entry: { } entry }) return;
 
         FileSelected?.Invoke(entry);
@@ -242,6 +245,30 @@ public partial class ProjectPanelControl : UserControl
             ClearSearchAndReveal(entry);
     }
 
+    /// <summary>
+    /// Selects the tree node for <paramref name="entry"/> (or clears selection when null) without
+    /// raising <see cref="FileSelected"/> -- keeps this list in sync when the active tab changes
+    /// some other way, e.g. clicking the tab strip (#910), as opposed to a click in this tree,
+    /// which is what FileSelected exists for.
+    /// </summary>
+    public void SyncSelectionToActiveFile(AchxFileEntry? entry)
+    {
+        var match = entry is null ? null : FindNode(TreeRoots, entry);
+        if (ReferenceEquals(ProjectTree.SelectedItem, match)) return;
+
+        _isProgrammaticSelectionChange = true;
+        try
+        {
+            ProjectTree.SelectedItem = match;
+            if (match is not null)
+                ProjectTree.ScrollIntoView(match);
+        }
+        finally
+        {
+            _isProgrammaticSelectionChange = false;
+        }
+    }
+
     private void ClearSearchAndReveal(AchxFileEntry entry)
     {
         ProjectSearchBox.Clear(); // synchronously fires QueryChanged("") -> Rebuild()
@@ -249,7 +276,7 @@ public partial class ProjectPanelControl : UserControl
         var match = FindNode(TreeRoots, entry);
         if (match is null) return;
 
-        _isRestoringSelectionAfterSearchClear = true;
+        _isProgrammaticSelectionChange = true;
         try
         {
             ProjectTree.SelectedItem = match;
@@ -257,7 +284,7 @@ public partial class ProjectPanelControl : UserControl
         }
         finally
         {
-            _isRestoringSelectionAfterSearchClear = false;
+            _isProgrammaticSelectionChange = false;
         }
     }
 
