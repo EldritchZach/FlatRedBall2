@@ -186,6 +186,7 @@ namespace AnimationEditor.Core.Models
 
             int idx = _tabs.IndexOf(tab);
             _tabs.RemoveAt(idx);
+            PurgeFromHistory(tab);
 
             // Re-pick the active tab only when the one closed was active. A background-tab
             // close leaves ActiveTab as-is but still changes the open-tab set, so TabsChanged
@@ -219,6 +220,26 @@ namespace AnimationEditor.Core.Models
                     return candidate;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Removes every occurrence of <paramref name="tab"/> from <see cref="_activationHistory"/>.
+        /// Closing a tab already makes it unreachable via <see cref="PopValidHistoryEntry"/> (it is
+        /// no longer in <see cref="_tabs"/>), but without this it would still sit in the stack --
+        /// pinning its <see cref="TabEntry.CachedEditorModel"/> and undo state alive -- until some
+        /// later close happened to pop deep enough to discard it. Called for every close, not just
+        /// active-tab closes, so a background-tab close can't leave that behind either.
+        /// </summary>
+        private void PurgeFromHistory(TabEntry tab)
+        {
+            if (!_activationHistory.Contains(tab)) return;
+
+            // Stack<T> enumerates top-to-bottom; reverse before re-pushing so the surviving
+            // entries land back in their original order (and the original top stays on top).
+            var remaining = _activationHistory.Where(t => t != tab).Reverse().ToArray();
+            _activationHistory.Clear();
+            foreach (var t in remaining)
+                _activationHistory.Push(t);
         }
 
         /// <summary>
