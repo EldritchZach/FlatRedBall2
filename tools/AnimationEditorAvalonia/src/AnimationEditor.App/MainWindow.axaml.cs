@@ -696,6 +696,20 @@ public partial class MainWindow : Window
         _sidebarCollapsedForPng = png;
     }
 
+    /// <summary>
+    /// Keeps the Project list's selection following whichever tab just became active (#910) --
+    /// the tab strip is otherwise the only way to switch tabs without the Project list itself
+    /// having caused it. PNG tabs and untitled/unsaved tabs have no corresponding Project-list
+    /// row, so those clear the selection instead of leaving a stale highlight.
+    /// </summary>
+    private void SyncProjectPanelSelectionTo(TabEntry tab)
+    {
+        var entry = tab.Kind == TabKind.Achx && !IsUntitledTab(tab)
+            ? FindProjectPanelEntry(ProjectPanel.TreeRoots, tab.Path.FullPath)
+            : null;
+        ProjectPanel.SyncSelectionToActiveFile(entry);
+    }
+
     private async Task ActivateTabAsync(TabEntry tab)
     {
         if (tab == _tabManager.ActiveTab) return;
@@ -717,6 +731,7 @@ public partial class MainWindow : Window
                 SaveCompanionFile();
             _tabManager.Activate(tab.Path);
             ShowPngPane(tab);
+            SyncProjectPanelSelectionTo(tab);
             RebuildTabStrip();
             return;
         }
@@ -737,6 +752,7 @@ public partial class MainWindow : Window
             if (tab.UndoSnapshot != null)
                 _undoManager.RestoreSnapshot(tab.UndoSnapshot);
         }
+        SyncProjectPanelSelectionTo(tab);
         RebuildTabStrip();
     }
 
