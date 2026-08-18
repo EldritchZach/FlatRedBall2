@@ -1528,6 +1528,11 @@ public partial class MainWindow : Window
 
     private void HandleSelectionChanged()
     {
+        // #897: seal any still-open coalescing window here -- on a genuine selection change --
+        // rather than in RefreshPropertyPanel, which HandleAnimationChainsChanged also calls after
+        // *every* commit (including each one a coalescing session is made of). Sealing there would
+        // close the window right after each tick and defeat coalescing entirely.
+        _appCommands.SealPendingEdits();
         // Sync the texture combo to the texture of the currently selected frame/chain
         Dispatcher.UIThread.InvokeAsync(SyncTextureCombo);
         // Sync tree selection
@@ -4506,9 +4511,9 @@ public partial class MainWindow : Window
 
     private void RefreshPropertyPanel()
     {
-        // #897: seal any still-open coalescing window before repopulating fields from a (possibly
-        // reselected) target, so a stale pending edit never merges with a later one to the same field.
-        _appCommands.SealPendingEdits();
+        // Deliberately does NOT call SealPendingEdits here -- this method also runs after every
+        // single commit via HandleAnimationChainsChanged (to resync flip toggles, etc. post-edit),
+        // not just on a genuine selection change. See HandleSelectionChanged for the seal (#897).
         _suppressPropRefresh = true;
         try
         {
