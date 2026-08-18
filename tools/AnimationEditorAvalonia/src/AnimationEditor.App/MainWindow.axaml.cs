@@ -1456,7 +1456,9 @@ public partial class MainWindow : Window
 
     private void OnFrameLiveUpdated(AnimationFrameSave frame)
     {
-        // Called on UI thread during drag — refresh property panel and preview without saving
+        // Called on UI thread during drag — refresh property panel and preview without saving.
+        // RefreshAnimationFrameDisplay also repaints WireframeCtrl (it subscribes to the same
+        // event) so the origin crosshair tracks this drag too — see WireframeControl.InitializeServices.
         RefreshPropertyPanel();
         _appCommands.RefreshAnimationFrameDisplay();
     }
