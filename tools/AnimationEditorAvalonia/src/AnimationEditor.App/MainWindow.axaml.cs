@@ -1452,9 +1452,14 @@ public partial class MainWindow : Window
 
     private void OnFrameLiveUpdated(AnimationFrameSave frame)
     {
-        // Called on UI thread during drag — refresh property panel and preview without saving
+        // Called on UI thread during drag — refresh property panel and preview without saving.
+        // Also invalidate the Wireframe panel: when this fires from PreviewCtrl's own offset
+        // drag, WireframeCtrl never redraws itself (only its own frame-region drag does that
+        // internally) so the origin crosshair stays stale until an unrelated layout event
+        // (e.g. splitter resize) forces a repaint (#905).
         RefreshPropertyPanel();
         _appCommands.RefreshAnimationFrameDisplay();
+        WireframeCtrl.InvalidateVisual();
     }
 
     private void OnFrameRegionChanged(AnimationFrameSave frame)
