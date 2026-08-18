@@ -1246,6 +1246,11 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
                 : StandardCursorType.SizeAll);
             return;
         }
+        if (_draggingFrame is not null)
+        {
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            return;
+        }
         var handle = HitTestShapeHandle((float)pos.X, (float)pos.Y);
         if (handle != HandleKind.None)
         {
@@ -1256,6 +1261,8 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             ? (_draggingHGuide ? StandardCursorType.SizeNorthSouth : StandardCursorType.SizeWestEast)
             : GetGuideCursorAt((float)pos.X, (float)pos.Y);
         if (cursorType is null && HitTestShape((float)pos.X, (float)pos.Y) is not null)
+            cursorType = StandardCursorType.SizeAll;
+        if (cursorType is null && HitTestFrameSprite((float)pos.X, (float)pos.Y))
             cursorType = StandardCursorType.SizeAll;
         Cursor = cursorType is null ? Cursor.Default : new Cursor(cursorType.Value);
     }
