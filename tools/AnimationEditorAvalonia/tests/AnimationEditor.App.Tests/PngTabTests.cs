@@ -115,11 +115,13 @@ public class PngTabTests
     }
 
     [AvaloniaFact]
-    public async Task OpenPngAsTab_HidesEditingTabsAndFiles_SelectsDiff()
+    public async Task OpenPngAsTab_HidesEditingTabsButKeepsFiles_SelectsDiff()
     {
-        // A read-only PNG has no animations, no editable properties, and no undo history — and for now
-        // we don't offer file navigation from a PNG either. Hide the ANIMATIONS tree, Inspector,
-        // History, and Files tabs; show only the Diff tab and select it.
+        // A read-only PNG has no animations, no editable properties, and no undo history, so the
+        // ANIMATIONS tree, Inspector, and History are hidden. Files/Textures stays visible (#875
+        // follow-up): its Project scope browses PNGs under the open project folder independent of
+        // any open tab, so it's still useful during a PNG preview. Diff becomes the default
+        // selected tab since nothing was selected on Files beforehand in this test.
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var ctx = TestHelpers.BuildServices();
@@ -134,7 +136,7 @@ public class PngTabTests
             Assert.False(window.FindControl<Grid>("AnimationsBlock")!.IsVisible);
             Assert.False(window.FindControl<TabItem>("InspectorTab")!.IsVisible);
             Assert.False(window.FindControl<TabItem>("HistoryTab")!.IsVisible);
-            Assert.False(window.FindControl<TabItem>("FilesTab")!.IsVisible);
+            Assert.True(window.FindControl<TabItem>("FilesTab")!.IsVisible);
             Assert.True(window.FindControl<TabItem>("DiffBlameTab")!.IsVisible);
 
             var tabs = window.FindControl<TabControl>("SidebarTabs")!;
@@ -143,6 +145,37 @@ public class PngTabTests
             // The Animations block's row must collapse to zero so the Diff tab fills the column
             // rather than floating below an empty gap.
             Assert.Equal(0, window.FindControl<Grid>("LeftPanelGrid")!.RowDefinitions[0].Height.Value);
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OpenPngAsTab_FilesTabWasSelected_StaysOnFilesTab()
+    {
+        // The bug this guards: double-clicking a PNG while looking at Files/Textures used to hide
+        // that very tab and force-switch to Diff, so "the project no longer shows PNGs." Files was
+        // already visible and selected, so opening the PNG must leave it selected.
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var ctx = TestHelpers.BuildServices();
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            var filesTab = window.FindControl<TabItem>("FilesTab")!;
+            var sidebar = window.FindControl<TabControl>("SidebarTabs")!;
+            sidebar.SelectedItem = filesTab;
+
+            window.OpenPngAsTab(WritePng(dir, "sheet.png"));
+            Dispatcher.UIThread.RunJobs();
+            await window.WhenPngTabLoaded();   // drain the off-thread git + decode before cleanup deletes dir
+
+            Assert.True(filesTab.IsVisible);
+            Assert.Same(filesTab, sidebar.SelectedItem);
         }
         finally
         {

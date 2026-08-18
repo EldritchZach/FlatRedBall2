@@ -641,9 +641,11 @@ public partial class MainWindow : Window
     /// <summary>
     /// Collapses the animation-editing sidebar surfaces for a read-only PNG-preview tab (issue #604)
     /// and restores them for the achx editor. A PNG has no animations, no editable frame/shape
-    /// properties, and no undo history — and for now we don't offer file navigation from a PNG either
-    /// — so the ANIMATIONS tree and the Inspector, History, and Files tabs are all hidden; only the
-    /// Diff tab (#606) remains, and it becomes the selected tab.
+    /// properties, and no undo history, so the ANIMATIONS tree and the Inspector and History tabs
+    /// are hidden. Files/Textures stays visible (#875 follow-up): its Project scope browses PNGs
+    /// under the open project folder independent of any open tab, so it's still useful during a
+    /// PNG preview — hiding it made "double-click a PNG while on the Textures tab" appear to break
+    /// PNG browsing entirely. Diff (#606) becomes the selected tab unless Files was already selected.
     /// </summary>
     private void SetSidebarForPng(bool png)
     {
@@ -659,13 +661,14 @@ public partial class MainWindow : Window
             SidebarSplitter.IsVisible = false;
             InspectorTab.IsVisible = false;
             HistoryTab.IsVisible = false;
-            FilesTab.IsVisible = false;
             // Remember the achx tool tab so returning from Diff restores Files/History/etc. (#686).
-            _sidebarTabBeforePng = SidebarTabs.SelectedItem as TabItem;
-            // Diff is the only PNG surface; select it before hiding Files so the strip never shows
-            // a hidden selected tab (blank content).
+            var previouslySelected = SidebarTabs.SelectedItem as TabItem;
+            _sidebarTabBeforePng = previouslySelected;
             DiffBlameTab.IsVisible = true;
-            SidebarTabs.SelectedItem = DiffBlameTab;
+            // Files stays visible throughout, so only force the switch when it wasn't already the
+            // selected tab -- otherwise leave the user right where they were.
+            if (!ReferenceEquals(previouslySelected, FilesTab))
+                SidebarTabs.SelectedItem = DiffBlameTab;
         }
         else
         {
