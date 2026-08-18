@@ -256,7 +256,7 @@ public partial class App : Application
         // Browser renders the tree with AnimationTreeControl, so the controller reads expand
         // state from there (desktop reads its own _treeRoots collection instead).
         var tabController = new TabController(undoManager, appCommands,
-            () => animationTree.CaptureExpandState());
+            () => animationTree.CaptureExpandState(), tabManager);
         var inspector = new InspectorControl();
         inspector.InitializeServices(selectedState);
         inspector.EnableEditing(appCommands, textureName =>
@@ -716,7 +716,20 @@ public partial class App : Application
         // tab switch (e.g. Add Frame on a chain that borrows a different texture).
         applicationEvents.AnimationChainsChanged += () => textureListPanel.SetAnimationChainList(projectManager.AnimationChainListSave);
 
-        addAnimationButton.Click += (_, _) => appCommands.AddNewAnimationChain();
+        // #898: the tree's own "Add Animation" context-menu action needs a tab opened when
+        // zero tabs are open. Wired here (rather than beside EnableContextMenu above) because
+        // RebuildTabStrip's closure isn't definitely-assigned until after its first call above.
+        animationTree.EnableAddAnimationTab(tabController, RebuildTabStrip);
+
+        addAnimationButton.Click += (_, _) =>
+        {
+            var chain = appCommands.AddNewAnimationChain();
+            if (chain is null) return;
+            // #898: a project with zero open tabs (e.g. just closed its last tab) would
+            // otherwise add this chain with no tab visible for it.
+            tabController.EnsureCurrentDocumentHasTab(projectManager, TabActivation.Activate);
+            RebuildTabStrip();
+        };
 
         addFrameButton.Click += (_, _) =>
         {

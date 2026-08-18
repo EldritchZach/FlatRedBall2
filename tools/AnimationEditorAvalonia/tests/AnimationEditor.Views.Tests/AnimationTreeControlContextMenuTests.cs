@@ -3,6 +3,7 @@ using AnimationEditor.Core.CommandsAndState;
 using AnimationEditor.Core.CommandsAndState.Commands;
 using AnimationEditor.Core.Data;
 using AnimationEditor.Core.IO;
+using AnimationEditor.Core.Models;
 using AnimationEditor.Core.ViewModels;
 using AnimationEditor.Views.Controls;
 using AnimationEditor.Views.Dialogs;
@@ -81,11 +82,13 @@ public class AnimationTreeControlContextMenuTests
         public required IAppCommands AppCommands;
         public required AnimationChainListSave Acls;
         public required IPendingCutState PendingCutState;
+        public TabManager? TabManager;
     }
 
     private static Harness Build(
         AnimationChainListSave? acls = null,
-        IEditorDialogHost? dialogHost = null)
+        IEditorDialogHost? dialogHost = null,
+        bool wireTabController = false)
     {
         acls ??= new AnimationChainListSave();
         var pm = new FakeProjectManager { AnimationChainListSave = acls };
@@ -106,6 +109,15 @@ public class AnimationTreeControlContextMenuTests
             getTextureHeight: _ => 64);
         events.AnimationChainsChanged += control.Refresh;
 
+        TabManager? tabManager = null;
+        if (wireTabController)
+        {
+            tabManager = new TabManager();
+            var tabController = new TabController(undoManager, appCommands,
+                () => control.CaptureExpandState(), tabManager);
+            control.EnableAddAnimationTab(tabController, onTabsChanged: () => { });
+        }
+
         var window = new Window { Content = control, Width = 400, Height = 400 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
@@ -118,6 +130,7 @@ public class AnimationTreeControlContextMenuTests
             AppCommands = appCommands,
             Acls = acls,
             PendingCutState = pendingCutState,
+            TabManager = tabManager,
         };
     }
 
@@ -626,6 +639,29 @@ public class AnimationTreeControlContextMenuTests
             Assert.All(
                 acls.AnimationChains.Where(c => c != walk && c != run),
                 copy => Assert.True(copy.Frames[0].FlipHorizontal));
+        }
+        finally { h.Window.Close(); }
+    }
+
+    // ── Add Animation opens a tab (#898) ────────────────────────────────────────
+
+    [AvaloniaFact]
+    public void AddAnimationMenuItem_ZeroTabsOpen_OpensAndActivatesTab()
+    {
+        // Reproduces the browser-host "empty project, zero open tabs" state (e.g. after Open
+        // Project Folder on a folder with no .achx files) -- an empty ACLS with nothing selected,
+        // which routes through TreeMenuPlanBuilder's default case.
+        var h = Build(new AnimationChainListSave(), wireTabController: true);
+        try
+        {
+            var items = OpenMenuFor(h, null!);
+            Assert.True(IndexOfItem(items, "Add Animation") >= 0);
+
+            Assert.Empty(h.TabManager!.Tabs); // sanity: reproduces the zero-tabs starting state
+            ClickMenuItem(h, "Add Animation");
+
+            Assert.Single(h.TabManager.Tabs);
+            Assert.Same(h.TabManager.Tabs[0], h.TabManager.ActiveTab);
         }
         finally { h.Window.Close(); }
     }

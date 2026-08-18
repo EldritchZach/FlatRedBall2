@@ -14,6 +14,12 @@ namespace AnimationEditor.Core.Models
     public class TabManager
     {
         private readonly List<TabEntry> _tabs = new();
+        private int _untitledCounter;
+
+        // Sentinel paths use this prefix so they are distinguishable from real on-disk paths.
+        // Moved here from MainWindow (#898) so both hosts, and TabController, can generate
+        // "no on-disk file yet" tab paths without duplicating the counter.
+        private const string UntitledSentinelPrefix = "__untitled__:";
 
         /// <summary>All open tabs, in the order they were opened.</summary>
         public IReadOnlyList<TabEntry> Tabs => _tabs;
@@ -115,6 +121,17 @@ namespace AnimationEditor.Core.Models
         tab.IsPreview = false;
         RaiseTabsChanged();
     }
+
+    /// <summary>
+    /// Generates a new, unique "no on-disk file yet" sentinel path for an Untitled tab.
+    /// Unique per <see cref="TabManager"/> instance (each host owns one instance, so a
+    /// counter local to this class is enough to avoid collisions within that host's session).
+    /// </summary>
+    public string NewUntitledSentinelPath() => $"{UntitledSentinelPrefix}{++_untitledCounter}";
+
+    /// <summary>True when <paramref name="path"/> was produced by <see cref="NewUntitledSentinelPath"/>.</summary>
+    public static bool IsUntitledSentinel(string? path) =>
+        path?.StartsWith(UntitledSentinelPrefix, StringComparison.Ordinal) == true;
 
     /// <summary>
     /// Computes the next unique "Untitled" display name given the set of names already in

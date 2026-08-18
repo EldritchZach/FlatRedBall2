@@ -111,6 +111,11 @@ public class HeadlessTreeViewTests
             .ToList();
     }
 
+    private static AnimationEditor.Core.Models.TabManager GetTabManager(MainWindow window) =>
+        (AnimationEditor.Core.Models.TabManager)typeof(MainWindow)
+            .GetField("_tabManager", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(window)!;
+
     // ── TV05: Multi-select ────────────────────────────────────────────────────
 
     [AvaloniaFact]
@@ -229,6 +234,29 @@ public class HeadlessTreeViewTests
             Assert.Single(roots);
             Assert.True(roots[0].IsEditing);
             Assert.Equal(roots[0].Header, roots[0].EditingText);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void AddChainButton_Click_ZeroTabsOpen_OpensAndActivatesTab()
+    {
+        // #898: CreateWindow's default startup state (no CLI file, no saved tabs, no recovery
+        // file) is exactly the zero-tabs bug scenario -- clicking Add Animation there previously
+        // added the chain to the model but left no tab visible for it.
+        var (window, ctx) = CreateWindow();
+        try
+        {
+            var tabManager = GetTabManager(window);
+            Assert.Empty(tabManager.Tabs); // sanity: reproduces the zero-tabs starting state
+
+            var addChainBtn = window.FindControl<Button>("AddChainBtn")
+                ?? throw new InvalidOperationException("AddChainBtn not found");
+            addChainBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Single(tabManager.Tabs);
+            Assert.Same(tabManager.Tabs[0], tabManager.ActiveTab);
         }
         finally { window.Close(); }
     }

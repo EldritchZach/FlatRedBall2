@@ -127,7 +127,6 @@ public partial class MainWindow : Window
     private List<object>? _chainDragSelectionSnapshot;
     private AnimationChainSave? _pendingSingleSelectChain;
     private bool _chainDragInProgress;
-    private int _untitledCounter;
     private bool _suppressPropRefresh;
     private bool _suppressTextureComboChanged;
 
@@ -227,7 +226,7 @@ public partial class MainWindow : Window
         // Desktop renders the tree with its own _treeRoots collection, so the controller
         // reads expand state from there (browser reads its AnimationTreeControl instead).
         _tabController = new TabController(_undoManager, _appCommands,
-            () => TreeBuilder.CaptureExpandState(_treeRoots));
+            () => TreeBuilder.CaptureExpandState(_treeRoots), _tabManager);
 
         InitializeComponent();
 
@@ -817,7 +816,7 @@ public partial class MainWindow : Window
     {
         // Exclude unsaved (sentinel) Untitled tabs — they have no on-disk path to restore.
         _appSettings.OpenTabPaths = _tabManager.OpenTabPaths
-            .Where(p => !IsUntitledSentinel(p))
+            .Where(p => !TabManager.IsUntitledSentinel(p))
             .ToList();
         _appSettings.ActiveTabPath = IsUntitledTab(_tabManager.ActiveTab)
             ? null
@@ -2083,7 +2082,7 @@ public partial class MainWindow : Window
         // Open a new numbered Untitled tab and activate it.
         var displayName = TabManager.ComputeUntitledDisplayName(
             _tabManager.Tabs.Select(t => t.DisplayName).ToList());
-        var sentinelPath = new FilePath(NewUntitledSentinelPath());
+        var sentinelPath = new FilePath(_tabManager.NewUntitledSentinelPath());
         _tabManager.OpenOrFocus(sentinelPath, displayName);
         RebuildTabStrip();
     }
@@ -2630,12 +2629,7 @@ public partial class MainWindow : Window
             RoutingStrategies.Bubble);
 
         // "Add Animation" button under the tree
-        AddChainBtn.Click += (_, _) =>
-        {
-            if (_projectManager.AnimationChainListSave is null)
-                _projectManager.AnimationChainListSave = new AnimationChainListSave();
-            AddAnimationChainAndBeginInlineRename();
-        };
+        AddChainBtn.Click += (_, _) => AddAnimationChainAndBeginInlineRename();
 
         // Expand/Collapse toolbar buttons
         ExpandAllBtn.Click  += (_, _) => SetAllExpanded(true);
@@ -2774,6 +2768,11 @@ public partial class MainWindow : Window
 
         var chain = _appCommands.AddNewAnimationChain();
         if (chain is null) return;
+
+        // #898: a project with zero open tabs (empty Open Project Folder, or the last tab was
+        // just closed) would otherwise add this chain with no tab visible for it.
+        _tabController.EnsureCurrentDocumentHasTab(_projectManager, TabActivation.Activate);
+        RebuildTabStrip();
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -4966,25 +4965,8 @@ public partial class MainWindow : Window
     /// content but no saved path) as a background tab so it appears before the next file that
     /// is about to be opened.
     /// </summary>
-    private void EnsureCurrentEditorContentHasTab()
-    {
-        var currentPath = _projectManager.FileName;
-        if (!string.IsNullOrEmpty(currentPath))
-        {
-            // Saved file — add its tab if not already tracked.
-            var fp = new FilePath(currentPath);
-            if (_tabManager.Tabs.All(t => t.Path != fp))
-                _tabManager.RegisterBackground(fp);
-        }
-        else if (_tabManager.Tabs.Count == 0 &&
-                 _projectManager.AnimationChainListSave?.AnimationChains.Count > 0)
-        {
-            // Unsaved new file with content — register a numbered Untitled placeholder tab.
-            var displayName = TabManager.ComputeUntitledDisplayName(
-                _tabManager.Tabs.Select(t => t.DisplayName).ToList());
-            _tabManager.RegisterBackground(new FilePath(NewUntitledSentinelPath()), displayName);
-        }
-    }
+    private void EnsureCurrentEditorContentHasTab() =>
+        _tabController.EnsureCurrentDocumentHasTab(_projectManager, TabActivation.Background);
 
     /// <summary>
     /// Shows (or moves) a thin vertical line in <see cref="DragOverlayCanvas"/> marking where
@@ -5054,19 +5036,9 @@ public partial class MainWindow : Window
         return Math.Max(0, children.Count - 1);
     }
 
-    // Sentinel paths use the prefix "__untitled__:" so they are distinguishable from real
-    // on-disk paths and are unique per new-file action within this window session.
-    private const string UntitledSentinelPrefix = "__untitled__:";
-
-    private static bool IsUntitledSentinel(string? path) =>
-        path?.StartsWith(UntitledSentinelPrefix, StringComparison.Ordinal) == true;
-
     private static bool IsUntitledTab(TabEntry? tab) =>
         tab != null &&
-        (string.IsNullOrEmpty(tab.Path.Original) || IsUntitledSentinel(tab.Path.Original));
-
-    private string NewUntitledSentinelPath() =>
-        $"{UntitledSentinelPrefix}{++_untitledCounter}";
+        (string.IsNullOrEmpty(tab.Path.Original) || TabManager.IsUntitledSentinel(tab.Path.Original));
 
     /// <summary>
     /// Closes <paramref name="tab"/> in this window and opens it in a brand-new,
