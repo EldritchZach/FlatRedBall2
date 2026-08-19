@@ -108,6 +108,46 @@ public class GroupTimelineUiTests
     }
 
     /// <summary>
+    /// Growing the timeline dock for a 2+ chain group selection must never resize or reposition
+    /// the preview canvas — the dock is an overlay on top of the canvas, not a sibling row that
+    /// competes with it for space (reported: selecting a 2nd animation visibly shifted the
+    /// centered preview).
+    /// </summary>
+    [AvaloniaFact]
+    public void RefreshTimelineStrip_TimelineDockGrows_PreviewCanvasBoundsUnchanged()
+    {
+        var ctx = TestHelpers.BuildServices();
+        var a = MakeChain("A", 2);
+        var b = MakeChain("B", 3);
+        var acls = new AnimationChainListSave();
+        acls.AnimationChains.Add(a);
+        acls.AnimationChains.Add(b);
+
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            LoadProjectIntoWindow(ctx, window, acls);
+
+            ctx.SelectedState.SelectedChain = a;
+            Dispatcher.UIThread.RunJobs();
+
+            var previewCtrl = window.FindControl<AnimationEditor.App.Controls.PreviewControl>("PreviewCtrl")!;
+            var timelineDock = window.FindControl<Grid>("TimelineDockGrid")!;
+            var singleHeight = previewCtrl.Bounds.Height;
+            var singleDockHeight = timelineDock.Height;
+
+            ctx.SelectedState.SelectedNodes = new List<object> { a, b };
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(singleHeight, previewCtrl.Bounds.Height);
+            Assert.NotEqual(singleDockHeight, timelineDock.Height);
+        }
+        finally { window.Close(); }
+    }
+
+    /// <summary>
     /// Clicking a frame cell in one track's row scrubs only that chain's PlaybackController and
     /// pauses every track, without touching the singular SelectedFrame (#576 scope item 6).
     /// </summary>
