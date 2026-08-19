@@ -7,6 +7,14 @@ using FlatRedBall2.Animation.Content;
 
 namespace AnimationEditor.Views.Dialogs;
 
+/// <summary>Result of <see cref="EditorDialogs.ConfirmSaveDiscardCancelAsync"/>.</summary>
+public enum SaveDiscardCancelChoice
+{
+    Save,
+    Discard,
+    Cancel,
+}
+
 public static class EditorDialogs
 {
     private readonly record struct FrameTimeChoice(float TotalDuration, bool KeepProportional);
@@ -28,6 +36,28 @@ public static class EditorDialogs
         dialog.Cancel = () => dialog.Complete(false);
         panel.Children.Add(BuildButtonRow(
             (confirmLabel, dialog.Confirm),
+            (cancelLabel, dialog.Cancel)));
+        return host.ShowAsync(dialog);
+    }
+
+    /// <summary>
+    /// Three-way Save / Don't Save / Cancel prompt (e.g. closing a tab with unsaved changes).
+    /// Enter triggers Save, Escape (or the window's close button) triggers Cancel.
+    /// </summary>
+    public static Task<SaveDiscardCancelChoice> ConfirmSaveDiscardCancelAsync(
+        IEditorDialogHost host, string message, string title,
+        string saveLabel = "Save", string discardLabel = "Don't Save", string cancelLabel = "Cancel")
+    {
+        var panel = new StackPanel { Margin = new Thickness(16), Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap });
+
+        var dialog = new EditorDialog<SaveDiscardCancelChoice>(
+            new EditorDialogOptions(title, 420, 160), panel, cancelResult: SaveDiscardCancelChoice.Cancel);
+        dialog.Confirm = () => dialog.Complete(SaveDiscardCancelChoice.Save);
+        dialog.Cancel = () => dialog.Complete(SaveDiscardCancelChoice.Cancel);
+        panel.Children.Add(BuildButtonRow(
+            (saveLabel, dialog.Confirm),
+            (discardLabel, () => dialog.Complete(SaveDiscardCancelChoice.Discard)),
             (cancelLabel, dialog.Cancel)));
         return host.ShowAsync(dialog);
     }

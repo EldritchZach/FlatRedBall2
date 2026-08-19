@@ -1,6 +1,8 @@
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using AnimationEditor.Core.Models;
+using AnimationEditor.Views.Dialogs;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
@@ -14,6 +16,8 @@ namespace AnimationEditor.App.Tests;
 /// launch offered to restore content the user had just explicitly discarded by closing the
 /// tab. Autosave-on-edit (<c>AppCommands.SaveCurrentAnimationChainList</c>) writes the
 /// recovery file on every edit of an untitled document; closing that tab must clear it.
+/// This tab has content, so closing it also raises the #928 save prompt -- stub straight to
+/// "Don't Save" since discard-then-cleanup is what this test is verifying.
 /// </summary>
 public class TabCloseRecoveryTests
 {
@@ -22,17 +26,18 @@ public class TabCloseRecoveryTests
             .GetField("_tabManager", BindingFlags.NonPublic | BindingFlags.Instance)!
             .GetValue(window)!;
 
-    private static void CloseTab(MainWindow window, TabEntry tab) =>
-        typeof(MainWindow)
-            .GetMethod("CloseTab", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .Invoke(window, [tab]);
+    private static async Task CloseTabAsync(MainWindow window, TabEntry tab) =>
+        await (Task)typeof(MainWindow)
+            .GetMethod("CloseTabAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(window, [tab])!;
 
     [AvaloniaFact]
-    public void ClosingUntitledTabWithRecoveryFile_DeletesRecoveryFile()
+    public async Task ClosingUntitledTabWithRecoveryFile_DeletesRecoveryFile()
     {
         var ctx = TestHelpers.BuildServices();
         var window = ctx.CreateMainWindow();
         window.Show();
+        window.ShowSaveDiscardCancelDialogAsync = (_, _) => Task.FromResult(SaveDiscardCancelChoice.Discard);
         try
         {
             // File -> New opens a fresh untitled tab.
@@ -48,7 +53,7 @@ public class TabCloseRecoveryTests
             var tabManager = GetTabManager(window);
             var tab = tabManager.Tabs.Single();
 
-            CloseTab(window, tab);
+            await CloseTabAsync(window, tab);
             Dispatcher.UIThread.RunJobs();
 
             Assert.False(ctx.IoManager.RecoveryFileExists());
