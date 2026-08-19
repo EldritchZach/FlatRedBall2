@@ -1,6 +1,11 @@
+using AnimationEditor.Core.Models;
+using AnimationEditor.Core.Paths;
 using Avalonia.Headless.XUnit;
+using FlatRedBall2.Animation.Content;
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -23,6 +28,22 @@ namespace AnimationEditor.App.Tests;
 /// </summary>
 public class ProjectFileDeleteTests
 {
+    private static string WriteAchx(string dir, string fileName)
+    {
+        var path = Path.Combine(dir, fileName);
+        var acls = new AnimationChainListSave { CoordinateType = TextureCoordinateType.Pixel };
+        var chain = new AnimationChainSave { Name = "Walk" };
+        chain.Frames.Add(new AnimationFrameSave { TextureName = "walk.png", FrameLength = 0.1f });
+        acls.AnimationChains.Add(chain);
+        acls.Save(path);
+        return path;
+    }
+
+    private static TabManager GetTabManager(MainWindow window) =>
+        (TabManager)typeof(MainWindow)
+            .GetField("_tabManager", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(window)!;
+
     [AvaloniaFact]
     public async Task DeleteProjectFileAsync_UserDeclinesConfirm_DoesNotCallRecycleBin()
     {
@@ -68,6 +89,58 @@ public class ProjectFileDeleteTests
             await window.DeleteProjectFileAsync("hero.achx");
 
             Assert.Equal(achx, recycledPath);
+        }
+        finally { window.Close(); Directory.Delete(dir, true); }
+    }
+
+    // Issue #919 follow-up: deleting a file that's open in a tab must close that tab -- otherwise
+    // Save would silently resurrect the file outside the recycle bin, defeating the confirm dialog.
+    [AvaloniaFact]
+    public async Task DeleteProjectFileAsync_FileOpenInTab_ClosesTab()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var achx = WriteAchx(dir, "hero.achx");
+        var ctx = TestHelpers.BuildServices();
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenProjectFolderForTestAsync(dir);
+            await window.OpenFileAsTab(achx);
+            ctx.AppCommands.ConfirmAsync = (_, _) => Task.FromResult(true);
+            window.DeleteToRecycleBin = _ => null;
+
+            await window.DeleteProjectFileAsync("hero.achx");
+
+            var tabManager = GetTabManager(window);
+            Assert.DoesNotContain(tabManager.Tabs, t => t.Path == new FilePath(achx));
+        }
+        finally { window.Close(); Directory.Delete(dir, true); }
+    }
+
+    // Delete failing (e.g. permission denied) must leave the open tab alone -- nothing was
+    // actually removed from disk, so closing it would just lose the user's place for no reason.
+    [AvaloniaFact]
+    public async Task DeleteProjectFileAsync_RecycleBinFails_LeavesTabOpen()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var achx = WriteAchx(dir, "hero.achx");
+        var ctx = TestHelpers.BuildServices();
+        var window = ctx.CreateMainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenProjectFolderForTestAsync(dir);
+            await window.OpenFileAsTab(achx);
+            ctx.AppCommands.ConfirmAsync = (_, _) => Task.FromResult(true);
+            window.DeleteToRecycleBin = _ => "Could not move to recycle bin: access denied.";
+
+            await window.DeleteProjectFileAsync("hero.achx");
+
+            var tabManager = GetTabManager(window);
+            Assert.Contains(tabManager.Tabs, t => t.Path == new FilePath(achx));
         }
         finally { window.Close(); Directory.Delete(dir, true); }
     }

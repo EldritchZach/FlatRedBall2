@@ -1943,10 +1943,12 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Issue #919: right-click Delete on a Project-tree file row. Confirms first (the move isn't
-    /// undoable) then hands off to <see cref="DeleteToRecycleBin"/>. No explicit tree refresh here
-    /// -- the project folder watcher's <see cref="HandleProjectFolderChangesAsync"/> already
-    /// rescans on any create/delete under the watched folder (its <c>structureChanged</c> path),
-    /// the same as it would for an external deletion (e.g. `git pull`, another editor). Internal
+    /// undoable) then hands off to <see cref="DeleteToRecycleBin"/>. On success, also closes the
+    /// file's tab if it's open -- otherwise Save would silently resurrect it outside the recycle
+    /// bin. No explicit tree refresh -- the project folder watcher's
+    /// <see cref="HandleProjectFolderChangesAsync"/> already rescans on any create/delete under
+    /// the watched folder (its <c>structureChanged</c> path), the same as it would for an
+    /// external deletion (e.g. `git pull`, another editor). Internal
     /// (not private), same reason as <see cref="OpenProjectFolderForTestAsync"/>: production only
     /// ever reaches it via <see cref="Controls.ProjectPanelControl.FileDeleteRequested"/>, but
     /// tests exercise the confirm-gate/recycle-bin wiring directly.
@@ -1963,7 +1965,16 @@ public partial class MainWindow : Window
 
         var error = DeleteToRecycleBin(absolutePath);
         if (error is not null)
+        {
             ShowStatusMessage($"⚠ {error}", isError: true);
+            return;
+        }
+
+        // The file is gone -- leaving its tab open would let Save silently resurrect it outside
+        // the recycle bin, defeating the confirm dialog above. No "unsaved changes?" prompt here:
+        // the user already confirmed a destructive, non-undoable action.
+        if (_tabManager.Tabs.FirstOrDefault(t => t.Path == new FilePath(absolutePath)) is { } openTab)
+            CloseTab(openTab);
     }
 
     /// <summary>
