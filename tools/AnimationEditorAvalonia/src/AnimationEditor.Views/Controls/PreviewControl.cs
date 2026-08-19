@@ -161,12 +161,17 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     private float _frameDragStartY;
     private Point _frameDragAnchor;
 
-    // -- Whole-animation (chain) drag -------------------------------------------
-    // Same gesture as the single-frame drag above, but active when a chain is selected with
-    // no single frame pinned (SelectedFrame is null, SelectedFrames empty) — dragging the
-    // currently-playing frame's sprite then shifts every frame in the chain by the same
-    // delta, each keeping its own starting RelativeX/Y (issue #912). Mutually exclusive with
-    // _draggingFrame; reuses _frameDragAnchor for the shared world-space delta math.
+    // -- Whole-animation (chain) drag, and multi-frame drag ----------------------
+    // Same gesture as the single-frame drag above, but shared by two bulk scopes that both
+    // record one MoveFrameOffsetBulkCommand:
+    //  - Whole chain (issue #912): a chain is selected with no single frame pinned and
+    //    nothing multi-selected (IsWholeChainDragTarget) — dragging the currently-playing
+    //    frame's sprite shifts every frame in the chain.
+    //  - Multi-frame (issue #917): 2+ individual frames are multi-selected
+    //    (IsMultiFrameDragTarget) — dragging the displayed frame's sprite shifts only
+    //    SelectedFrames. Each frame keeps its own starting RelativeX/Y either way. Mutually
+    //    exclusive with _draggingFrame; reuses _frameDragAnchor for the shared world-space
+    //    delta math.
     private AnimationFrameSave[]? _draggingChainFrames;
     private float[]? _chainFrameStartX;
     private float[]? _chainFrameStartY;
@@ -933,6 +938,30 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
         var chain = _selectedState!.SelectedChain!;
         _draggingChainFrames = chain.Frames.ToArray();
+        _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
+        _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
+        for (int i = 0; i < _draggingChainFrames.Length; i++)
+        {
+            _draggingChainFrames[i].RelativeX = SnapToPixel(_chainFrameStartX[i] + worldDx);
+            _draggingChainFrames[i].RelativeY = SnapToPixel(_chainFrameStartY[i] + worldDy);
+        }
+        CommitChainDrag();
+    }
+
+    /// <summary>
+    /// Test-only: applies a world-space drag delta to every frame in
+    /// <see cref="ISelectedState.SelectedFrames"/> (2+ individually multi-selected frames, not a
+    /// whole chain), each frame keeping its own starting offset, and commits as one undo step.
+    /// Bypasses coordinate conversion, so results are independent of zoom/pan/OffsetMultiplier.
+    /// No-op unless <see cref="IsMultiFrameDragTarget"/> holds, mirroring the gate
+    /// <see cref="OnPointerPressed"/> applies before starting a live multi-frame drag. Mirrors
+    /// <see cref="SimulateChainDrag"/>, scoped to the multi-selection instead of the whole chain.
+    /// </summary>
+    internal void SimulateMultiFrameDrag(float worldDx, float worldDy)
+    {
+        if (!IsMultiFrameDragTarget) return;
+
+        _draggingChainFrames = _selectedState!.SelectedFrames.ToArray();
         _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
         _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
         for (int i = 0; i < _draggingChainFrames.Length; i++)
@@ -1805,23 +1834,49 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         _selectedState!.SelectedChain is not null;
 
     /// <summary>
+    /// <c>true</c> when 2+ individual frames are multi-selected via
+    /// <see cref="ISelectedState.SelectedFrames"/> — the third drag scope alongside
+    /// <see cref="IsWholeChainDragTarget"/> (issue #917). Unlike <see cref="IsWholeChainDragTarget"/>,
+    /// this does not require <see cref="ISelectedState.SelectedFrame"/> to be null: ctrl/shift-clicking
+    /// frames in the tree pins the last-clicked one as <c>SelectedFrame</c> (so its sprite is what
+    /// actually renders in Preview — see <see cref="BuildRenderSnapshot"/>'s <c>selectedFrame</c> use),
+    /// and dragging that pinned sprite is how the user grabs the multi-selection in practice.
+    /// </summary>
+    private bool IsMultiFrameDragTarget =>
+        _selectedState!.SelectedFrames.Count > 1;
+
+    /// <summary>
     /// Returns <c>true</c> if (<paramref name="px"/>, <paramref name="py"/>) lands on the rendered
     /// footprint of the drag target's sprite, in screen space. Gates the frame-offset drag
-    /// fallback in <see cref="OnPointerPressed"/>. The target is the single selected frame; when
-    /// none is pinned but a chain is selected (<see cref="IsWholeChainDragTarget"/>), it falls
-    /// back to the currently-playing frame so the whole chain can be dragged together. Requires
-    /// the target frame's texture to already be decoded (mirrors
-    /// <see cref="ComputeContentExtentScreenPx"/>'s own frame-footprint math).
+    /// fallback in <see cref="OnPointerPressed"/>. The target is the pinned <see cref="ISelectedState.SelectedFrame"/>
+    /// when one is set (whether alone or as part of a multi-selection — see
+    /// <see cref="IsMultiFrameDragTarget"/>); when none is pinned, it falls back to the
+    /// currently-playing frame, gated by <see cref="IsWholeChainDragTarget"/> (drag the whole
+    /// chain) or <see cref="IsMultiFrameDragTarget"/> (drag just the multi-selection — only if the
+    /// playing frame is actually one of <see cref="ISelectedState.SelectedFrames"/>). Requires the
+    /// target frame's texture to already be decoded (mirrors <see cref="ComputeContentExtentScreenPx"/>'s
+    /// own frame-footprint math).
     /// </summary>
     private bool HitTestFrameSprite(float px, float py)
     {
         var frame = _selectedState!.SelectedFrame;
         if (frame is null)
         {
-            if (!IsWholeChainDragTarget) return false;
-            frame = GetCurrentPlaybackFrame();
+            if (IsWholeChainDragTarget)
+            {
+                frame = GetCurrentPlaybackFrame();
+            }
+            else if (IsMultiFrameDragTarget)
+            {
+                frame = GetCurrentPlaybackFrame();
+                if (frame is null || !_selectedState!.SelectedFrames.Contains(frame)) return false;
+            }
+            else
+            {
+                return false;
+            }
         }
-        else if (_selectedState!.SelectedFrames.Count > 1)
+        else if (_selectedState!.SelectedFrames.Count > 1 && !_selectedState!.SelectedFrames.Contains(frame))
         {
             return false;
         }
@@ -1982,13 +2037,21 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         if (TrySelectShapeAt(px, py)) return;
 
         // Nothing above matched — try to drag the selected frame's sprite, or (when no single
-        // frame is pinned) the whole selected chain together.
+        // frame is pinned) the whole selected chain together, or (when 2+ frames are
+        // multi-selected) just that subset together.
         if (HitTestFrameSprite(px, py))
         {
             if (IsWholeChainDragTarget)
             {
                 var chain = _selectedState!.SelectedChain!;
                 _draggingChainFrames = chain.Frames.ToArray();
+                _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
+                _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
+                _frameDragAnchor     = pos;
+            }
+            else if (IsMultiFrameDragTarget)
+            {
+                _draggingChainFrames = _selectedState!.SelectedFrames.ToArray();
                 _chainFrameStartX    = _draggingChainFrames.Select(f => f.RelativeX).ToArray();
                 _chainFrameStartY    = _draggingChainFrames.Select(f => f.RelativeY).ToArray();
                 _frameDragAnchor     = pos;
