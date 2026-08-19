@@ -1,5 +1,6 @@
 using System.Text;
-using FlatRedBall.AnimationChain.Content;
+using FlatRedBall.AnimationChain;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationChain.MonoGame.Tests;
@@ -117,10 +118,10 @@ public class AchxLoaderTests
     [Fact]
     public void FromFile_SetsFileName()
     {
+        // AnimationEditorCommon's FromFile stores FileName verbatim (not resolved to an absolute
+        // path) -- AchxLoader.Load resolves it separately where absolute-path resolution matters.
         var save = AnimationChainListSave.FromFile("my/path/anim.achx", XmlStream(SimpleAchx));
-        // FileName is always stored as an absolute path to avoid double-resolution
-        // when callers combine it with their own achxDir.
-        Assert.Equal(Path.GetFullPath("my/path/anim.achx"), save.FileName);
+        Assert.Equal("my/path/anim.achx", save.FileName);
     }
 
     // ─── ToAnimationChainList ────────────────────────────────────────────────────
@@ -230,7 +231,7 @@ public class AchxLoaderTests
     [Fact]
     public void Indexer_MissingName_ReturnsNull()
     {
-        var list = new FlatRedBall.AnimationChain.AnimationChainList();
+        var list = new AnimationChainList<AnimationFrame>();
         Assert.Null(list["NotHere"]);
     }
 
@@ -270,7 +271,7 @@ public class AchxLoaderTests
             """;
 
         using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes(reloadXml));
-        var ok = list.TryReloadFrom(reloadStream, _ => null);
+        var ok = list.TryReload(reloadStream, _ => null);
 
         Assert.True(ok);
         Assert.Single(list["Run"]!);
@@ -287,7 +288,7 @@ public class AchxLoaderTests
 
         const string invalidXml = "<AnimationChainArraySave><AnimationChain>";
         using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes(invalidXml));
-        var ok = list.TryReloadFrom(reloadStream, _ => null);
+        var ok = list.TryReload(reloadStream, _ => null);
 
         Assert.False(ok);
         Assert.Equal(beforeRunFrames, list["Run"]!.Count);
@@ -306,7 +307,7 @@ public class AchxLoaderTests
         reloadSave.AnimationChains.Add(chain);
 
         using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes(reloadSave.ToJsonString()));
-        var ok = list.TryReloadFrom(reloadStream, _ => null);
+        var ok = list.TryReload(reloadStream, _ => null);
 
         Assert.True(ok);
         Assert.Single(list["Run"]!);
@@ -321,13 +322,13 @@ public class AchxLoaderTests
         var beforeRunFrames = list["Run"]!.Count;
 
         using var reloadStream = new MemoryStream(Encoding.UTF8.GetBytes("{not valid json"));
-        var ok = list.TryReloadFrom(reloadStream, _ => null);
+        var ok = list.TryReload(reloadStream, _ => null);
 
         Assert.False(ok);
         Assert.Equal(beforeRunFrames, list["Run"]!.Count);
     }
 
-    // ─── AnimationChainList.TryReloadFrom(path) — .achj (JSON) dispatch by extension ─────────
+    // ─── AnimationChainList.TryReload(path) — .achj (JSON) dispatch by extension ─────────
 
     [Fact]
     public void TryReloadFrom_Path_AchjExtension_ParsesJsonAndReplacesFrames()
@@ -345,7 +346,7 @@ public class AchxLoaderTests
         {
             save.SaveJson(tempPath);
 
-            var ok = list.TryReloadFrom(tempPath, _ => null);
+            var ok = list.TryReload(tempPath, _ => null);
 
             Assert.True(ok);
             Assert.Single(list["Run"]!);
@@ -369,7 +370,7 @@ public class AchxLoaderTests
         {
             File.WriteAllText(tempPath, "not valid json at all");
 
-            var ok = list.TryReloadFrom(tempPath, _ => null);
+            var ok = list.TryReload(tempPath, _ => null);
 
             Assert.False(ok);
             Assert.Equal(beforeRunFrames, list["Run"]!.Count);

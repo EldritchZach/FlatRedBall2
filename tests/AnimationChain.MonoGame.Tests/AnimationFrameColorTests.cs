@@ -1,4 +1,5 @@
 using FlatRedBall.AnimationChain;
+using FlatRedBall2.Animation;
 using Microsoft.Xna.Framework;
 using Xunit;
 

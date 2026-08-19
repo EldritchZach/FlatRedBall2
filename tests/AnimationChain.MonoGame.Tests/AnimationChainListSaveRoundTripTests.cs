@@ -1,6 +1,7 @@
 using System.Text;
 using FlatRedBall.AnimationChain;
-using FlatRedBall.AnimationChain.Content;
+using FlatRedBall2.Animation;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationChain.MonoGame.Tests;
