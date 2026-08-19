@@ -790,6 +790,13 @@ public partial class MainWindow : Window
 
     private void CloseTab(TabEntry tab)
     {
+        // Closing an untitled tab is an explicit discard of its unsaved content -- clear any
+        // crash-recovery file autosave-on-edit wrote for it (AppCommands.SaveCurrentAnimationChainList
+        // writes there whenever FileName is null), or it re-prompts to restore already-discarded
+        // content on the next launch (#927).
+        if (IsUntitledTab(tab))
+            _ioManager.DeleteRecoveryFile();
+
         _tabManager.Close(tab.Path);
         var next = _tabManager.ActiveTab;
         if (next != null)
