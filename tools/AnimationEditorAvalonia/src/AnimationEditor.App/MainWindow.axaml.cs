@@ -269,6 +269,7 @@ public partial class MainWindow : Window
         ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
         ProjectPanel.FileRevealRequested += relativePath => RevealProjectFileInExplorer(relativePath);
         ProjectPanel.FileCopyPathRequested += relativePath => CopyProjectFilePathToClipboard(relativePath);
+        ProjectPanel.FileDeleteRequested += relativePath => _ = DeleteProjectFileAsync(relativePath);
         // Right-clicking blank space in the tree offers "New Animation" (#908) -- same flow as
         // File > New.
         ProjectPanel.NewAnimationRequested += () => OnNewClick(null, null!);
@@ -1939,6 +1940,51 @@ public partial class MainWindow : Window
 
         _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(absolutePath);
     }
+
+    /// <summary>
+    /// Issue #919: right-click Delete on a Project-tree file row. Confirms first (the move isn't
+    /// undoable) then hands off to <see cref="DeleteToRecycleBin"/>. On success, also closes the
+    /// file's tab if it's open -- otherwise Save would silently resurrect it outside the recycle
+    /// bin. No explicit tree refresh -- the project folder watcher's
+    /// <see cref="HandleProjectFolderChangesAsync"/> already rescans on any create/delete under
+    /// the watched folder (its <c>structureChanged</c> path), the same as it would for an
+    /// external deletion (e.g. `git pull`, another editor). Internal
+    /// (not private), same reason as <see cref="OpenProjectFolderForTestAsync"/>: production only
+    /// ever reaches it via <see cref="Controls.ProjectPanelControl.FileDeleteRequested"/>, but
+    /// tests exercise the confirm-gate/recycle-bin wiring directly.
+    /// </summary>
+    internal async Task DeleteProjectFileAsync(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        var fileName = new FilePath(absolutePath).NoPath;
+        bool confirmed = await _appCommands.ConfirmAsync(
+            $"Delete \"{fileName}\"? This cannot be undone.", "Delete File");
+        if (!confirmed) return;
+
+        var error = DeleteToRecycleBin(absolutePath);
+        if (error is not null)
+        {
+            ShowStatusMessage($"⚠ {error}", isError: true);
+            return;
+        }
+
+        // The file is gone -- leaving its tab open would let Save silently resurrect it outside
+        // the recycle bin, defeating the confirm dialog above. No "unsaved changes?" prompt here:
+        // the user already confirmed a destructive, non-undoable action.
+        if (_tabManager.Tabs.FirstOrDefault(t => t.Path == new FilePath(absolutePath)) is { } openTab)
+            CloseTab(openTab);
+    }
+
+    /// <summary>
+    /// Test seam for the actual OS recycle-bin move -- defaults to <see cref="RecycleBin.Delete"/>.
+    /// UI-layer-only (used by exactly one caller, <see cref="DeleteProjectFileAsync"/>), same
+    /// reasoning as <see cref="ShowTwoButtonDialogAsync"/> for not living on the shared
+    /// <c>IAppCommands</c> delegate surface: it doesn't need ~20 unrelated test stubs to know
+    /// about it.
+    /// </summary>
+    internal Func<string, string?> DeleteToRecycleBin { get; set; } = RecycleBin.Delete;
 
     private void OnTitleFileCopyPathClick(object? sender, RoutedEventArgs e)
     {
