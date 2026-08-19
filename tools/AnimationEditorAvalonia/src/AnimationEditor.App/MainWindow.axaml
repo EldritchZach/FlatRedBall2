@@ -1400,11 +1400,14 @@
                 <Grid x:Name="PreviewBlockGrid" Grid.Row="3" MinHeight="80">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <!-- The canvas row now owns 100% of the remaining height, always — the
+                             transport+timeline block below is an overlay INSIDE this same row
+                             (see the nested Grid at Grid.Row="1"), not a sibling row, so growing
+                             it for the multi-select group preview (#576) can never resize or
+                             shift the canvas/preview (#…, reported: selecting a 2nd animation
+                             visibly shifted the centered preview). Same "overlay, don't reserve a
+                             cell" principle already used for the pan scrollbars below. -->
                         <RowDefinition Height="*" />
-                        <!-- Fixed height for the single-row timeline; grown in code-behind (see
-                             PreviewBlockGrid.RowDefinitions[2]) while the multi-select group
-                             preview (#576) shows 2+ track rows. -->
-                        <RowDefinition Height="52" />
                     </Grid.RowDefinitions>
 
                     <!-- ── Preview toolbar ── -->
@@ -1497,29 +1500,41 @@
                         </WrapPanel>
                     </Border>
 
-                    <!-- Preview panel fills remaining height of the block. Unlike the Wireframe
-                         (a static bitmap in a ScrollViewer), the Preview draws dynamic content,
-                         so its scrollbars drive the manual pan directly (#415) rather than
-                         hosting the content in a ScrollViewer. The bars overlay the canvas edges
-                         and auto-hide (thin when idle, expand on hover) so they behave the same
-                         as the Wireframe's ScrollViewer scrollbars; overlaying (not reserving a
-                         cell) keeps the hover-expand from shifting the layout. -->
+                    <!-- Preview panel fills 100% of the block's remaining height, always — see the
+                         RowDefinitions comment above. Unlike the Wireframe (a static bitmap in a
+                         ScrollViewer), the Preview draws dynamic content, so its scrollbars drive
+                         the manual pan directly (#415) rather than hosting the content in a
+                         ScrollViewer. The bars overlay the canvas edges and auto-hide (thin when
+                         idle, expand on hover) so they behave the same as the Wireframe's
+                         ScrollViewer scrollbars; overlaying (not reserving a cell) keeps the
+                         hover-expand from shifting the layout. The transport+timeline block below
+                         is layered into this same Grid on top of the canvas/scrollbars (last
+                         child = topmost) for the identical reason: it must never shift the
+                         canvas beneath it, so it cannot live in a sibling row. Its Margin trims
+                         the two scrollbars' trough so they end above it instead of running
+                         underneath (see TimelineDockGrid's Margin, kept in sync in code-behind). -->
                     <Grid Grid.Row="1">
                         <views:PreviewControl x:Name="PreviewCtrl" />
                         <ScrollBar x:Name="PreviewVScroll"
                                    Orientation="Vertical"
                                    HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                                   Margin="0,0,0,52"
                                    AllowAutoHide="True" />
                         <ScrollBar x:Name="PreviewHScroll"
                                    Orientation="Horizontal"
                                    HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+                                   Margin="0,0,0,52"
                                    AllowAutoHide="True" />
-                    </Grid>
 
-                    <!-- ── Transport + timeline strip ── -->
-                    <!-- Play/Pause and Speed live here, next to the scrubber they drive (#432),
-                         rather than up in the view-options toolbar. -->
-                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*">
+                        <!-- ── Transport + timeline strip ── -->
+                        <!-- Play/Pause and Speed live here, next to the scrubber they drive
+                             (#432), rather than up in the view-options toolbar. Height is set in
+                             code-behind (RefreshTimelineStrip) instead of a RowDefinition — see
+                             the Grid.Row="1" comment above for why. -->
+                        <Grid x:Name="TimelineDockGrid"
+                              ColumnDefinitions="Auto,*"
+                              VerticalAlignment="Bottom"
+                              Height="52">
 
                         <!-- Transport: Play/Pause + Speed -->
                         <Border Grid.Column="0"
@@ -1718,6 +1733,8 @@
                                 </ScrollViewer>
                             </Border>
                         </Grid>
+                    </Grid>
+                    <!-- closes the canvas+overlay Grid (PreviewCtrl/scrollbars/TimelineDockGrid) -->
                     </Grid>
                 </Grid>
             </Grid>
