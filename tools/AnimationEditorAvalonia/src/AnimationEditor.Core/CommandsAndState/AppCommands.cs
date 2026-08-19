@@ -9,6 +9,7 @@ using FlatRedBall2.Animation.Content;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FilePath = AnimationEditor.Core.Paths.FilePath;
 using StringFunctions = AnimationEditor.Core.Utilities.StringFunctions;
@@ -1216,6 +1217,26 @@ namespace AnimationEditor.Core.CommandsAndState
             return copy;
         }
 
+        private static readonly Regex HorizontalDirectionToken = new(@"(Right|Left)(?![a-z])", RegexOptions.Compiled);
+        private static readonly Regex VerticalDirectionToken = new(@"(Up|Down)(?![a-z])", RegexOptions.Compiled);
+
+        // Swaps Left<->Right and/or Up<->Down direction tokens in a chain name (e.g. "WalkRight"
+        // flipped horizontally becomes "WalkLeft") so a flipped duplicate reads correctly instead
+        // of "WalkRightCopy". Ported from the old (pre-Avalonia) Animation Editor's duplicate+flip
+        // rename behavior (issue #920). A token must not be immediately followed by a lowercase
+        // letter, so it only matches a standalone PascalCase word ("WalkRight", trailing "Up") and
+        // not a prefix of a longer word ("Rightful", "Upgrade"). Returns the name unchanged if no
+        // requested-axis token is present.
+        private static string InvertDirectionTokens(string name, bool flipH, bool flipV)
+        {
+            var result = name;
+            if (flipH)
+                result = HorizontalDirectionToken.Replace(result, m => m.Value == "Right" ? "Left" : "Right");
+            if (flipV)
+                result = VerticalDirectionToken.Replace(result, m => m.Value == "Up" ? "Down" : "Up");
+            return result;
+        }
+
         public AnimationFrameSave? DuplicateFrame(AnimationFrameSave source, AnimationChainSave chain)
         {
             if (!chain.Frames.Contains(source)) return null;
@@ -1262,7 +1283,9 @@ namespace AnimationEditor.Core.CommandsAndState
             foreach (var source in ordered)
             {
                 var copy = CloneChainWithFlip(source, flipH, flipV);
-                copy.Name = StringFunctions.MakeStringUnique(source.Name + "Copy", existingNames, 2);
+                var invertedName = InvertDirectionTokens(source.Name, flipH, flipV);
+                var desiredName = invertedName != source.Name ? invertedName : source.Name + "Copy";
+                copy.Name = StringFunctions.MakeStringUnique(desiredName, existingNames, 2);
                 existingNames.Add(copy.Name);
                 items.Add((source, copy));
             }
