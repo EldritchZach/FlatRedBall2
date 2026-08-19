@@ -48,6 +48,7 @@ public class UndoCoverageRosterTests
         [nameof(IAppCommands.ActivateTabContentAsync)]            = Category.MutatingNotUndoable, // tab switch load or cache restore
         [nameof(IAppCommands.ReloadAchxFromDisk)]                 = Category.MutatingNotUndoable, // hot-reload; clears the undo stack on success
         [nameof(IAppCommands.NewFile)]                            = Category.MutatingNotUndoable, // resets the project; clears the undo stack
+        [nameof(IAppCommands.CloseProject)]                       = Category.MutatingNotUndoable, // resets the project; clears the undo stack
         [nameof(IAppCommands.SaveCurrentAnimationChainList)]      = Category.MutatingNotUndoable, // writes a file; no model change
         [nameof(IAppCommands.SaveCurrentAnimationChainListAsync)] = Category.MutatingNotUndoable, // writes a file; no model change
         [nameof(IAppCommands.ExportToPixiJsAsync)]                = Category.MutatingNotUndoable, // writes a PixiJS json; no model change

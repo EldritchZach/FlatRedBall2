@@ -2080,6 +2080,7 @@ public partial class MainWindow : Window
         MenuNew.Click    += OnNewClick;
         MenuLoad.Click   += OnLoadClick;
         MenuOpenProjectFolder.Click += OnOpenProjectFolderClick;
+        MenuCloseProject.Click += OnCloseProjectClick;
         MenuSave.Click   += OnSaveClick;
         MenuSaveAs.Click += OnSaveAsClick;
         MenuExportPixiJs.Click += OnExportPixiJsClick;
@@ -2245,6 +2246,51 @@ public partial class MainWindow : Window
     }
 
     private void OnOpenProjectFolderClick(object? sender, RoutedEventArgs e) => _ = OpenProjectFolderAsync();
+
+    private void OnCloseProjectClick(object? sender, RoutedEventArgs e) => _ = CloseProjectAsync();
+
+    /// <summary>
+    /// Closes the current project (issue #948): resets <see cref="ProjectManager"/>,
+    /// <see cref="SelectedState"/>, and the undo stack (<see cref="IAppCommands.CloseProject"/>),
+    /// and clears every open tab and the Open Project Folder scope -- the same blank state as a
+    /// fresh app launch. Prompts once via <see cref="IAppCommands.ConfirmAsync"/> when any open
+    /// tab is Untitled with actual content: a named/saved tab is already persisted to disk by
+    /// the autosave-on-edit path (see the <see cref="AppCommands"/> constructor comment), so only
+    /// unsaved Untitled content is actually at risk of being discarded here -- same risk model
+    /// <see cref="CloseTabAsync"/> already uses per-tab.
+    /// </summary>
+    internal async Task CloseProjectAsync()
+    {
+        int atRiskCount = _tabManager.Tabs.Count(t => IsUntitledTab(t) && UntitledTabHasContent(t));
+        if (atRiskCount > 0)
+        {
+            string noun = atRiskCount == 1 ? "tab has" : "tabs have";
+            bool confirmed = await _appCommands.ConfirmAsync(
+                $"{atRiskCount} untitled {noun} unsaved content that will be discarded. Close the project anyway?",
+                "Close Project");
+            if (!confirmed) return;
+        }
+
+        _tabManager.RestoreFrom(Array.Empty<string>(), null);
+        _projectFolderWatcher.Watch(null);
+        _appCommands.CloseProject();
+
+        ShowAchxPane();
+        RebuildTabStrip();
+        ProjectPanel.SyncSelectionToActiveFile(null);
+        RefreshTreeView();
+        RefreshFilesPanel();
+        UpdateTitle();
+        UpdateStatusBar();
+        _appCommands.SyncHotReloadWatcher();
+
+        // "Close" is an explicit action, unlike a normal exit -- don't let the next launch
+        // silently reopen what was just closed (mirrors clearing the in-memory state above).
+        _appSettings.OpenTabPaths = new List<string>();
+        _appSettings.ActiveTabPath = null;
+        _appSettings.LastProjectFolderPath = null;
+        SaveSettingsFile();
+    }
 
     /// <summary>
     /// Open Project Folder (#770): picks a folder, then loads + persists it via

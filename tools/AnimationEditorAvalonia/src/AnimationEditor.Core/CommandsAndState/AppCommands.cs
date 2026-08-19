@@ -1572,6 +1572,22 @@ namespace AnimationEditor.Core.CommandsAndState
             _events.RaiseAnimationChainsChanged();
         }
 
+        /// <inheritdoc cref="IAppCommands.CloseProject"/>
+        public void CloseProject()
+        {
+            _pm.AnimationChainListSave = new AnimationChainListSave();
+            _pm.FileName = null;
+            _pm.ProjectFolderPath = null;
+            _pm.OnDiskCoordinateType = FlatRedBall2.AnimationEditorCommon.TextureCoordinateType.Pixel;
+            _selectedState.Reset();
+            _undoManager.Clear();
+            // No content survives a close, so remove any crash-recovery file rather than
+            // writing a fresh one for an empty project (unlike NewFile, which still fires
+            // AnimationChainsChanged and lets the autosave path write one).
+            _ioManager.DeleteRecoveryFile();
+            RefreshTreeViewRequested?.Invoke();
+        }
+
         // ── WF09: Create frame from magic-wand pixel bounds ───────────────────
 
         /// <summary>
