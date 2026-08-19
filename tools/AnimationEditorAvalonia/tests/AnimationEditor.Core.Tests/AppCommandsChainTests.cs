@@ -527,6 +527,146 @@ public class AppCommandsChainTests
         Assert.NotEqual(copy1!.Name, copy2!.Name);
     }
 
+    // ── DuplicateChain — direction-token rename on flip ────────────────────────
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_RenamesRightToLeft()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "WalkRight");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("WalkLeft", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_RenamesLeftToRight()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "WalkLeft");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("WalkRight", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipV_RenamesUpToDown()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "JumpUp");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipV: true);
+
+        Assert.Equal("JumpDown", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipV_RenamesDownToUp()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "JumpDown");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipV: true);
+
+        Assert.Equal("JumpUp", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipHAndFlipV_RenamesBothTokens()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "AttackUpRight");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true, flipV: true);
+
+        Assert.Equal("AttackDownLeft", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_WhenNameHasNoDirectionToken_FallsBackToCopySuffix()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "Idle");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("IdleCopy", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_DoesNotMatchDirectionTokenInsideLongerWord()
+    {
+        // "Rightful" must not be treated as containing the "Right" token — a plain
+        // substring swap would corrupt it into "Leftful".
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "Rightful");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("RightfulCopy", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipV_DoesNotMatchDirectionTokenInsideLongerWord()
+    {
+        // "Upgrade" must not be treated as containing the "Up" token.
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "Upgrade");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipV: true);
+
+        Assert.Equal("UpgradeCopy", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_WhenInvertedNameAlreadyExists_MakesResultUnique()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "WalkRight");
+        TestHelpers.MakeChain(acls, "WalkLeft");   // pre-existing chain the flip would collide with
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("WalkLeft2", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChain_WithFlipH_IsCaseSensitiveAboutDirectionToken()
+    {
+        // Lowercase "right" is not the "Right" PascalCase token — falls back to Copy suffix.
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var source = TestHelpers.MakeChain(acls, "walkright");
+
+        var copy = ctx.AppCommands.DuplicateChain(source, flipH: true);
+
+        Assert.Equal("walkrightCopy", copy!.Name);
+    }
+
+    [Fact]
+    public void DuplicateChains_WithFlipH_RenamesEachCopyIndependently()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var acls = ctx.Acls;
+        var walkRight = TestHelpers.MakeChain(acls, "WalkRight");
+        var runRight  = TestHelpers.MakeChain(acls, "RunRight");
+
+        var copies = ctx.AppCommands.DuplicateChains(new[] { walkRight, runRight }, flipH: true);
+
+        Assert.Equal(new[] { "WalkLeft", "RunLeft" }, copies.Select(c => c.Name));
+    }
+
     [Fact]
     public void DuplicateChain_WithCustomName_UsesProvidedName()
     {
