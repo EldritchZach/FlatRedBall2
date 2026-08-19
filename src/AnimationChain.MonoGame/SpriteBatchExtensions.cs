@@ -30,7 +30,7 @@ public static class SpriteBatchExtensions
     /// <param name="player">The player whose <see cref="AnimationPlayer{TFrame}.CurrentFrame"/> will be drawn.</param>
     /// <param name="position">Top-left draw position in screen pixels (before per-frame offset).</param>
     /// <param name="color">
-    /// Base tint color. Use <see cref="Color.White"/> for no tint. The frame's authored
+    /// Base tint color. Defaults to <see cref="Color.White"/> (no tint) when omitted. The frame's authored
     /// <see cref="AnimationFrameBase.Red"/>/<see cref="AnimationFrameBase.Green"/>/<see cref="AnimationFrameBase.Blue"/>
     /// are multiplied into this when <see cref="AnimationFrameBase.ColorOperation"/> is
     /// <see cref="ColorOperation.Multiply"/>, and <see cref="AnimationFrameBase.Alpha"/> is always
@@ -57,7 +57,7 @@ public static class SpriteBatchExtensions
         this SpriteBatch spriteBatch,
         AnimationPlayer<AnimationFrame> player,
         Vector2 position,
-        Color color,
+        Color? color = null,
         Vector2 origin = default,
         float scale = 1f,
         float layerDepth = 0f)
@@ -73,7 +73,7 @@ public static class SpriteBatchExtensions
             position.X + frame.RelativeX * scale,
             position.Y + frame.RelativeY * scale);
 
-        var drawColor = AnimationFrameColor.Apply(frame, color);
+        var drawColor = AnimationFrameColor.Apply(frame, ResolveBaseColor(color));
         Rectangle? sourceRectangle = frame.SourceRectangle?.ToXnaRectangle();
 
         if (frame.ColorOperation == ColorOperation.Add)
@@ -100,4 +100,7 @@ public static class SpriteBatchExtensions
             effects,
             layerDepth);
     }
+
+    /// <summary>Resolves the base tint <see cref="DrawAnimation"/> uses when <c>color</c> is omitted.</summary>
+    internal static Color ResolveBaseColor(Color? color) => color ?? Color.White;
 }
