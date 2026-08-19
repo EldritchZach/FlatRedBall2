@@ -92,6 +92,9 @@
                         <MenuItem Header="_Load..."       x:Name="MenuLoad" />
                         <MenuItem Header="Load _Recent"   x:Name="MenuLoadRecent" />
                         <MenuItem Header="Open _Project Folder…" x:Name="MenuOpenProjectFolder" />
+                        <Separator />
+                        <MenuItem Header="_Close Project" x:Name="MenuCloseProject" />
+                        <Separator />
                         <MenuItem Header="_Save"          x:Name="MenuSave" />
                         <MenuItem Header="Save _As..."    x:Name="MenuSaveAs" />
                         <MenuItem Header="_Export">

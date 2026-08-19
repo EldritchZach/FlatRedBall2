@@ -248,6 +248,17 @@ namespace AnimationEditor.Core.CommandsAndState
         bool AddMultipleFrames(AnimationChainSave chain, int count, bool incrementUV);
         List<AnimationFrameSave> AdjustUVAfterResize(string absoluteTextureFilePath, int oldWidth, int oldHeight, int newWidth, int newHeight);
         void NewFile();
+
+        /// <summary>
+        /// Resets the editor to the same blank state as a fresh app launch with no project
+        /// ever opened: empty <c>ProjectManager.AnimationChainListSave</c>, cleared
+        /// <c>ProjectManager.FileName</c> and <c>ProjectManager.ProjectFolderPath</c>, cleared
+        /// selection, and a cleared undo stack. Deletes any crash-recovery file rather than
+        /// writing a fresh one, since there is no content left to protect. Does not touch open
+        /// tabs or tab-scoped UI -- callers with a tab strip (the desktop app) must close those
+        /// separately.
+        /// </summary>
+        void CloseProject();
         void AddFrameFromPixelBounds(AnimationChainSave chain, string textureName, int minX, int minY, int maxX, int maxY, int bitmapWidth, int bitmapHeight);
         void SetFrameTextureName(AnimationFrameSave frame, string? textureName);
 
