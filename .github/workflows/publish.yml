@@ -41,7 +41,7 @@ jobs:
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           echo "Auto-incremented to: $NEXT"
 
-  publish-animationeditorcommon:
+  publish-animationchain-common:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
@@ -54,11 +54,11 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj
+        run: dotnet restore src/AnimationChain.Common/AnimationChain.Common.csproj
 
-      - name: Build and Pack (FlatRedBall2.AnimationEditorCommon)
+      - name: Build and Pack (FlatRedBall.AnimationChain.Common)
         run: >
-          dotnet pack src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj
+          dotnet pack src/AnimationChain.Common/AnimationChain.Common.csproj
           -c Release
           -p:PackageVersion=${{ needs.resolve-version.outputs.version }}
           -o out
@@ -66,12 +66,12 @@ jobs:
       - name: Publish to NuGet
         run: dotnet nuget push "out/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-  # Depends on publish-animationeditorcommon so FlatRedBall2.AnimationEditorCommon is already on
+  # Depends on publish-animationchain-common so FlatRedBall.AnimationChain.Common is already on
   # nuget.org (matching this same resolved version) before FlatRedBall2.MonoGame/Kni's auto-generated
-  # dependency on it needs to resolve. See src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj
+  # dependency on it needs to resolve. See src/AnimationChain.Common/AnimationChain.Common.csproj
   # for why this dependency exists at all.
   publish:
-    needs: [resolve-version, publish-animationeditorcommon]
+    needs: [resolve-version, publish-animationchain-common]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -91,24 +91,24 @@ jobs:
           dotnet-version: '10.0.x'
 
       # nuget.org indexing lags a push by a few seconds; a consumer restoring FlatRedBall2.MonoGame/Kni
-      # right after this job finishes needs FlatRedBall2.AnimationEditorCommon to already be resolvable
-      # at this exact version, not just pushed. `needs: publish-animationeditorcommon` only guarantees
+      # right after this job finishes needs FlatRedBall.AnimationChain.Common to already be resolvable
+      # at this exact version, not just pushed. `needs: publish-animationchain-common` only guarantees
       # the push happened first, not that it's indexed yet.
-      - name: Wait for FlatRedBall2.AnimationEditorCommon to be resolvable on NuGet
+      - name: Wait for FlatRedBall.AnimationChain.Common to be resolvable on NuGet
         run: |
           VERSION="${{ needs.resolve-version.outputs.version }}"
           VERSION_LOWER=$(echo "$VERSION" | tr '[:upper:]' '[:lower:]')
-          URL="https://api.nuget.org/v3-flatcontainer/flatredball2.animationeditorcommon/$VERSION_LOWER/flatredball2.animationeditorcommon.$VERSION_LOWER.nupkg"
+          URL="https://api.nuget.org/v3-flatcontainer/flatredball.animationchain.common/$VERSION_LOWER/flatredball.animationchain.common.$VERSION_LOWER.nupkg"
           for i in $(seq 1 20); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
             if [ "$STATUS" = "200" ]; then
-              echo "FlatRedBall2.AnimationEditorCommon $VERSION is resolvable on NuGet."
+              echo "FlatRedBall.AnimationChain.Common $VERSION is resolvable on NuGet."
               exit 0
             fi
             echo "Attempt $i/20: got HTTP $STATUS for $URL, waiting 15s..."
             sleep 15
           done
-          echo "::error::FlatRedBall2.AnimationEditorCommon $VERSION never became resolvable on NuGet after 5 minutes."
+          echo "::error::FlatRedBall.AnimationChain.Common $VERSION never became resolvable on NuGet after 5 minutes."
           exit 1
 
       - name: Restore dependencies
@@ -116,7 +116,7 @@ jobs:
 
       # Use FlatRedBallDependencyPackageId, not the raw PackageId MSBuild property, to rename the
       # output package. PackageId is a *global* property: passing -p:PackageId=X here would also
-      # override the PackageId of the AnimationEditorCommon ProjectReference (global properties
+      # override the PackageId of the AnimationChain.Common ProjectReference (global properties
       # propagate to every project pulled in via ProjectReference), making both projects resolve
       # to the same PackageId and fail restore with "Ambiguous project name 'X'".
       # FlatRedBallDependencyPackageId is a project-local indirection (see src/FlatRedBall2.csproj)
@@ -131,20 +131,20 @@ jobs:
           -o out
 
       # Guards against a repeat of the exact bug this workflow already hit once: the ProjectReference
-      # to AnimationEditorCommon auto-generates a <dependency> in this nuspec, and nothing else here
-      # checks that its version actually matches what publish-animationeditorcommon pushed. A mismatch
+      # to AnimationChain.Common auto-generates a <dependency> in this nuspec, and nothing else here
+      # checks that its version actually matches what publish-animationchain-common pushed. A mismatch
       # would only surface later as a broken `dotnet add package` for an end user, after
       # --skip-duplicate makes it awkward to fix at the same version number.
-      - name: Verify AnimationEditorCommon dependency version
+      - name: Verify AnimationChain.Common dependency version
         run: |
           VERSION="${{ needs.resolve-version.outputs.version }}"
           NUSPEC=$(unzip -p out/*.nupkg "*.nuspec")
-          if ! echo "$NUSPEC" | grep -qF "<dependency id=\"FlatRedBall2.AnimationEditorCommon\" version=\"$VERSION\""; then
-            echo "::error::Generated nuspec does not depend on FlatRedBall2.AnimationEditorCommon $VERSION. Aborting before publish."
-            echo "$NUSPEC" | grep -i "AnimationEditorCommon" || echo "(no AnimationEditorCommon dependency found at all)"
+          if ! echo "$NUSPEC" | grep -qF "<dependency id=\"FlatRedBall.AnimationChain.Common\" version=\"$VERSION\""; then
+            echo "::error::Generated nuspec does not depend on FlatRedBall.AnimationChain.Common $VERSION. Aborting before publish."
+            echo "$NUSPEC" | grep -i "AnimationChain.Common" || echo "(no AnimationChain.Common dependency found at all)"
             exit 1
           fi
-          echo "Confirmed: nuspec depends on FlatRedBall2.AnimationEditorCommon $VERSION."
+          echo "Confirmed: nuspec depends on FlatRedBall.AnimationChain.Common $VERSION."
 
       - name: Publish to NuGet
         run: dotnet nuget push "out/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
