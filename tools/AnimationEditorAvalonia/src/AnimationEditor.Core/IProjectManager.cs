@@ -1,5 +1,5 @@
 using AnimationEditor.Core.Data;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System.IO;
 using FilePath = AnimationEditor.Core.Paths.FilePath;
 

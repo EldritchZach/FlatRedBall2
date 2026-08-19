@@ -6,7 +6,7 @@ using AnimationEditor.Core.Rendering;
 using Avalonia;
 using Avalonia.Platform;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using FilePath = AnimationEditor.Core.Paths.FilePath;
 

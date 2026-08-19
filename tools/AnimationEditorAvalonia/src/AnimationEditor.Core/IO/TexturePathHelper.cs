@@ -36,7 +36,7 @@ public static class TexturePathHelper
     /// friendlier regardless of how the path was originally stored.
     /// </summary>
     /// <param name="framePath">
-    /// The <see cref="FlatRedBall2.Animation.Content.AnimationFrameSave.TextureName"/> value.
+    /// The <see cref="FlatRedBall2.AnimationEditorCommon.AnimationFrameSave.TextureName"/> value.
     /// </param>
     /// <param name="achxPath">
     /// The full path to the .achx file, or <see langword="null"/> if the project has not been saved.

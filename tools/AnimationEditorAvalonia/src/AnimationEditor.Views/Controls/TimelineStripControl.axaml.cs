@@ -3,7 +3,7 @@ using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System;
 using System.Collections.ObjectModel;
 

@@ -1,6 +1,7 @@
 using System;
+using FlatRedBall2.Animation;
 
-namespace FlatRedBall2.Animation.Content;
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Extension methods on <see cref="ContentLoader"/> for loading animation content.

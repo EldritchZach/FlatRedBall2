@@ -1,5 +1,5 @@
 using AnimationEditor.Core.Export;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using NJsonSchema;
 using System;
 using System.Collections.Generic;

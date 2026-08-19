@@ -1,6 +1,6 @@
 using AnimationEditor.Core;
 using AnimationEditor.Core.CommandsAndState;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System.Linq;
 using Xunit;
 
@@ -824,7 +824,7 @@ public class AppCommandsChainTests
     public void SetFrameFlip_DiagonalTrue_TransposesAttachedShapeOffsets()
     {
         var ctx = TestHelpers.SetupFreshAcls();
-        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave() };
+        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave() };
         frame.ShapesSave.Shapes.Add(new AARectSave { Name = "Box", X = 12, Y = 5 });
 
         ctx.AppCommands.SetFrameFlip(new[] { frame }, flipHorizontal: null, flipVertical: null, flipDiagonal: true);
@@ -877,7 +877,7 @@ public class AppCommandsChainTests
     public void SetFrameFlip_HorizontalThenDiagonal_TransposesShapeOffsetAboutCurrentHorizontalSign()
     {
         var ctx = TestHelpers.SetupFreshAcls();
-        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave() };
+        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave() };
         frame.ShapesSave.Shapes.Add(new AARectSave { Name = "Box", X = 12, Y = 5 });
 
         ctx.AppCommands.SetFrameFlip(new[] { frame }, flipHorizontal: true, flipVertical: null, flipDiagonal: null);
@@ -938,7 +938,7 @@ public class AppCommandsChainTests
     public void SetFrameFlip_HorizontalTrue_MirrorsAttachedShapeOffsets()
     {
         var ctx = TestHelpers.SetupFreshAcls();
-        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave() };
+        var frame = new AnimationFrameSave { ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave() };
         frame.ShapesSave.Shapes.Add(new AARectSave { Name = "Box", X = 12, Y = 5 });
 
         ctx.AppCommands.SetFrameFlip(new[] { frame }, flipHorizontal: true, flipVertical: null);

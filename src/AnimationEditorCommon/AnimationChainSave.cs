@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace FlatRedBall2.Animation.Content;
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Deserialized representation of an animation chain within a .achx file.

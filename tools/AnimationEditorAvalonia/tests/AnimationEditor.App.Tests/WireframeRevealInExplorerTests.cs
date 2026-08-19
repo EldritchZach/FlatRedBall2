@@ -1,7 +1,7 @@
 using AnimationEditor.App.Controls;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using System.ComponentModel;
 using System.Linq;

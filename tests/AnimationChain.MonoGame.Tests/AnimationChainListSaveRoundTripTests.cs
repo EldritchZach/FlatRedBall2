@@ -8,7 +8,7 @@ namespace AnimationChain.MonoGame.Tests;
 // #535 follow-up: AnimationChain.MonoGame/KNI silently dropped FlipDiagonal and the per-frame
 // Red/Green/Blue/Alpha/ColorOperation fields on load, since its AnimationFrameSave never had
 // them (the main engine's diagonal-flip feature, #592, only ever touched
-// FlatRedBall2.Animation.Content). These tests cover the round-trip parity fix.
+// FlatRedBall2.AnimationEditorCommon). These tests cover the round-trip parity fix.
 public class AnimationChainListSaveRoundTripTests
 {
     private static Func<string, Stream> XmlStream(string xml) =>

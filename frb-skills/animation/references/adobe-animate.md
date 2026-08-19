@@ -3,7 +3,7 @@
 Adobe Animate's "Generate sprite sheet" export produces a `<TextureAtlas>` XML plus a single atlas PNG. Load with `AdobeAnimateAtlasSave`:
 
 ```csharp
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 var animations = AdobeAnimateAtlasSave
     .FromFile("Content/Characters/eyeball.xml")
     .ToAnimationChainList(Engine.Content, frameRate: 30f);

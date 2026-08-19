@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using FlatRedBall2.Rendering;
 using Shouldly;
 using Xunit;

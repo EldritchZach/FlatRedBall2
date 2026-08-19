@@ -3,7 +3,7 @@ using AnimationEditor.Core.CommandsAndState;
 using AnimationEditor.Core.Data;
 using AnimationEditor.Core.Models;
 using AnimationEditor.Core.Paths;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;

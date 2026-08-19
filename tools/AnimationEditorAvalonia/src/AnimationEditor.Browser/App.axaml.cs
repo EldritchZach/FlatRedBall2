@@ -31,7 +31,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform.Storage;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using FilePath = AnimationEditor.Core.Paths.FilePath;
 using SvgIcon = Avalonia.Svg.Skia.Svg;

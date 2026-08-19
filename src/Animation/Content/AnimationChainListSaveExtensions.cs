@@ -2,8 +2,9 @@ using System;
 using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using FlatRedBall2.Animation;
 
-namespace FlatRedBall2.Animation.Content;
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Converts the portable <see cref="AnimationChainListSave"/>/<see cref="ShapesSave"/> data model
@@ -113,9 +114,13 @@ public static class AnimationChainListSaveExtensions
         {
             switch (shape)
             {
+                // Fully qualified: FlatRedBall2.Animation has its own AnimationAARectFrame/
+                // AnimationCircleFrame/AnimationPolygonFrame (Sprite-facing runtime, distinct from
+                // this project's own AnimationEditorCommon.AnimationAARectFrame etc. used by the
+                // generic AnimationFrameBase<TTexture> layer) — same simple names, different types.
                 case AARectSave rect:
                     ValidateName(rect.Name, "AARectSave");
-                    frame.Shapes.Add(new AnimationAARectFrame
+                    frame.Shapes.Add(new FlatRedBall2.Animation.AnimationAARectFrame
                     {
                         Name = rect.Name,
                         RelativeX = rect.X,
@@ -126,7 +131,7 @@ public static class AnimationChainListSaveExtensions
                     break;
                 case CircleSave circle:
                     ValidateName(circle.Name, "CircleSave");
-                    frame.Shapes.Add(new AnimationCircleFrame
+                    frame.Shapes.Add(new FlatRedBall2.Animation.AnimationCircleFrame
                     {
                         Name = circle.Name,
                         RelativeX = circle.X,
@@ -139,7 +144,7 @@ public static class AnimationChainListSaveExtensions
                     var points = new System.Numerics.Vector2[poly.Points.Count];
                     for (int i = 0; i < poly.Points.Count; i++)
                         points[i] = new System.Numerics.Vector2(poly.Points[i].X, poly.Points[i].Y);
-                    frame.Shapes.Add(new AnimationPolygonFrame
+                    frame.Shapes.Add(new FlatRedBall2.Animation.AnimationPolygonFrame
                     {
                         Name = poly.Name,
                         RelativeX = poly.X,

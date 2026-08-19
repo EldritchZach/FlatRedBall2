@@ -1,4 +1,6 @@
-namespace FlatRedBall2.Animation.Content;
+using FlatRedBall2.Animation;
+
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Deserialized representation of a single frame within an <see cref="AnimationChainSave"/>.

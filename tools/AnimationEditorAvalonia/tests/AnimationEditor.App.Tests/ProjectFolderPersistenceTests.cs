@@ -20,7 +20,7 @@ public class ProjectFolderPersistenceTests
     private static void WriteAchx(string dir, string fileName)
     {
         var path = Path.Combine(dir, fileName);
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave();
         acls.Save(path);
     }
 
@@ -74,11 +74,11 @@ public class ProjectFolderPersistenceTests
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         WritePng(dir, "hero.png", SKColors.Red);
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
-        acls.AnimationChains.Add(new FlatRedBall2.Animation.Content.AnimationChainSave
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave();
+        acls.AnimationChains.Add(new FlatRedBall2.AnimationEditorCommon.AnimationChainSave
         {
             Name = "Walk",
-            Frames = { new FlatRedBall2.Animation.Content.AnimationFrameSave { TextureName = "hero.png" } },
+            Frames = { new FlatRedBall2.AnimationEditorCommon.AnimationFrameSave { TextureName = "hero.png" } },
         });
         acls.Save(Path.Combine(dir, "hero.achx"));
 
@@ -120,11 +120,11 @@ public class ProjectFolderPersistenceTests
         Directory.CreateDirectory(dir);
         WritePng(dir, "hero.png", SKColors.Red);
         WritePng(dir, "other.png", SKColors.Blue);
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
-        acls.AnimationChains.Add(new FlatRedBall2.Animation.Content.AnimationChainSave
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave();
+        acls.AnimationChains.Add(new FlatRedBall2.AnimationEditorCommon.AnimationChainSave
         {
             Name = "Walk",
-            Frames = { new FlatRedBall2.Animation.Content.AnimationFrameSave { TextureName = "hero.png" } },
+            Frames = { new FlatRedBall2.AnimationEditorCommon.AnimationFrameSave { TextureName = "hero.png" } },
         });
         var achxPath = Path.Combine(dir, "hero.achx");
         acls.Save(achxPath);

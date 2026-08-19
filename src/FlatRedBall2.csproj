@@ -44,10 +44,10 @@
       The sibling project FlatRedBall2.BlazorGL lives at src/FlatRedBall2.BlazorGL/. Without
       this exclude, the SDK's default compile glob (**/*.cs) picks up its files and tries to
       compile them as part of FlatRedBall2 itself, which fails because the engine doesn't
-      reference the AspNetCore.Components / JSInterop assemblies. Animation.Content is its own
+      reference the AspNetCore.Components / JSInterop assemblies. AnimationEditorCommon is its own
       MonoGame-free project (see ProjectReference below) for the same reason.
     -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);FlatRedBall2.BlazorGL\**;AnimationChain.MonoGame\**;Animation.Content\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);FlatRedBall2.BlazorGL\**;AnimationChain.MonoGame\**;AnimationEditorCommon\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- Backend-agnostic packages -->
@@ -65,7 +65,7 @@
     MonoGame.Framework.DesktopGL at all; see tools/AnimationEditorAvalonia/docs/BROWSER_SPIKE_FINDINGS.md.
   -->
   <ItemGroup>
-    <ProjectReference Include="Animation.Content/FlatRedBall2.Animation.Content.csproj" />
+    <ProjectReference Include="AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj" />
   </ItemGroup>
 
   <!-- MonoGame backend -->

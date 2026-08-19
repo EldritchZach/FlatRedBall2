@@ -6,7 +6,7 @@ using Xunit;
 
 namespace AnimationChain.MonoGame.Tests;
 
-// .achj (JSON) dialect added alongside .achx (XML), mirroring FlatRedBall2.Animation.Content's
+// .achj (JSON) dialect added alongside .achx (XML), mirroring FlatRedBall2.AnimationEditorCommon's
 // support (#872 follow-up) -- this package has no dependency on that assembly, so the JSON
 // read/write is a separate implementation over this package's own Content types.
 public class AnimationChainListSaveJsonTests

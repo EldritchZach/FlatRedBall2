@@ -44,7 +44,7 @@ because they shared a file/assembly with the runtime bridge
 `Texture2D`/`ContentLoader`).
 
 **Fix landed:** the pure data model moved to a new, MonoGame-free project,
-`src/Animation.Content/FlatRedBall2.Animation.Content.csproj` (multi-targets
+`src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj` (multi-targets
 `net8.0;net10.0`, zero MonoGame/KNI package references). The runtime-bridge
 methods moved to `AnimationChainListSaveExtensions` in the main engine
 assembly, as extension methods on the same types — call-site syntax is

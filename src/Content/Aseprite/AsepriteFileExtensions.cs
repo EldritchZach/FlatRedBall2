@@ -3,7 +3,7 @@ using AsepriteDotNet;
 using AsepriteDotNet.Aseprite;
 using AsepriteDotNet.Processors;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using AseAnimationFrame = AsepriteDotNet.AnimationFrame;

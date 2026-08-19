@@ -28,11 +28,11 @@ public class ProjectFolderExternalWatchTests
 
     private static void WriteAchxWithFrame(string path, string textureName)
     {
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
-        acls.AnimationChains.Add(new FlatRedBall2.Animation.Content.AnimationChainSave
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave();
+        acls.AnimationChains.Add(new FlatRedBall2.AnimationEditorCommon.AnimationChainSave
         {
             Name = "Walk",
-            Frames = { new FlatRedBall2.Animation.Content.AnimationFrameSave { TextureName = textureName } },
+            Frames = { new FlatRedBall2.AnimationEditorCommon.AnimationFrameSave { TextureName = textureName } },
         });
         acls.Save(path);
     }

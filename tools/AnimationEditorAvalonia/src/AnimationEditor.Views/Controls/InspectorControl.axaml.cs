@@ -6,7 +6,7 @@ using AnimationEditor.Core.Rendering;
 using Avalonia.Controls;
 using Avalonia.Input;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 
 namespace AnimationEditor.Views.Controls;
 

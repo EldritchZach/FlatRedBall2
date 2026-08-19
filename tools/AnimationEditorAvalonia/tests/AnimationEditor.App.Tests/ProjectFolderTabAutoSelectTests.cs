@@ -18,7 +18,7 @@ public class ProjectFolderTabAutoSelectTests
     private static void WriteAchx(string dir, string fileName)
     {
         var path = Path.Combine(dir, fileName);
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave();
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave();
         acls.Save(path);
     }
 
