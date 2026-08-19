@@ -372,6 +372,30 @@ public class ProjectPanelControlTests
         finally { window.Close(); }
     }
 
+    // Issue #916: the tree used to be hidden entirely (ProjectTree.IsVisible = false) whenever the
+    // project had zero .achx files, so right-clicking anywhere in the panel hit nothing with a
+    // context menu -- "New Animation" was reachable only after a file already existed.
+    [AvaloniaFact]
+    public void RightClickingEmptyTree_WithNoEntries_ShowsNewAnimationItem()
+    {
+        var control = new Controls.ProjectPanelControl();
+        control.SetEntries(Array.Empty<AchxFileEntry>());
+
+        var window = ShowInWindow(control);
+        try
+        {
+            var local = new Point(10, 10);
+            var p = control.ProjectTree.TranslatePoint(local, window)!.Value;
+            window.MouseDown(p, MouseButton.Right);
+            window.MouseUp(p, MouseButton.Right);
+            Dispatcher.UIThread.RunJobs();
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>().Single();
+            Assert.Equal("New Animation", item.Header);
+        }
+        finally { window.Close(); }
+    }
+
     private static void RightClickEmptySpace(Window window, Controls.ProjectPanelControl control)
     {
         // Below the single "hero.achx" row (~24-28px tall) but still inside the tree's bounds.

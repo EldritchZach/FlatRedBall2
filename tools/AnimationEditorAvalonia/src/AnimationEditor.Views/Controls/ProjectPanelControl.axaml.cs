@@ -146,8 +146,9 @@ public partial class ProjectPanelControl : UserControl
             : _allEntries.ToList();
         files = AchxSearchFilter.Filter(files, _searchQuery).ToList();
 
+        // ProjectTree stays visible even with zero rows (issue #916): hiding it also hid its
+        // right-click "New Animation" context menu, which is exactly what an empty project needs.
         EmptyMessage.IsVisible = files.Count == 0;
-        ProjectTree.IsVisible = files.Count > 0;
         EmptyMessage.Text = _allEntries.Count == 0
             ? "File → Open Project Folder… to browse its .achx files."
             : string.IsNullOrWhiteSpace(_searchQuery)
