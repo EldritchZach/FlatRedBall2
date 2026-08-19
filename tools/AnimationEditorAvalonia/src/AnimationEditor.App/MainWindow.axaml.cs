@@ -3914,9 +3914,11 @@ public partial class MainWindow : Window
 
     // The single-row timeline's fixed height (14px ruler + one ~38px frame-cell row).
     private const double SingleTimelineAreaHeight = 52;
-    // Group-preview timeline area (#576): tall enough for ~4 track rows at once; more chains
-    // scroll within GroupTimelineScrubHost's ScrollViewer rather than growing the row further.
-    private const double GroupTimelineAreaHeight = 160;
+    // Group-preview timeline area (#576): 14px ruler + 2.25 track rows (each row is 40px, see the
+    // ChainTimelineTrackVm DataTemplate). 2 covers the common case fully; the partial 3rd row peeks
+    // enough to make scrolling to further chains discoverable without growing past ~2.5 rows worth
+    // of space. More chains scroll within GroupTimelineScrubHost's ScrollViewer.
+    private const double GroupTimelineAreaHeight = 14 + 2.25 * 40;
 
     private void RefreshTimelineStrip()
     {
