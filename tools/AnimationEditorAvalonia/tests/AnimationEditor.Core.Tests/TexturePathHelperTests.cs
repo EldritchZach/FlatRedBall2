@@ -110,11 +110,16 @@ public class TexturePathHelperTests
     [Fact]
     public void NormalizeStoredTextureName_AbsolutePathOnDifferentDrive_StaysAbsoluteButForwardSlashed()
     {
+        // A genuinely unrelated root only exists as a concept on Windows (separate drive
+        // letters) -- Linux/macOS have a single filesystem root, so a fake "AltRoot" there is
+        // still expressible relative to "TestRoot" via a chain of "../". Use explicit
+        // drive-letter literals so this exercises the real can't-relativize case on every host
+        // OS (FilePath's drive-letter check in IsRelative/IsAbsolute is string-based, not an OS
+        // API call).
         string normalized = TexturePathHelper.NormalizeStoredTextureName(
-            TestPaths.AltAbs("External", "Hero.png"),
-            TestPaths.AbsDir("Project", "Animations"));
+            @"D:\AltRoot\External\Hero.png", @"C:\TestRoot\Project\Animations");
 
-        Assert.Equal(TestPaths.AltAbs("External", "Hero.png").Replace('\\', '/'), normalized);
+        Assert.Equal("D:/AltRoot/External/Hero.png", normalized);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using AnimationEditor.Core;
 using FlatRedBall2.AnimationEditorCommon;
+using System.IO;
 using System.Linq;
 using Xunit;
 
@@ -11,6 +12,13 @@ namespace AnimationEditor.Core.Tests;
 // forever, mixed in with properly-relative forward-slashed entries from other frames. Saving
 // must self-heal: every frame's TextureName is re-normalized against the save target's folder
 // each time SaveAnimationChainList(string) runs.
+//
+// These tests build the absolute TextureName with Path.Combine (OS-native separator) rather
+// than a forced backslash literal: they round-trip through a real achx directory computed by
+// System.IO.Path on whichever OS the test runs on, so an artificially backslash-mangled path
+// would not actually be "absolute" on Linux and would exercise the wrong code path. The
+// separator-normalization behavior itself (backslash literals -> forward slash) is covered
+// platform-independently in TexturePathHelperTests using drive-letter literals.
 public class ProjectManagerTexturePathPortabilityTests
 {
     [Fact]
@@ -18,9 +26,9 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
 
-        var frame = new AnimationFrameSave { TextureName = dir.Path.Replace('/', '\\') + @"\items.png" };
+        var frame = new AnimationFrameSave { TextureName = Path.Combine(dir.Path, "items.png") };
         var chain = new AnimationChainSave { Name = "Chain1" };
         chain.Frames.Add(frame);
         pm.AnimationChainListSave = new AnimationChainListSave();
@@ -37,8 +45,8 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
-        var absoluteTexture = dir.Path.Replace('/', '\\') + @"\Sprites\items.png";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
+        var absoluteTexture = Path.Combine(dir.Path, "Sprites", "items.png");
 
         var frame = new AnimationFrameSave { TextureName = absoluteTexture };
         var chain = new AnimationChainSave { Name = "Chain1" };
@@ -57,9 +65,9 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
 
-        var frameAbsolute = new AnimationFrameSave { TextureName = dir.Path.Replace('/', '\\') + @"\items.png" };
+        var frameAbsolute = new AnimationFrameSave { TextureName = Path.Combine(dir.Path, "items.png") };
         var frameRelative = new AnimationFrameSave { TextureName = "items.png" };
         var chain = new AnimationChainSave { Name = "Chain1" };
         chain.Frames.Add(frameAbsolute);
@@ -78,9 +86,9 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
 
-        var frame = new AnimationFrameSave { TextureName = dir.Path.Replace('/', '\\') + @"\items.png" };
+        var frame = new AnimationFrameSave { TextureName = Path.Combine(dir.Path, "items.png") };
         var chain = new AnimationChainSave { Name = "Chain1" };
         chain.Frames.Add(frame);
         pm.AnimationChainListSave = new AnimationChainListSave();
@@ -98,9 +106,9 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
 
-        var frame = new AnimationFrameSave { TextureName = dir.Path.Replace('/', '\\') + @"\MyStuff\Hero.PNG" };
+        var frame = new AnimationFrameSave { TextureName = Path.Combine(dir.Path, "MyStuff", "Hero.PNG") };
         var chain = new AnimationChainSave { Name = "Chain1" };
         chain.Frames.Add(frame);
         pm.AnimationChainListSave = new AnimationChainListSave();
@@ -117,7 +125,7 @@ public class ProjectManagerTexturePathPortabilityTests
     {
         var pm = new ProjectManager();
         using var dir = new TestHelpers.TempDir();
-        var achxPath = dir.Path + "/Props.achx";
+        var achxPath = Path.Combine(dir.Path, "Props.achx");
 
         var frame = new AnimationFrameSave { TextureName = @"Sprites\items.png" };
         var chain = new AnimationChainSave { Name = "Chain1" };
