@@ -12,6 +12,27 @@ public sealed class TitleBarHelperTests
     }
 
     [Fact]
+    public void BuildActiveFolderDisplay_WhenNeitherPathSet_ReturnsPlaceholder()
+    {
+        Assert.Equal("No folder open", TitleBarHelper.BuildActiveFolderDisplay(null, null));
+    }
+
+    [Fact]
+    public void BuildActiveFolderDisplay_WhenOnlyFilesPanelRootSet_ReturnsFilesPanelRoot()
+    {
+        var filesPanelRoot = @"C:\projects\sprites\Content\";
+        Assert.Equal(filesPanelRoot, TitleBarHelper.BuildActiveFolderDisplay(null, filesPanelRoot));
+    }
+
+    [Fact]
+    public void BuildActiveFolderDisplay_WhenProjectFolderPathSet_TakesPrecedenceOverFilesPanelRoot()
+    {
+        var projectFolderPath = @"C:\projects\sprites\";
+        var filesPanelRoot = @"C:\projects\sprites\Content\";
+        Assert.Equal(projectFolderPath, TitleBarHelper.BuildActiveFolderDisplay(projectFolderPath, filesPanelRoot));
+    }
+
+    [Fact]
     public void BuildWindowTitle_WhenNoFile_ReturnsAppNameOnly()
     {
         Assert.Equal("AnimationEditor", TitleBarHelper.BuildWindowTitle(null));
