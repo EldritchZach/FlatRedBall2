@@ -763,9 +763,8 @@
                                Text="No folder open"
                                FontSize="10"
                                Padding="8,3"
-                               TextTrimming="CharacterEllipsis"
+                               TextTrimming="LeadingCharacterEllipsis"
                                Foreground="{DynamicResource InkMid}"
-                               Background="{DynamicResource BgCanvas}"
                                ToolTip.Tip="{Binding #ActiveFolderLabel.Text}" />
                     <TabControl x:Name="SidebarTabs"
                                 AutomationProperties.Name="Sidebar"
