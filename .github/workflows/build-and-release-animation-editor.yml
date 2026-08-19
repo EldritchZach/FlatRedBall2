@@ -207,3 +207,33 @@ jobs:
             dist/AnimationEditor-linux-x64.tar.gz
             dist/AnimationEditor-osx-x64.zip
             dist/AnimationEditor-osx-arm64.zip
+
+      # Moves a floating tag so /releases/tag/animationeditor-latest always resolves to the
+      # newest release/prerelease build. Skipped for 'test' (draft) runs so the public link
+      # never points at a draft. Tag is force-moved (not created fresh each time) since
+      # softprops/action-gh-release updates the existing "latest" release in place rather
+      # than creating a new one when the tag already has a release.
+      - name: Move animationeditor-latest tag
+        if: github.event.inputs.release_kind != 'test'
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "actions@github.com"
+          git tag -f animationeditor-latest
+          git push origin animationeditor-latest --force
+
+      - name: Update animationeditor-latest release
+        if: github.event.inputs.release_kind != 'test'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   animationeditor-latest
+          name:       Animation Editor (Latest)
+          generate_release_notes: false
+          body:       "Always points to the latest ${{ needs.meta.outputs.prerelease == 'true' && 'pre' || '' }}release: [${{ needs.meta.outputs.title }}](../../releases/tag/${{ needs.meta.outputs.tag }})"
+          prerelease: ${{ needs.meta.outputs.prerelease }}
+          draft:      false
+          files: |
+            dist/AnimationEditor-win-x64.zip
+            dist/AnimationEditor-linux-x64.tar.gz
+            dist/AnimationEditor-osx-x64.zip
+            dist/AnimationEditor-osx-arm64.zip
