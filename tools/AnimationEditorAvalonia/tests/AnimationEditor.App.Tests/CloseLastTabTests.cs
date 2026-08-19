@@ -39,11 +39,11 @@ public class CloseLastTabTests
             .GetField("_tabManager", BindingFlags.NonPublic | BindingFlags.Instance)!
             .GetValue(window)!;
 
-    private static void CloseTab(MainWindow window, TabEntry tab)
+    private static async System.Threading.Tasks.Task CloseTabAsync(MainWindow window, TabEntry tab)
     {
         var method = typeof(MainWindow)
-            .GetMethod("CloseTab", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        method.Invoke(window, [tab]);
+            .GetMethod("CloseTabAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        await (System.Threading.Tasks.Task)method.Invoke(window, [tab])!;
     }
 
     [AvaloniaFact]
@@ -95,7 +95,7 @@ public class CloseLastTabTests
             var tabManager = GetTabManager(window);
             var tabA = tabManager.Tabs.First(t => t.Path == new FilePath(pathA));
 
-            CloseTab(window, tabA);
+            await CloseTabAsync(window, tabA);
             Dispatcher.UIThread.RunJobs();
 
             Assert.Empty(tabManager.Tabs);

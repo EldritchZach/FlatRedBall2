@@ -156,8 +156,8 @@ public class ProjectPanelTabSwitchSyncTests
             var tabB = tabManager.Tabs.First(t => t.Path == new FilePath(pathB));
 
             var closeTabMethod = typeof(MainWindow)
-                .GetMethod("CloseTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            closeTabMethod.Invoke(window, [tabB]);
+                .GetMethod("CloseTabAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            await (Task)closeTabMethod.Invoke(window, [tabB])!;
             Dispatcher.UIThread.RunJobs();
 
             Assert.NotNull(window.ProjectPanel.SelectedEntry);
