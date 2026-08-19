@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Shouldly;
 using Xunit;
 

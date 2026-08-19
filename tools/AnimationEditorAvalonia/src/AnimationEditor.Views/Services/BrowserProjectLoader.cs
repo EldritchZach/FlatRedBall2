@@ -8,7 +8,7 @@ using AnimationEditor.Core;
 using AnimationEditor.Core.Data;
 using AnimationEditor.Core.IO;
 using AnimationEditor.Core.Paths;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using FilePath = AnimationEditor.Core.Paths.FilePath;
 

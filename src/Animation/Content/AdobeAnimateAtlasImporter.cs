@@ -5,9 +5,10 @@ using System.IO;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using FlatRedBall2.Animation;
 using XnaTitleContainer = Microsoft.Xna.Framework.TitleContainer;
 
-namespace FlatRedBall2.Animation.Content;
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Deserialized Adobe Animate TextureAtlas XML. Produced by Adobe Animate's

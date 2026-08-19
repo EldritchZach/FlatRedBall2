@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationEditor.App.Tests;

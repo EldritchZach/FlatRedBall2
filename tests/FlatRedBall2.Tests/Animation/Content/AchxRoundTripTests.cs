@@ -1,11 +1,11 @@
 using System;
 using System.IO;
 using System.Linq;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Shouldly;
 using Xunit;
 
-namespace FlatRedBall2.Tests.Animation.Content;
+namespace FlatRedBall2.Tests.AnimationEditorCommon;
 
 // Round-trip tests: Save() then FromFile() must produce a structurally-equal AnimationChainListSave.
 // Object-graph equality (field-by-field), not byte-exact — that distinction is per design point

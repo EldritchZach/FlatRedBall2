@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 
 namespace AnimationEditor.Core.ViewModels;
 

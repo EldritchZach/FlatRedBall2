@@ -1,5 +1,5 @@
 using AnimationEditor.Core.Rendering;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationEditor.Core.Tests;
@@ -19,7 +19,7 @@ public class BatchFrameBuilderTests
             RightCoordinate  = right,
             TopCoordinate    = top,
             BottomCoordinate = bottom,
-            ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave()
+            ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
         };
 
     // ── Count / no-op ─────────────────────────────────────────────────────

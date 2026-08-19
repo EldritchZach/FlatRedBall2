@@ -1,10 +1,10 @@
 using System;
 using System.IO;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Shouldly;
 using Xunit;
 
-namespace FlatRedBall2.Tests.Animation.Content;
+namespace FlatRedBall2.Tests.AnimationEditorCommon;
 
 // Byte-level snapshot guard: a canonical minimal .achx is built in code, saved, and diffed
 // against a checked-in expected file. Any writer change that alters the on-disk byte shape will

@@ -5,7 +5,7 @@ using AnimationEditor.Core.IO;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using System;
 using System.IO;

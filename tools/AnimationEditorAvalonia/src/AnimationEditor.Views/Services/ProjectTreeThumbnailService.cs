@@ -1,6 +1,6 @@
 using AnimationEditor.Core.IO;
 using Avalonia.Media.Imaging;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;

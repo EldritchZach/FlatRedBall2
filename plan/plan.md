@@ -45,6 +45,22 @@ Relationship to the other markdown folders:
 
 ## Initiatives
 
+### [AnimationEditorCommon: renderer-agnostic .achx runtime](934-animationeditorcommon/)
+
+Tracking issue: [vchelaru/FlatRedBall2#934](https://github.com/vchelaru/FlatRedBall2/issues/934)
+
+Grow `Animation.Content` (already pure C#, already shared by the engine and AnimationEditor.Core)
+into `AnimationEditorCommon`: add a two-tier generic runtime layer (`AnimationFrameBase` /
+`AnimationFrameBase<TTexture>`, `AnimationChain<TFrame>`, `AnimationChainList<TFrame>`,
+`AnimationPlayer<TFrame>`) so the .achx file format and playback state machine are usable from any
+C# renderer (raylib-cs, etc.), not just MonoGame/KNI. `AnimationChain.MonoGame`/`AnimationChain.KNI`
+migrate to thin closures (`AnimationFrame : AnimationFrameBase<Texture2D>`) over this layer in a
+later phase.
+
+| Phase | Document | Status |
+|---|---|---|
+| 1 | [Generic runtime layer in AnimationEditorCommon](934-animationeditorcommon/phase-01-common-runtime-layer.md) | Implemented |
+
 ### [Load FRB1 Glue projects (`.gluj`/`.glsj`/`.glej`) into FRB2](804-glue-project-loader/)
 
 Tracking issue: [vchelaru/FlatRedBall2#804](https://github.com/vchelaru/FlatRedBall2/issues/804)

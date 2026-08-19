@@ -1,5 +1,5 @@
 using FlatRedBall2;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using FlatRedBall2.Collision;
 using FlatRedBall2.Input;
 using FlatRedBall2.Movement;

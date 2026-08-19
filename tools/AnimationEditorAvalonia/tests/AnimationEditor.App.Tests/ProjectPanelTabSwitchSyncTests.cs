@@ -22,9 +22,9 @@ public class ProjectPanelTabSwitchSyncTests
     private static void WriteAchx(string dir, string fileName)
     {
         var path = Path.Combine(dir, fileName);
-        var acls = new FlatRedBall2.Animation.Content.AnimationChainListSave
+        var acls = new FlatRedBall2.AnimationEditorCommon.AnimationChainListSave
         {
-            CoordinateType = FlatRedBall2.Animation.Content.TextureCoordinateType.Pixel,
+            CoordinateType = FlatRedBall2.AnimationEditorCommon.TextureCoordinateType.Pixel,
         };
         acls.Save(path);
     }

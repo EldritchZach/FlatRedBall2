@@ -5,7 +5,7 @@ using AnimationEditor.Core.Models;
 using AnimationEditor.Core.Rendering;
 using AnimationEditor.Core.Utilities;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -210,7 +210,7 @@ namespace AnimationEditor.Core.CommandsAndState
             if (failed) return;
 
             if (outcome == IO.UvLoadOutcome.ConvertAndLoad)
-                _pm.OnDiskCoordinateType = FlatRedBall2.Animation.Content.TextureCoordinateType.Pixel;
+                _pm.OnDiskCoordinateType = FlatRedBall2.AnimationEditorCommon.TextureCoordinateType.Pixel;
 
             _events.CallAchxLoaded(path);
             _events.RaiseCurrentFileChanged(path);
@@ -745,7 +745,7 @@ namespace AnimationEditor.Core.CommandsAndState
                 TopCoordinate    = source?.TopCoordinate    ?? 0f,
                 BottomCoordinate = source?.BottomCoordinate ?? 1f,
                 FrameLength      = 0.1f,
-                ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave()
+                ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
             };
             _undoManager.Execute(new AddFrameCommand(frame, chain, this, _events, _selectedState));
         }
@@ -1553,7 +1553,7 @@ namespace AnimationEditor.Core.CommandsAndState
         {
             _pm.AnimationChainListSave = new AnimationChainListSave();
             _pm.FileName = string.Empty;
-            _pm.OnDiskCoordinateType = FlatRedBall2.Animation.Content.TextureCoordinateType.Pixel;
+            _pm.OnDiskCoordinateType = FlatRedBall2.AnimationEditorCommon.TextureCoordinateType.Pixel;
             _selectedState.SelectedChain = null;
             _selectedState.SelectedFrame = null;
             _undoManager.Clear();
@@ -1590,7 +1590,7 @@ namespace AnimationEditor.Core.CommandsAndState
                 TopCoordinate       = minY / (float)bitmapHeight,
                 BottomCoordinate    = maxY / (float)bitmapHeight,
                 FrameLength         = 0.1f,
-                ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave()
+                ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
             };
 
             _undoManager.Execute(new AddFrameCommand(frame, chain, this, _events, _selectedState));

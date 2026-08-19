@@ -5,7 +5,7 @@ using System.IO;
 namespace AnimationEditor.Core.Paths;
 
 /// <summary>
-/// Combines a frame's <see cref="FlatRedBall2.Animation.Content.AnimationFrameSave.TextureName"/>
+/// Combines a frame's <see cref="FlatRedBall2.AnimationEditorCommon.AnimationFrameSave.TextureName"/>
 /// with the root-relative directory of the .achx that references it, producing the path to look
 /// up among a recursively-listed browser Open Folder grant. Purely string-based -- unlike
 /// <see cref="FilePath"/>, it never resolves against <see cref="Environment.CurrentDirectory"/>,

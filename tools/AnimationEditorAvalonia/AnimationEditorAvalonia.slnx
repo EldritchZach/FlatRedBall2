@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/external/">
-    <Project Path="../../src/Animation.Content/FlatRedBall2.Animation.Content.csproj" />
+    <Project Path="../../src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/AnimationEditor.Core/AnimationEditor.Core.csproj" />

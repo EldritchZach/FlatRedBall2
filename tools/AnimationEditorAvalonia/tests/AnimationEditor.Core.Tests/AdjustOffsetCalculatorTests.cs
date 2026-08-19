@@ -1,5 +1,5 @@
 using AnimationEditor.Core.Rendering;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationEditor.Core.Tests;
@@ -18,7 +18,7 @@ public class AdjustOffsetCalculatorTests
             BottomCoordinate = bottom,
             RelativeX        = relX,
             RelativeY        = relY,
-            ShapesSave = new FlatRedBall2.Animation.Content.ShapesSave()
+            ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
         };
 
     // ── ApplyJustifyBottom ────────────────────────────────────────────────

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using FlatRedBall2;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using FlatRedBall2.Movement;
 using FlatRedBall2.Rendering;
 using Gum.Forms.Controls;

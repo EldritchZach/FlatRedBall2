@@ -5,7 +5,7 @@ using AnimationEditor.Core.IO;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using System.Collections.Generic;
 using Xunit;

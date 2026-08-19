@@ -33,6 +33,9 @@ jobs:
       - name: Test engine
         run: dotnet test tests/FlatRedBall2.Tests/FlatRedBall2.Tests.csproj --verbosity minimal --logger "console;verbosity=minimal"
 
+      - name: Test AnimationEditorCommon
+        run: dotnet test tests/AnimationEditorCommon.Tests/AnimationEditorCommon.Tests.csproj --verbosity minimal --logger "console;verbosity=minimal"
+
       # Issue #683: published NuGet packages are packed with `dotnet pack -c Release`, so a
       # build-time `#if DEBUG` around AutomationMode would strip the real implementation out of
       # every shipped assembly. The fix keeps the implementation compiled in under both
@@ -106,8 +109,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  animation-content-pack:
-    name: Pack Animation.Content NuGet (ubuntu)
+  animationeditorcommon-pack:
+    name: Pack AnimationEditorCommon NuGet (ubuntu)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -126,18 +129,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      # Package outputs land in out/animation-content and are uploaded as workflow artifacts.
-      - name: Pack Animation.Content package
+      # Package outputs land in out/animationeditorcommon and are uploaded as workflow artifacts.
+      - name: Pack AnimationEditorCommon package
         run: >
-          dotnet pack src/Animation.Content/FlatRedBall2.Animation.Content.csproj
+          dotnet pack src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj
           -c Release
-          -o out/animation-content
+          -o out/animationeditorcommon
 
-      - name: Upload Animation.Content package artifacts
+      - name: Upload AnimationEditorCommon package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: animation-content-nuget-packages
-          path: out/animation-content/*.nupkg
+          name: animationeditorcommon-nuget-packages
+          path: out/animationeditorcommon/*.nupkg
           if-no-files-found: error
           retention-days: 7
 
@@ -146,7 +149,7 @@ jobs:
   test:
     name: dotnet test
     runs-on: ubuntu-latest
-    needs: [engine-tests, animationchain-pack, animation-content-pack]
+    needs: [engine-tests, animationchain-pack, animationeditorcommon-pack]
     steps:
       - name: All test and packaging jobs passed
-        run: echo "engine-tests, animationchain-pack, and animation-content-pack succeeded"
+        run: echo "engine-tests, animationchain-pack, and animationeditorcommon-pack succeeded"

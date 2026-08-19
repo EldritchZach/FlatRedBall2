@@ -9,8 +9,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
+using FlatRedBall2.Animation;
 
-namespace FlatRedBall2.Animation.Content;
+namespace FlatRedBall2.AnimationEditorCommon;
 
 /// <summary>
 /// Undefined is treated identically to Second and exists for compatibility with .achx files

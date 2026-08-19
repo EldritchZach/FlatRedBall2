@@ -2,7 +2,7 @@ using AnimationEditor.App.Services;
 using AnimationEditor.Core.Data;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System.Collections.Generic;
 using System.Linq;
 

@@ -4,7 +4,7 @@ using AnimationEditor.Core.Data;
 using AnimationEditor.Core.Models;
 using AnimationEditor.Views.Controls;
 using Avalonia.Headless.XUnit;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System;
 using System.Collections.Generic;
 using Xunit;

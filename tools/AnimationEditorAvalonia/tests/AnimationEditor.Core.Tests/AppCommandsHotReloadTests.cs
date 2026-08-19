@@ -1,7 +1,7 @@
 using AnimationEditor.Core;
 using AnimationEditor.Core.CommandsAndState;
 using AnimationEditor.Core.HotReload;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System;
 using System.Collections.Generic;
 using System.IO;

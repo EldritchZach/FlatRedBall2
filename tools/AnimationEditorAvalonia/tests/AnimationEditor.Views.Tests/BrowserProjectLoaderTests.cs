@@ -2,7 +2,7 @@ using AnimationEditor.App.Services;
 using AnimationEditor.Browser;
 using AnimationEditor.Core;
 using AnimationEditor.Core.IO;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;

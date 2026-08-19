@@ -1,7 +1,7 @@
 using AnimationEditor.App.Controls;
 using AnimationEditor.Core.CommandsAndState;
 using Avalonia.Headless.XUnit;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationEditor.App.Tests;

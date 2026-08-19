@@ -1,6 +1,6 @@
 using AnimationEditor.Core.Data;
 using AnimationEditor.Core.IO;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -380,7 +380,7 @@ namespace AnimationEditor.Core
             {
                 foreach (var frame in chain.Frames)
                 {
-                    frame.ShapesSave ??= new FlatRedBall2.Animation.Content.ShapesSave();
+                    frame.ShapesSave ??= new FlatRedBall2.AnimationEditorCommon.ShapesSave();
                 }
             }
         }

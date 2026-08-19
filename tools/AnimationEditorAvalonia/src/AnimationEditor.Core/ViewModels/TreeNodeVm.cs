@@ -66,7 +66,7 @@ public class TreeNodeVm : INotifyPropertyChanged
     public object? Data { get; set; }
 
     /// <summary>
-    /// True when this node represents an <see cref="FlatRedBall2.Animation.Content.AnimationChainSave"/>.
+    /// True when this node represents an <see cref="FlatRedBall2.AnimationEditorCommon.AnimationChainSave"/>.
     /// Used by the tree item template to show the inline Add Frame button only on chain nodes.
     /// </summary>
     public bool IsChainNode { get; set; }

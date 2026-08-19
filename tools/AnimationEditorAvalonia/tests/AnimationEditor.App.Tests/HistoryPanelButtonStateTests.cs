@@ -6,7 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using AnimationEditor.Core.CommandsAndState.Commands;
 using AnimationEditor.App.Models;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationEditor.App.Tests;

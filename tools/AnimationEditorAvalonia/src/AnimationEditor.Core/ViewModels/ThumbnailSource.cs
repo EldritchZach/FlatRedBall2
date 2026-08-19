@@ -1,6 +1,6 @@
 using AnimationEditor.Core.Rendering;
 using FlatRedBall2.Animation;
-using FlatRedBall2.Animation.Content;
+using FlatRedBall2.AnimationEditorCommon;
 
 namespace AnimationEditor.Core.ViewModels;
 

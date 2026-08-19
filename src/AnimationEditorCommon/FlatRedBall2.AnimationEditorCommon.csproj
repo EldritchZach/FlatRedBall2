@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Pure C#, zero MonoGame/KNI dependency by design. Split out of the main FlatRedBall2 engine
+    assembly so tooling that only needs the animation data (the Animation Editor, an Avalonia app,
+    not a MonoGame one) can reference just this project instead of the whole engine. See
+    tools/AnimationEditorAvalonia/docs/BROWSER_SPIKE_FINDINGS.md for the motivating #535
+    investigation.
+
+    Two layers live here:
+      - The .achx data model (AnimationChainListSave, AnimationChainSave, AnimationFrameSave,
+        ShapesSave, ColorOperation): the on-disk POCO/serialization format.
+      - A generic runtime layer (AnimationFrameBase/AnimationFrameBase&lt;TTexture&gt;,
+        AnimationChain&lt;TFrame&gt;, AnimationChainList&lt;TFrame&gt;, AnimationPlayer&lt;TFrame&gt;):
+        playback logic (timing/seek, name lookup, reload-merge) generic over the frame's texture
+        handle, so a renderer only has to close the generic over its own texture type (see
+        FlatRedBall2.AnimationChain.MonoGame's AnimationFrame : AnimationFrameBase&lt;Texture2D&gt;).
+
+    The runtime bridge that converts the .achx data model into MonoGame-backed engine types
+    (AnimationChainList/AnimationFrame with real Texture2D instances) lives in the main engine
+    project, in AnimationChainListSaveExtensions; that's the only part that actually needs
+    MonoGame.
+
+    Published as its own NuGet package (FlatRedBall2.AnimationEditorCommon) in lockstep with
+    FlatRedBall2.MonoGame/FlatRedBall2.Kni, see .github/workflows/publish.yml. This is required
+    because src/FlatRedBall2.csproj's ProjectReference to this project causes `dotnet pack` to
+    auto-generate a dependency on FlatRedBall2.AnimationEditorCommon in the FlatRedBall2.* nuspec;
+    that dependency must resolve to a real, matching-version package on nuget.org, so this project
+    is published in the same workflow run, sharing the same version, before FlatRedBall2 itself.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <!-- NuGet Metadata -->
+    <PackageId>FlatRedBall2.AnimationEditorCommon</PackageId>
+    <Authors>Victor Chelaru</Authors>
+    <Description>
+      The .achx animation file-format data model (AnimationChainListSave, AnimationChainSave,
+      AnimationFrameSave) and a generic, renderer-agnostic playback runtime (AnimationChain&lt;TFrame&gt;,
+      AnimationChainList&lt;TFrame&gt;, AnimationPlayer&lt;TFrame&gt;) used by FlatRedBall2 and the
+      FlatRedBall Animation Editor. Pure C#, no MonoGame/KNI dependency. Most users should install
+      FlatRedBall2.MonoGame or FlatRedBall2.Kni instead, which reference this package automatically.
+    </Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/vchelaru/FlatRedBall2</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vchelaru/FlatRedBall2</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- SourceLink and Symbols (matches src/FlatRedBall2.csproj) -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>FlatRedBall2.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AnimationEditorCommon.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>
