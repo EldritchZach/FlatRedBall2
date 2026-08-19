@@ -230,6 +230,7 @@ public class ProjectPanelControlTests
 
     // Issue #886: right-click a file row -> "Open Containing Folder" + "Copy Full Path", same
     // headers as the document tab strip's context menu (#881/#884) for the equivalent open file.
+    // Issue #919 added "Delete" after a separator.
     [AvaloniaFact]
     public void RightClickingFileRow_WithRevealSupported_ShowsOpenFolderAndCopyPathItems()
     {
@@ -244,7 +245,30 @@ public class ProjectPanelControlTests
 
             var headers = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>()
                 .Select(i => i.Header).ToArray();
-            Assert.Equal(new object?[] { "Open Containing Folder", "Copy Full Path" }, headers);
+            Assert.Equal(new object?[] { "Open Containing Folder", "Copy Full Path", "Delete" }, headers);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ClickingDelete_RaisesFileDeleteRequestedWithRelativePath()
+    {
+        var control = new Controls.ProjectPanelControl { SupportsRevealInExplorer = true };
+        var root = new FakeFolder("Content");
+        control.SetEntries(new[] { new AchxFileEntry(new FakeFile("hero.achx"), root, "Sprites/hero.achx") });
+
+        var window = ShowInWindow(control);
+        try
+        {
+            RightClick(window, control, control.TreeRoots[0].Children[0]); // "hero.achx" under "Sprites"
+            string? requested = null;
+            control.FileDeleteRequested += path => requested = path;
+
+            var item = control.ProjectTree.ContextMenu!.Items.OfType<MenuItem>()
+                .Single(i => (string)i.Header! == "Delete");
+            item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.Equal("Sprites/hero.achx", requested);
         }
         finally { window.Close(); }
     }
