@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    References only FlatRedBall2.AnimationEditorCommon — no MonoGame/KNI package at all. That
+    References only FlatRedBall.AnimationChain.Common — no MonoGame/KNI package at all. That
     absence is the point: it proves the generic runtime layer (AnimationFrameBase<TTexture>,
     AnimationChain<TFrame>, AnimationChainList<TFrame>, AnimationPlayer<TFrame>) compiles and runs
     with zero dependency on any specific renderer.
@@ -23,6 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AnimationEditorCommon\FlatRedBall2.AnimationEditorCommon.csproj" />
+    <ProjectReference Include="..\..\src\AnimationChain.Common\AnimationChain.Common.csproj" />
   </ItemGroup>
 </Project>
