@@ -1,6 +1,35 @@
-# .achx XML Authoring Reference
+# .achx / .achj Authoring Reference
 
-`.achx` files are XML serializations of `AnimationChainListSave`. This reference covers the XML schema for creating or editing `.achx` files directly.
+`.achx` (XML) and `.achj` (JSON) are two on-disk dialects of the same `AnimationChainListSave` data model — same fields, same semantics, just different serialization. Animation Editor writes `.achx` by default. This reference covers the XML schema for creating or editing `.achx` files directly; the JSON dialect uses the same field set with camelCase names (see `.achj` below).
+
+## Which dialect gets loaded
+
+`ContentLoader.LoadAnimationChainList(path)` and `AchxLoader.Load(path)` both pick the dialect **by file extension** — `.achj` parses as JSON, anything else (including `.achx`) parses as XML. No caller branching needed; just use the right extension.
+
+For code paths with no file path to inspect (clipboard paste, an in-memory stream), `AnimationChainListSave.FromString`/`FromStream` (and `AchxLoader`'s `FromDetectedStream`) instead **content-sniff**: a leading `{` after whitespace/BOM means JSON, anything else parses as XML.
+
+## .achj (JSON) shape
+
+Same data, camelCase keys, no XML wrapper element:
+
+```json
+{
+  "fileRelativeTextures": true,
+  "timeMeasurementUnit": "Undefined",
+  "coordinateType": "Pixel",
+  "animationChains": [
+    {
+      "name": "CharacterWalkRight",
+      "frames": [
+        { "textureName": "AnimatedSpritesheet.png", "frameLength": 0.1,
+          "leftCoordinate": 0, "rightCoordinate": 16, "topCoordinate": 0, "bottomCoordinate": 32 }
+      ]
+    }
+  ]
+}
+```
+
+Optional/default-valued fields (`flipHorizontal`, `relativeX`, shape colors, etc.) are omitted when unset, same as the XML writer omits its equivalent elements.
 
 ## Document Structure
 
@@ -76,7 +105,7 @@ Each `<AnimationChain>` is a named sequence of frames.
 | `FlipHorizontal` | No | `false` | Mirror the frame horizontally — used for left-facing variants |
 | `RelativeX` | No | `0` | Horizontal offset from entity origin — sprites already draw X-centered, so this is usually `0`. See Ground-Contact Point below |
 | `RelativeY` | No | `0` | Marks the frame's ground-contact point above the entity origin — set by eye to match the art, not computed from sprite height. See Ground-Contact Point below |
-| `ShapesSave` | No | — | Per-frame collision shapes (not yet implemented in FRB2 — present in the XML format for forward compatibility with FRB1 files) |
+| `ShapesSave` | No | — | Per-frame collision shapes (`AARectSaves`/`CircleSaves`/`PolygonSaves`) — see `per-frame-shapes.md` |
 
 ### Ground-Contact Point
 
