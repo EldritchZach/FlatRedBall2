@@ -3914,21 +3914,29 @@ public partial class MainWindow : Window
 
     // The single-row timeline's fixed height (14px ruler + one ~38px frame-cell row).
     private const double SingleTimelineAreaHeight = 52;
-    // Group-preview timeline area (#576): tall enough for ~4 track rows at once; more chains
-    // scroll within GroupTimelineScrubHost's ScrollViewer rather than growing the row further.
-    private const double GroupTimelineAreaHeight = 160;
+    // Group-preview timeline area (#576): 14px ruler + 2.25 track rows (each row is 40px, see the
+    // ChainTimelineTrackVm DataTemplate). 2 covers the common case fully; the partial 3rd row peeks
+    // enough to make scrolling to further chains discoverable without growing past ~2.5 rows worth
+    // of space. More chains scroll within GroupTimelineScrubHost's ScrollViewer.
+    private const double GroupTimelineAreaHeight = 14 + 2.25 * 40;
 
     private void RefreshTimelineStrip()
     {
         // Multi-select group preview (#576): 2+ whole chains selected swaps the single-row strip
         // for a per-chain track stack. TimelineScrubSurface/GroupTimelineScrubHost occupy the same
-        // grid cell, so only one is ever visible. The host row is also grown so the extra track
-        // rows aren't clipped to the single-row strip's original fixed height.
+        // grid cell, so only one is ever visible. TimelineDockGrid is also grown so the extra
+        // track rows aren't clipped to the single-row strip's original fixed height — it's sized
+        // directly (not via a RowDefinition) because it overlays the preview canvas instead of
+        // sharing a row with it, so growing it never resizes/shifts the canvas (reported: selecting
+        // a 2nd animation visibly shifted the centered preview). PreviewVScroll/PreviewHScroll's
+        // Margin is kept in sync so their trough ends above the dock instead of running under it.
         bool groupActive = _selectedState.SelectedChains.Count >= 2;
         TimelineScrubSurface.IsVisible = !groupActive;
         GroupTimelineScrubHost.IsVisible = groupActive;
-        PreviewBlockGrid.RowDefinitions[2].Height =
-            new GridLength(groupActive ? GroupTimelineAreaHeight : SingleTimelineAreaHeight);
+        double dockHeight = groupActive ? GroupTimelineAreaHeight : SingleTimelineAreaHeight;
+        TimelineDockGrid.Height = dockHeight;
+        PreviewVScroll.Margin = new Avalonia.Thickness(0, 0, 0, dockHeight);
+        PreviewHScroll.Margin = new Avalonia.Thickness(0, 0, 0, dockHeight);
         if (groupActive)
         {
             // Multiple chains have no single duration — keep the plain label (#623).
