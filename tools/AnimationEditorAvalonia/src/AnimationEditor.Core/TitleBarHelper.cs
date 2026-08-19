@@ -19,4 +19,16 @@ public static class TitleBarHelper
         string.IsNullOrEmpty(filePath)
             ? "AnimationEditor"
             : $"AnimationEditor - {new FilePath(filePath).NoPath}";
+
+    /// <summary>
+    /// Returns the folder to show as the active project root, or a placeholder when no
+    /// folder is known yet. Prefers <paramref name="projectFolderPath"/> (explicitly set via
+    /// File → Open Project Folder) and falls back to <paramref name="filesPanelRoot"/> (inferred
+    /// from the open .achx, e.g. <c>ProjectManager.ResolveFilesPanelRoot</c>).
+    /// </summary>
+    public static string BuildActiveFolderDisplay(string? projectFolderPath, string? filesPanelRoot)
+    {
+        var path = projectFolderPath ?? filesPanelRoot;
+        return string.IsNullOrEmpty(path) ? "No folder open" : path;
+    }
 }

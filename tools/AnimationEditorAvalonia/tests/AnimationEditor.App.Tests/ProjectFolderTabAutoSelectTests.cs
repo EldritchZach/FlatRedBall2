@@ -10,7 +10,7 @@ namespace AnimationEditor.App.Tests;
 
 /// <summary>
 /// Small QoL follow-up to #875: when File → Open Project Folder finds no .achx files, landing on
-/// the (now-empty) Project tab is a dead end. The Textures tab is useful immediately in that case
+/// the (now-empty) Animations tab is a dead end. The Images tab is useful immediately in that case
 /// since its Project scope (#875) lists PNGs under the folder with zero .achx files needed.
 /// </summary>
 public class ProjectFolderTabAutoSelectTests
@@ -23,7 +23,7 @@ public class ProjectFolderTabAutoSelectTests
     }
 
     [AvaloniaFact]
-    public async Task OpeningProjectFolder_NoAchxFiles_SelectsTexturesTab()
+    public async Task OpeningProjectFolder_NoAchxFiles_SelectsImagesTab()
     {
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -37,7 +37,7 @@ public class ProjectFolderTabAutoSelectTests
 
             var tabs = window.FindControl<TabControl>("SidebarTabs");
             Assert.NotNull(tabs);
-            Assert.Equal("Textures", ((TabItem)tabs!.SelectedItem!).Header);
+            Assert.Equal("Images", ((TabItem)tabs!.SelectedItem!).Header);
         }
         finally
         {
@@ -47,7 +47,7 @@ public class ProjectFolderTabAutoSelectTests
     }
 
     [AvaloniaFact]
-    public async Task OpeningProjectFolder_HasAchxFiles_SelectsProjectTab()
+    public async Task OpeningProjectFolder_HasAchxFiles_SelectsAnimationsTab()
     {
         var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -62,7 +62,7 @@ public class ProjectFolderTabAutoSelectTests
 
             var tabs = window.FindControl<TabControl>("SidebarTabs");
             Assert.NotNull(tabs);
-            Assert.Equal("Project", ((TabItem)tabs!.SelectedItem!).Header);
+            Assert.Equal("Animations", ((TabItem)tabs!.SelectedItem!).Header);
         }
         finally
         {

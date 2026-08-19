@@ -3607,6 +3607,8 @@ public partial class MainWindow : Window
             : new FilePath(_projectManager.FileName).GetDirectoryContainingThis().FullPath;
         FilesPanel.Refresh(filesRoot, referenced, achxFolder);
         _pngFolderWatcher.Watch(filesRoot);
+        ActiveFolderLabel.Text = TitleBarHelper.BuildActiveFolderDisplay(
+            _projectManager.ProjectFolderPath, _projectManager.ResolveFilesPanelRoot());
     }
 
     // ── Tree refresh ──────────────────────────────────────────────────────────

@@ -755,7 +755,19 @@
                      A single tab strip below TopPane (#877), which is never covered by a tab.
                      Inspector is the default tab (it's referenced constantly while clicking through
                      frames/chains); Files and History sit behind it. -->
-                    <TabControl x:Name="SidebarTabs" Grid.Row="2"
+                <DockPanel Grid.Row="2" Background="{DynamicResource BgRail}">
+                    <!-- Active project folder (#944): shown once here rather than duplicated per
+                         tab, since Images/Animations share the same root (TitleBarHelper.BuildActiveFolderDisplay). -->
+                    <TextBlock x:Name="ActiveFolderLabel" DockPanel.Dock="Top"
+                               AutomationProperties.AutomationId="active-folder-label"
+                               Text="No folder open"
+                               FontSize="10"
+                               Padding="8,3"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource InkMid}"
+                               Background="{DynamicResource BgCanvas}"
+                               ToolTip.Tip="{Binding #ActiveFolderLabel.Text}" />
+                    <TabControl x:Name="SidebarTabs"
                                 AutomationProperties.Name="Sidebar"
                                 AutomationProperties.AutomationId="sidebar-tabs"
                             Padding="0"
@@ -1108,13 +1120,13 @@
                         </Border>
                     </TabItem>
 
-                    <!-- Textures: PNGs only (x:Name stays FilesTab, referenced by code-behind/tests). -->
-                    <TabItem x:Name="FilesTab" Header="Textures">
+                    <!-- Images (#944, was "Textures"): PNGs only (x:Name stays FilesTab, referenced by code-behind/tests). -->
+                    <TabItem x:Name="FilesTab" Header="Images">
                         <controls:FilesPanelControl x:Name="FilesPanel" />
                     </TabItem>
 
-                    <!-- Project (#770): recursive .achx tree for File → Open Project Folder…. -->
-                    <TabItem x:Name="ProjectTab" Header="Project">
+                    <!-- Animations (#944, was "Project"; #770): recursive .achx tree for File → Open Project Folder…. -->
+                    <TabItem x:Name="ProjectTab" Header="Animations">
                         <viewsControls:ProjectPanelControl x:Name="ProjectPanel" />
                     </TabItem>
 
@@ -1228,6 +1240,7 @@
                         </ScrollViewer>
                     </TabItem>
                 </TabControl>
+                </DockPanel>
             </Grid>
 
             <!-- ── Splitter (left | middle) ── -->
