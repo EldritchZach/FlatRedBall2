@@ -242,6 +242,10 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
     // safe to draw from the Avalonia render thread.
     private SKImage? _image;
     protected string? _loadedTexturePath;
+    // Real on-disk case of _loadedTexturePath (which is lowercased -- see LoadedTexturePath's
+    // doc comment). Kept in lockstep with _loadedTexturePath so callers that persist the path
+    // (e.g. MainWindow.OnFrameCreatedFromRegion) never write a lowercased texture name (#941).
+    private string? _loadedTexturePathCasePreserved;
 
     // Bumped by every load/swap so an in-flight LoadTextureAsync decode that finishes after a newer
     // load can detect it was superseded and discard its result instead of painting stale pixels.
@@ -292,8 +296,18 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
 
     // ── Public properties ─────────────────────────────────────────────────────
 
-    /// <summary>Absolute path of the currently displayed texture, or null.</summary>
+    /// <summary>
+    /// Lowercased, slash-normalized absolute path of the currently displayed texture, or null.
+    /// This is a comparison/cache key only (see <see cref="LoadTexture(string?,SKBitmap?)"/>'s
+    /// <c>norm</c>) -- it does NOT reflect the real on-disk case. Callers that persist the path
+    /// (saving a frame's TextureName, displaying it to the user) must use
+    /// <see cref="LoadedTexturePathCasePreserved"/> instead, or a case-sensitive filesystem
+    /// (Linux/web) will fail to find the file later (#941).
+    /// </summary>
     public string? LoadedTexturePath => _loadedTexturePath;
+
+    /// <summary>Absolute path of the currently displayed texture in its real on-disk case, or null.</summary>
+    public string? LoadedTexturePathCasePreserved => _loadedTexturePathCasePreserved;
 
     /// <summary>Pixel dimensions of the loaded bitmap (0×0 when nothing is loaded).</summary>
     public (int Width, int Height) BitmapSize =>
@@ -534,7 +548,7 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
             return true;
         }
 
-        BeginTextureSwap(norm);
+        BeginTextureSwap(norm, casePreserved);
 
         if (knownBitmap != null)
         {
@@ -588,7 +602,7 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
             return true;
         }
 
-        BeginTextureSwap(norm);
+        BeginTextureSwap(norm, casePreserved);
         OnTextureLoaded(null);   // blank now; a subclass can show "Loading…"
         InvalidateVisual();
 
@@ -619,12 +633,13 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
 
     // Saves the leaving texture's camera, sets the new identity, and blanks the current image so the
     // view is empty until the (possibly async) decode installs the new one.
-    private void BeginTextureSwap(string? norm)
+    private void BeginTextureSwap(string? norm, string? casePreserved)
     {
         if (_loadedTexturePath != null)
             _cameraByTexture[_loadedTexturePath] = (_panX, _panY, _zoom);
 
         _loadedTexturePath = norm;
+        _loadedTexturePathCasePreserved = casePreserved;
         // Drop (don't Dispose) the previous image: a render op on the compositor thread may still be
         // drawing it (BuildSnapshot shares _image directly). Releasing the reference lets GC reclaim
         // it once no in-flight draw holds it — deferred drop, mirroring ThumbnailService (#514).
@@ -647,6 +662,7 @@ public class TextureViewport : Control, IZoomTarget, IPanScrollTarget
             // decoded — corrupt/truncated/mislabeled PNG, zero-byte file, or a locked file. Handing
             // null to SKImage.FromBitmap would crash the dispatcher (#479); stay unloaded instead.
             _loadedTexturePath = null;
+            _loadedTexturePathCasePreserved = null;
             OnTextureLoaded(_bitmap);
             return false;
         }
