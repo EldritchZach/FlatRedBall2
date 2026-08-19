@@ -36,10 +36,10 @@
     package closes it over Texture2D (see Runtime/AnimationFrame.cs). ProjectReference (not a
     PackageReference) auto-generates a matching NuGet <dependency> at pack time, so the published
     FlatRedBall.AnimationChain.MonoGame package must be published in lockstep with a matching
-    FlatRedBall2.AnimationEditorCommon version — see .github/workflows/publish-animationchain-packages.yml.
+    FlatRedBall.AnimationChain.Common version — see .github/workflows/publish-animationchain-packages.yml.
   -->
   <ItemGroup>
-    <ProjectReference Include="..\AnimationEditorCommon\FlatRedBall2.AnimationEditorCommon.csproj" />
+    <ProjectReference Include="..\AnimationChain.Common\AnimationChain.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

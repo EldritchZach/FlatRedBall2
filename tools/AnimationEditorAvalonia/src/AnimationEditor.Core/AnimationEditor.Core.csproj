@@ -21,7 +21,7 @@
     tools/AnimationEditorAvalonia/docs/BROWSER_SPIKE_FINDINGS.md.
   -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\AnimationEditorCommon\FlatRedBall2.AnimationEditorCommon.csproj" />
+    <ProjectReference Include="..\..\..\..\src\AnimationChain.Common\AnimationChain.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
