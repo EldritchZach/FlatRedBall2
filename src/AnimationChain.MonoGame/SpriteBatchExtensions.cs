@@ -38,8 +38,10 @@ public static class SpriteBatchExtensions
     /// <see cref="ColorOperation.Add"/> is applied via a pixel shader instead — see the remarks below.
     /// </param>
     /// <param name="origin">
-    /// Pivot point within the source rectangle, in pixels. Defaults to <see cref="Vector2.Zero"/>
-    /// (top-left). Pass <c>new Vector2(width/2, height/2)</c> for center-origin drawing.
+    /// Pivot point within the source rectangle, in pixels. Defaults to <c>null</c>, which centers
+    /// on the frame (matching the Animation Editor's default preview alignment and classic
+    /// FlatRedBall's centered <c>Sprite</c>). Pass <see cref="Vector2.Zero"/> explicitly for
+    /// top-left-origin drawing.
     /// </param>
     /// <param name="scale">Uniform scale factor. 1.0 = original size.</param>
     /// <param name="layerDepth">Depth value for layered sprites (0 = front, 1 = back).</param>
@@ -58,7 +60,7 @@ public static class SpriteBatchExtensions
         AnimationPlayer<AnimationFrame> player,
         Vector2 position,
         Color? color = null,
-        Vector2 origin = default,
+        Vector2? origin = null,
         float scale = 1f,
         float layerDepth = 0f)
     {
@@ -75,6 +77,10 @@ public static class SpriteBatchExtensions
 
         var drawColor = AnimationFrameColor.Apply(frame, ResolveBaseColor(color));
         Rectangle? sourceRectangle = frame.SourceRectangle?.ToXnaRectangle();
+        var resolvedOrigin = ResolveOrigin(
+            origin,
+            width: frame.SourceRectangle?.Width ?? frame.Texture.Width,
+            height: frame.SourceRectangle?.Height ?? frame.Texture.Height);
 
         if (frame.ColorOperation == ColorOperation.Add)
         {
@@ -83,7 +89,7 @@ public static class SpriteBatchExtensions
 
             spriteBatch.End();
             spriteBatch.Begin(effect: effect);
-            spriteBatch.Draw(frame.Texture, drawPos, sourceRectangle, drawColor, 0f, origin, scale, effects, layerDepth);
+            spriteBatch.Draw(frame.Texture, drawPos, sourceRectangle, drawColor, 0f, resolvedOrigin, scale, effects, layerDepth);
             spriteBatch.End();
             spriteBatch.Begin();
             return;
@@ -95,7 +101,7 @@ public static class SpriteBatchExtensions
             sourceRectangle,
             drawColor,
             0f,
-            origin,
+            resolvedOrigin,
             scale,
             effects,
             layerDepth);
@@ -103,4 +109,11 @@ public static class SpriteBatchExtensions
 
     /// <summary>Resolves the base tint <see cref="DrawAnimation"/> uses when <c>color</c> is omitted.</summary>
     internal static Color ResolveBaseColor(Color? color) => color ?? Color.White;
+
+    /// <summary>
+    /// Resolves the pivot point <see cref="DrawAnimation"/> uses when <c>origin</c> is omitted:
+    /// the center of a <paramref name="width"/> x <paramref name="height"/> frame.
+    /// </summary>
+    internal static Vector2 ResolveOrigin(Vector2? origin, int width, int height) =>
+        origin ?? new Vector2(width / 2f, height / 2f);
 }
