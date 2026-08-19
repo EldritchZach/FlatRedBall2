@@ -169,6 +169,43 @@ public class MultiCopyPasteAppTests
         finally { window.Close(); }
     }
 
+    // #937: pasted frames must preserve ShapesSave presence like every other frame-creation path
+    // now does -- a shapeless source frame must not gain an empty ShapesSave through paste, or
+    // the pasted copy bakes an empty shapesSave/ShapeCollectionSave block on the next save.
+    [AvaloniaFact]
+    public async Task Paste_Frame_WithNoShapes_KeepsShapesSaveNull()
+    {
+        var (window, ctx) = CreateWindow();
+        try
+        {
+            var chain = new AnimationChainSave { Name = "Walk" };
+            var seed = new AnimationFrameSave { TextureName = "seed.png", FrameLength = 0.1f };
+            chain.Frames.Add(seed);
+            ctx.ProjectManager.AnimationChainListSave!.AnimationChains.Add(chain);
+            RebuildTree(window);
+
+            var clipFrames = new List<AnimationFrameSave>
+            {
+                new() { TextureName = "a.png", FrameLength = 0.1f, ShapesSave = null },
+            };
+            await window.Clipboard!.SetTextAsync(ClipboardPayload.Serialize(clipFrames));
+
+            var tree = window.FindControl<TreeView>("AnimTree")!;
+            var seedNode = FirstChainNode(tree).Children[0];
+            tree.SelectedItems!.Clear();
+            tree.SelectedItems.Add(seedNode);
+            FlushUi();
+
+            tree.Focus();
+            window.KeyPress(Key.V, RawInputModifiers.Control, PhysicalKey.None, null);
+            FlushUi();
+
+            var pasted = chain.Frames.Single(f => f.TextureName == "a.png");
+            Assert.Null(pasted.ShapesSave);
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact]
     public async Task Paste_TwoChains_SelectsAllPastedInTree()
     {

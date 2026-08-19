@@ -80,6 +80,24 @@ public class TextureDropProcessorTests
         Assert.Equal("../Content/FirstFrameTex.png", chain.Frames[0].TextureName);
     }
 
+    // #937: a frame created by dropping a PNG stays shapeless until a shape is actually added,
+    // same as AppCommands.AddFrame/AddFrameFromPixelBounds/BatchFrameBuilder -- otherwise it saves
+    // with an empty shapesSave/ShapeCollectionSave block.
+    [Fact]
+    public void ApplyPngDrop_CreatedFrame_HasNullShapesSave()
+    {
+        var chain = new AnimationChainSave();
+
+        TextureDropProcessor.ApplyPngDrop(
+            chain,
+            null,
+            TestPaths.Abs("Project", "Content", "FirstFrameTex.png"),
+            TestPaths.Abs("Project", "Animations", "Player.achx"),
+            createFrameOnCtrl: false);
+
+        Assert.Null(chain.Frames[0].ShapesSave);
+    }
+
     [Fact]
     public void ApplyPngDrop_NonPng_IsIgnored()
     {
