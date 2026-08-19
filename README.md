@@ -1,7 +1,10 @@
 # FlatRedBall2
 
+
 [![NuGet](https://img.shields.io/nuget/vpre/FlatRedBall2.MonoGame?label=NuGet)](https://www.nuget.org/packages/FlatRedBall2.MonoGame)
+
 [![NuGet](https://img.shields.io/nuget/vpre/FlatRedBall.AnimationChain.MonoGame?label=AnimationEditor%20MonoGame)](https://www.nuget.org/packages/FlatRedBall.AnimationChain.MonoGame)
+
 [![NuGet](https://img.shields.io/nuget/vpre/FlatRedBall.AnimationChain.KNI?label=AnimationEditor%20KNI)](https://www.nuget.org/packages/FlatRedBall.AnimationChain.KNI)
 
 > **Early Preview** — This engine is in active development. APIs will change between releases.
