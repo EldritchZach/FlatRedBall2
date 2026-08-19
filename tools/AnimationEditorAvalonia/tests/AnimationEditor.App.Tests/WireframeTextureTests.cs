@@ -440,6 +440,37 @@ public class WireframeTextureTests
         finally { System.IO.Directory.Delete(dir, true); }
     }
 
+    // ── LoadedTexturePathCasePreserved reflects exact on-disk case (issue #941) ───
+
+    /// <summary>
+    /// <see cref="WireframeControl.LoadedTexturePath"/> is intentionally lowercased (it is a
+    /// cache/comparison key). <see cref="WireframeControl.LoadedTexturePathCasePreserved"/>
+    /// must return the exact on-disk case instead, so callers that persist the path (e.g.
+    /// Ctrl+click create-frame-from-region) never write a lowercased texture name into the
+    /// .achx (issue #941).
+    /// </summary>
+    [AvaloniaFact]
+    public void Wireframe_LoadedTexturePathCasePreserved_ReflectsExactOnDiskCase()
+    {
+        var ctx = ResetSingletons();
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            var png = WriteSolidPng(dir, "Tex.png", SKColors.Cyan);
+            var ctrl = ctx.CreateWireframeControl();
+
+            Assert.Null(ctrl.LoadedTexturePathCasePreserved);
+
+            ctrl.LoadTexture(png);
+
+            Assert.NotNull(ctrl.LoadedTexturePathCasePreserved);
+            Assert.True(ctrl.LoadedTexturePathCasePreserved!.EndsWith("Tex.png", System.StringComparison.Ordinal),
+                $"LoadedTexturePathCasePreserved should end with exact-case 'Tex.png'; got: {ctrl.LoadedTexturePathCasePreserved}");
+        }
+        finally { System.IO.Directory.Delete(dir, true); }
+    }
+
     // ── BitmapSize matches loaded texture ─────────────────────────────────────
 
     /// <summary>

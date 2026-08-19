@@ -50,6 +50,18 @@ public class AnimationCloneHelperTests
         Assert.Equal(source.ColorOperation, copy.ColorOperation);
     }
 
+    // #941: TextureName is a verbatim string copy with no path normalization, so a mixed-case
+    // on-disk name must survive clone/duplicate/copy-paste unchanged.
+    [Fact]
+    public void CloneFrame_MixedCaseTextureName_PreservesExactCase()
+    {
+        var source = new AnimationFrameSave { TextureName = "Items.PNG" };
+
+        var copy = AnimationCloneHelper.CloneFrame(source);
+
+        Assert.Equal("Items.PNG", copy.TextureName);
+    }
+
     // #937: cloning (duplicate frame/chain, copy-paste) must preserve ShapesSave presence like
     // every other path now does -- a shapeless source frame must not gain an empty ShapesSave
     // through the clone, or the copy bakes an empty shapesSave/ShapeCollectionSave block on save.

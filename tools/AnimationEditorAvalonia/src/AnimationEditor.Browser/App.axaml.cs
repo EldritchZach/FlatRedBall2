@@ -457,8 +457,7 @@ public partial class App : Application
             // ThumbnailService's cache and existing frames actually use. The texture being
             // edited is always whichever one the selected chain's frames already reference, so
             // reuse that name directly rather than deriving one from the fake path.
-            var textureName = selectedState.SelectedFrame?.TextureName
-                ?? chain.Frames.FirstOrDefault()?.TextureName;
+            var textureName = AppCommands.ResolveRegionFrameTextureName(selectedState.SelectedFrame, chain);
             if (string.IsNullOrEmpty(textureName)) return;
 
             var (bitmapW, bitmapH) = wireframe.BitmapSize;
