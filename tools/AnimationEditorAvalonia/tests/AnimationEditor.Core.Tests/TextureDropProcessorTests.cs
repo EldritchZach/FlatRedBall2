@@ -170,6 +170,27 @@ public class TextureDropProcessorTests
         Assert.Contains("/", tex);
     }
 
+    // ── Case preservation (issue #941) ────────────────────────────────────────
+    // Drag-drop reads the OS drag payload's real-case path directly (never through the
+    // lowercased WireframeControl.LoadedTexturePath cache key), so it was never affected by
+    // #941 -- this locks that in as a regression guard.
+
+    [Fact]
+    public void ApplyPngDrop_MixedCaseOnDiskTexture_PreservesExactCase()
+    {
+        var chain = new AnimationChainSave();
+
+        var result = TextureDropProcessor.ApplyPngDrop(
+            chain,
+            null,
+            TestPaths.Abs("Project", "Content", "Items.PNG"),
+            TestPaths.Abs("Project", "Animations", "Player.achx"),
+            createFrameOnCtrl: false);
+
+        Assert.Equal(TextureDropResult.CreatedFrame, result);
+        Assert.Equal("../Content/Items.PNG", chain.Frames[0].TextureName);
+    }
+
     // ── Unsaved project (achxFileName == null) ────────────────────────────────
     // Root cause: these all previously returned NotApplied, silently breaking
     // drag-drop on projects that hadn't been saved yet.

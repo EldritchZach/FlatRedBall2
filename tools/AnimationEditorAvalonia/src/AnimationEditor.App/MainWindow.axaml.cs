@@ -1560,7 +1560,10 @@ public partial class MainWindow : Window
         var primaryChain = selectedChains.Count > 0 ? selectedChains[0] : _selectedState.SelectedChain;
         if (primaryChain is null) return;
 
-        var texPath = WireframeCtrl.LoadedTexturePath;
+        // Must use the case-preserved accessor, not LoadedTexturePath (a lowercased cache key) --
+        // otherwise the frame's TextureName gets written with the wrong case on a case-sensitive
+        // filesystem (#941).
+        var texPath = WireframeCtrl.LoadedTexturePathCasePreserved;
         if (string.IsNullOrEmpty(texPath)) return;
 
         var (bitmapW, bitmapH) = WireframeCtrl.BitmapSize;

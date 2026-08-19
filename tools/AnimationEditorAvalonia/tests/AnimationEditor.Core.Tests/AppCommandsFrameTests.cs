@@ -215,6 +215,20 @@ public class AppCommandsFrameTests
         Assert.Equal("real.png", target.Frames[0].TextureName);
     }
 
+    // Issue #941: the "+" button / inherit path copies TextureName verbatim (a plain string
+    // assignment, no path normalization), so mixed on-disk case must survive unchanged.
+    [Fact]
+    public void AddFrame_ChainHasFrames_InheritsLastFrameTextureExactCase()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Run");
+        ctx.AppCommands.AddFrame(chain, "Items.PNG");
+
+        ctx.AppCommands.AddFrame(chain); // no texture → inherit previous frame
+
+        Assert.Equal("Items.PNG", chain.Frames[^1].TextureName);
+    }
+
     [Fact]
     public void AddFrame_ChainHasFrames_InheritsLastFrameRegion()
     {
