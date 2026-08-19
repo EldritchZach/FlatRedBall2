@@ -151,12 +151,12 @@ public class BatchFrameBuilderTests
         Assert.False(result.ExceededTextureBounds);
     }
 
-    // ── ShapesSave initialised ──────────────────────────────────
+    // ── ShapesSave left null until a shape is actually added (#937) ─────────
 
     [Fact]
-    public void AllFrames_HaveInitialisedShapesSave()
+    public void AllFrames_HaveNullShapesSave()
     {
         var result = BatchFrameBuilder.BuildBatch(null, 4, incrementUV: false);
-        Assert.All(result.Frames, f => Assert.NotNull(f.ShapesSave));
+        Assert.All(result.Frames, f => Assert.Null(f.ShapesSave));
     }
 }
