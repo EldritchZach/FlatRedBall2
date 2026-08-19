@@ -87,8 +87,6 @@ namespace AnimationEditor.Core
                 acls = AnimationChainListSave.FromString(rawContent);
             }
 
-            AddShapeCollectionsToFrames(acls);
-
             OnDiskCoordinateType = acls.CoordinateType;
             _knownTextureSizes = knownTextureSizes;
             NormalizeCoordinatesToUv(acls, fileName.GetDirectoryContainingThis().FullPath, knownTextureSizes);
@@ -371,17 +369,6 @@ namespace AnimationEditor.Core
             catch
             {
                 return null;
-            }
-        }
-
-        private void AddShapeCollectionsToFrames(AnimationChainListSave acls)
-        {
-            foreach (var chain in acls.AnimationChains)
-            {
-                foreach (var frame in chain.Frames)
-                {
-                    frame.ShapesSave ??= new FlatRedBall2.AnimationEditorCommon.ShapesSave();
-                }
             }
         }
 
