@@ -24,7 +24,7 @@ dotnet add package FlatRedBall.AnimationChain.KNI
 // LoadContent
 _loader = new AchxLoader(GraphicsDevice);
 _animations = _loader.Load("Content/player.achx");
-_player = new AnimationPlayer(_animations);
+_player = new AnimationPlayer<AnimationFrame>(_animations);
 _player.Play("Run");
 
 // Update
@@ -104,7 +104,7 @@ _animations = _loader.Load(
 ## Key types
 
 - **`AchxLoader`** — loads `.achx` files from disk or a stream; caches textures by path; `IDisposable`.
-- **`AnimationPlayer`** — drives playback. Call `Play(name)`, `Update(elapsed)`, read `CurrentFrame`.
+- **`AnimationPlayer<AnimationFrame>`** — drives playback. Call `Play(name)`, `Update(elapsed)`, read `CurrentFrame`.
 - **`SpriteBatchExtensions`** — `spriteBatch.DrawAnimation(player, position, color)` extension method.
 
 ## License

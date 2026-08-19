@@ -1,10 +1,12 @@
+using FlatRedBall2.Animation;
+using FlatRedBall2.AnimationEditorCommon;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall.AnimationChain;
 
 /// <summary>
-/// Extension methods on <see cref="SpriteBatch"/> for drawing an <see cref="AnimationPlayer"/>.
+/// Extension methods on <see cref="SpriteBatch"/> for drawing an <see cref="AnimationPlayer{TFrame}"/>.
 /// </summary>
 public static class SpriteBatchExtensions
 {
@@ -12,26 +14,26 @@ public static class SpriteBatchExtensions
     /// Draws the current frame of <paramref name="player"/> at <paramref name="position"/>.
     /// <paramref name="position"/> is the <b>top-left</b> of the frame's source rectangle
     /// in screen pixels (Y down), before per-frame offset.
-    /// Per-frame <see cref="AnimationFrame.RelativeX"/> and <see cref="AnimationFrame.RelativeY"/>
+    /// Per-frame <see cref="AnimationFrameBase.RelativeX"/> and <see cref="AnimationFrameBase.RelativeY"/>
     /// are unscaled source pixels from the .achx; they are added as <c>offset * scale</c>
     /// (e.g. a kick frame that shifts the character forward).
     /// <para>
     /// <b>Coordinate convention:</b> positive <c>RelativeY</c> moves the sprite down,
     /// matching standard MonoGame <see cref="SpriteBatch"/> coordinates. If your .achx was
     /// authored in a Y-up world, negate <c>RelativeY</c> manually or flip the Y axis in your
-    /// camera transform. Empty pixels inside <see cref="AnimationFrame.SourceRectangle"/> still
+    /// camera transform. Empty pixels inside <see cref="AnimationFrameBase.SourceRectangle"/> still
     /// count toward height — offset those frames in the editor if shoes do not sit on the
     /// last row of the cell.
     /// </para>
     /// </summary>
     /// <param name="spriteBatch">Must be between <see cref="SpriteBatch.Begin"/> and <see cref="SpriteBatch.End"/>.</param>
-    /// <param name="player">The player whose <see cref="AnimationPlayer.CurrentFrame"/> will be drawn.</param>
+    /// <param name="player">The player whose <see cref="AnimationPlayer{TFrame}.CurrentFrame"/> will be drawn.</param>
     /// <param name="position">Top-left draw position in screen pixels (before per-frame offset).</param>
     /// <param name="color">
     /// Base tint color. Use <see cref="Color.White"/> for no tint. The frame's authored
-    /// <see cref="AnimationFrame.Red"/>/<see cref="AnimationFrame.Green"/>/<see cref="AnimationFrame.Blue"/>
-    /// are multiplied into this when <see cref="AnimationFrame.ColorOperation"/> is
-    /// <see cref="ColorOperation.Multiply"/>, and <see cref="AnimationFrame.Alpha"/> is always
+    /// <see cref="AnimationFrameBase.Red"/>/<see cref="AnimationFrameBase.Green"/>/<see cref="AnimationFrameBase.Blue"/>
+    /// are multiplied into this when <see cref="AnimationFrameBase.ColorOperation"/> is
+    /// <see cref="ColorOperation.Multiply"/>, and <see cref="AnimationFrameBase.Alpha"/> is always
     /// multiplied into this color's alpha when set. See <see cref="AnimationFrameColor.Apply"/>.
     /// <see cref="ColorOperation.Add"/> is applied via a pixel shader instead — see the remarks below.
     /// </param>
@@ -53,7 +55,7 @@ public static class SpriteBatchExtensions
     /// </remarks>
     public static void DrawAnimation(
         this SpriteBatch spriteBatch,
-        AnimationPlayer player,
+        AnimationPlayer<AnimationFrame> player,
         Vector2 position,
         Color color,
         Vector2 origin = default,
@@ -72,6 +74,7 @@ public static class SpriteBatchExtensions
             position.Y + frame.RelativeY * scale);
 
         var drawColor = AnimationFrameColor.Apply(frame, color);
+        Rectangle? sourceRectangle = frame.SourceRectangle?.ToXnaRectangle();
 
         if (frame.ColorOperation == ColorOperation.Add)
         {
@@ -80,7 +83,7 @@ public static class SpriteBatchExtensions
 
             spriteBatch.End();
             spriteBatch.Begin(effect: effect);
-            spriteBatch.Draw(frame.Texture, drawPos, frame.SourceRectangle, drawColor, 0f, origin, scale, effects, layerDepth);
+            spriteBatch.Draw(frame.Texture, drawPos, sourceRectangle, drawColor, 0f, origin, scale, effects, layerDepth);
             spriteBatch.End();
             spriteBatch.Begin();
             return;
@@ -89,7 +92,7 @@ public static class SpriteBatchExtensions
         spriteBatch.Draw(
             frame.Texture,
             drawPos,
-            frame.SourceRectangle,
+            sourceRectangle,
             drawColor,
             0f,
             origin,

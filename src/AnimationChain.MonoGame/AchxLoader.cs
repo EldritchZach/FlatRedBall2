@@ -1,11 +1,12 @@
-using FlatRedBall.AnimationChain.Content;
+using FlatRedBall2.AnimationEditorCommon;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace FlatRedBall.AnimationChain;
 
 /// <summary>
-/// Loads .achx animation files and converts them to runtime <see cref="AnimationChainList"/>
-/// instances ready for use with <see cref="AnimationPlayer"/>.
+/// Loads .achx animation files and converts them to runtime <see cref="AnimationChainList{TFrame}"/>
+/// instances (closed over <see cref="AnimationFrame"/>) ready for use with
+/// <see cref="AnimationPlayer{TFrame}"/>.
 /// <para>
 /// <b>Texture caching:</b> <see cref="AchxLoader"/> caches loaded <see cref="Texture2D"/>s by
 /// resolved file path, so multiple chains or files that reference the same spritesheet share one
@@ -17,7 +18,7 @@ namespace FlatRedBall.AnimationChain;
 /// // In LoadContent:
 /// _loader = new AchxLoader(GraphicsDevice);
 /// _animations = _loader.Load("Content/player.achx");
-/// _player = new AnimationPlayer(_animations);
+/// _player = new AnimationPlayer&lt;AnimationFrame&gt;(_animations);
 /// _player.Play("Run");
 ///
 /// // In Update:
@@ -45,17 +46,17 @@ public sealed class AchxLoader : IDisposable
     /// <summary>
     /// Loads the .achx (XML) or .achj (JSON) at <paramref name="achxPath"/> — dialect chosen by
     /// its extension — from the local filesystem and returns a ready-to-play
-    /// <see cref="AnimationChainList"/>. Textures referenced by the file are loaded relative to
+    /// <see cref="AnimationChainList{TFrame}"/>. Textures referenced by the file are loaded relative to
     /// the file's location and cached for reuse.
     /// </summary>
     /// <param name="achxPath">Absolute or working-directory-relative path to the .achx/.achj file.</param>
-    public AnimationChainList Load(string achxPath)
+    public AnimationChainList<AnimationFrame> Load(string achxPath)
         => Load(achxPath, File.OpenRead!);
 
     /// <summary>
     /// Loads the .achx/.achj using a custom stream provider — dialect chosen by
     /// <paramref name="achxPath"/>'s extension. Use this for non-filesystem environments
-    /// (Blazor WASM, embedded resources, unit tests) where <see cref="File.OpenRead"/> is
+    /// (Blazor WASM, embedded resources, unit tests) where <see cref="File.OpenRead(string)"/> is
     /// unavailable. The <paramref name="textureStreamProvider"/> is called with the resolved
     /// texture path; return <c>null</c> from the stream provider to skip a texture.
     /// </summary>
@@ -63,9 +64,9 @@ public sealed class AchxLoader : IDisposable
     /// <param name="achxStreamProvider">Returns a readable stream for the .achx/.achj file.</param>
     /// <param name="textureStreamProvider">
     /// Optional override for texture loading. When <c>null</c>, falls back to
-    /// <see cref="File.OpenRead"/>. Return <c>null</c> to produce a frame with no texture.
+    /// <see cref="File.OpenRead(string)"/>. Return <c>null</c> to produce a frame with no texture.
     /// </param>
-    public AnimationChainList Load(
+    public AnimationChainList<AnimationFrame> Load(
         string achxPath,
         Func<string, Stream> achxStreamProvider,
         Func<string, Stream?>? textureStreamProvider = null)
@@ -74,21 +75,19 @@ public sealed class AchxLoader : IDisposable
         var save = achxPath.EndsWith(".achj", StringComparison.OrdinalIgnoreCase)
             ? AnimationChainListSave.FromJsonFile(achxPath, achxStreamProvider)
             : AnimationChainListSave.FromFile(achxPath, achxStreamProvider);
-        string achxDir = Path.GetDirectoryName(Path.GetFullPath(achxPath)) ?? "";
+        // AnimationEditorCommon's FromFile/FromJsonFile store FileName verbatim (not resolved to
+        // an absolute path) -- resolve it here so ToAnimationChainList's achxDir-based texture-path
+        // resolution below produces an absolute path, matching this loader's cache-by-resolved-path
+        // contract (GetOrLoadTexture keys its cache on the resolved path).
+        save.FileName = Path.GetFullPath(achxPath);
 
-        return save.ToAnimationChainList(texPath =>
-        {
-            string resolved = save.FileRelativeTextures && !string.IsNullOrEmpty(achxDir)
-                ? Path.Combine(achxDir, texPath)
-                : texPath;
-            return GetOrLoadTexture(resolved, textureStreamProvider);
-        });
+        return save.ToAnimationChainList(texPath => GetOrLoadTexture(texPath, textureStreamProvider));
     }
 
     /// <summary>
     /// Loads animation data from an already-open <paramref name="achxStream"/> containing either
     /// .achx (XML) or .achj (JSON) -- the dialect is auto-detected from the content, since no file
-    /// path is available to inspect an extension (see <see cref="AnimationChainListSave.FromDetectedStream"/>).
+    /// path is available to inspect an extension (see <see cref="AnimationChainListSave.FromStream"/>).
     /// Because no file path is available, <see cref="AnimationChainListSave.FileRelativeTextures"/>
     /// resolution is skipped — texture paths stored in the file are passed directly to
     /// <paramref name="textureStreamProvider"/>. Supply a <paramref name="textureStreamProvider"/>
@@ -97,26 +96,26 @@ public sealed class AchxLoader : IDisposable
     /// <param name="achxStream">A readable stream containing .achx or .achj data. The caller retains ownership.</param>
     /// <param name="textureStreamProvider">
     /// Optional override for texture loading. When <c>null</c>, falls back to
-    /// <see cref="File.OpenRead"/>. Return <c>null</c> to produce a frame with no texture.
+    /// <see cref="File.OpenRead(string)"/>. Return <c>null</c> to produce a frame with no texture.
     /// </param>
-    public AnimationChainList Load(Stream achxStream, Func<string, Stream?>? textureStreamProvider = null)
+    public AnimationChainList<AnimationFrame> Load(Stream achxStream, Func<string, Stream?>? textureStreamProvider = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var save = AnimationChainListSave.FromDetectedStream(achxStream);
+        var save = AnimationChainListSave.FromStream(achxStream);
         return save.ToAnimationChainList(texPath => GetOrLoadTexture(texPath, textureStreamProvider));
     }
 
     /// <summary>
-    /// Reloads an existing <see cref="AnimationChainList"/> in place from the .achx/.achj at
+    /// Reloads an existing <see cref="AnimationChainList{TFrame}"/> in place from the .achx/.achj at
     /// <paramref name="achxPath"/>. Chains with matching names have their frames replaced
-    /// (live <see cref="AnimationPlayer"/> references keep working); new chains are appended.
+    /// (live <see cref="AnimationPlayer{TFrame}"/> references keep working); new chains are appended.
     /// Returns <c>false</c> if the file could not be read (e.g. mid-write) — callers should
     /// retry on the next file-watcher tick.
     /// </summary>
-    public bool TryReload(AnimationChainList list, string achxPath)
+    public bool TryReload(AnimationChainList<AnimationFrame> list, string achxPath)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return list.TryReloadFrom(achxPath, texPath => GetOrLoadTexture(texPath, null));
+        return list.TryReload(achxPath, texPath => GetOrLoadTexture(texPath, null));
     }
 
     private Texture2D? GetOrLoadTexture(string resolvedPath, Func<string, Stream?>? streamProvider)
