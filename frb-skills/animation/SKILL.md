@@ -1,6 +1,6 @@
 ---
 name: animation
-description: "Sprite animation in FlatRedBall2. Use for AnimationChain, AnimationChainList, .achx files, Aseprite/.ase loading, Sprite.PlayAnimation, frame-based texture flipping, looping/non-looping animations, AnimationFinished events, and per-frame collision shapes (hitboxes/hurtboxes, static object collision)."
+description: "Sprite animation in FlatRedBall2. Use for AnimationChain, AnimationChainList, .achx/.achj files, Aseprite/.ase loading, Sprite.PlayAnimation, frame-based texture flipping, looping/non-looping animations, AnimationFinished events, and per-frame collision shapes (hitboxes/hurtboxes, static object collision)."
 ---
 
 # Sprite Animation in FlatRedBall2
@@ -56,7 +56,7 @@ When you want an AI assistant to wire animation selection to gameplay state, des
 | When you need to… | Read |
 |---|---|
 | Load Aseprite `.ase`/`.aseprite` files | `references/aseprite.md` |
-| Load `.achx` XML or author one by hand | `references/achx-authoring.md` |
+| Load `.achx`/`.achj` or author one by hand | `references/achx-authoring.md` |
 | Load Adobe Animate atlas XML | `references/adobe-animate.md` |
 | Add per-frame shapes (hitboxes/hurtboxes, or a static object's fixed collision box) | `references/per-frame-shapes.md` |
 | Drop in the bundled platformer animation template | `references/platformer-template.md` |

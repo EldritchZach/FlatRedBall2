@@ -269,6 +269,7 @@ public partial class MainWindow : Window
         ProjectPanel.FolderRevealRequested += relativePath => RevealProjectFolderInExplorer(relativePath);
         ProjectPanel.FileRevealRequested += relativePath => RevealProjectFileInExplorer(relativePath);
         ProjectPanel.FileCopyPathRequested += relativePath => CopyProjectFilePathToClipboard(relativePath);
+        ProjectPanel.FileDeleteRequested += relativePath => _ = DeleteProjectFileAsync(relativePath);
         // Right-clicking blank space in the tree offers "New Animation" (#908) -- same flow as
         // File > New.
         ProjectPanel.NewAnimationRequested += () => OnNewClick(null, null!);
@@ -407,7 +408,7 @@ public partial class MainWindow : Window
                 Margin = new Avalonia.Thickness(2, 0, 2, 0),
             };
             Grid.SetColumn(closeBtn, 1);
-            closeBtn.Click += (_, _) => CloseTab(captured);
+            closeBtn.Click += (_, _) => _ = CloseTabAsync(captured);
 
             row.Children.Add(label);
             row.Children.Add(closeBtn);
@@ -450,7 +451,7 @@ public partial class MainWindow : Window
             tabMenu.Items.Add(new MenuItem
             {
                 Header = "Close Tab",
-                Command = new RelayCommand(() => CloseTab(captured)),
+                Command = new RelayCommand(() => _ = CloseTabAsync(captured)),
             });
             tabBorder.ContextMenu = tabMenu;
 
@@ -526,7 +527,7 @@ public partial class MainWindow : Window
 
                 if (uk == PointerUpdateKind.MiddleButtonReleased)
                 {
-                    CloseTab(captured);
+                    _ = CloseTabAsync(captured);
                     args.Handled = true;
                     return;
                 }
@@ -787,8 +788,60 @@ public partial class MainWindow : Window
     /// </summary>
     public async Task OpenFileAsTab(string filePath) => await LoadAnimationFileAsync(filePath);
 
-    private void CloseTab(TabEntry tab)
+    /// <summary>
+    /// Closes <paramref name="tab"/>, prompting to save first when it is an untitled tab that
+    /// has actual content (issue #928) -- an untitled tab that was never edited (or was edited
+    /// back to empty) closes silently, same as before. "Save" runs the normal Save-As flow;
+    /// declining it (dialog cancelled) leaves the tab open rather than closing with no file
+    /// written. "Don't Save" and the empty-tab fast path both fall through to
+    /// <see cref="CloseTabCore"/>, which is what clears the crash-recovery file (#927).
+    /// </summary>
+    private async Task CloseTabAsync(TabEntry tab)
     {
+        if (tab.Kind == TabKind.Achx && IsUntitledTab(tab) && UntitledTabHasContent(tab))
+        {
+            var choice = await ShowSaveDiscardCancelDialogAsync(
+                $"\"{tab.DisplayName}\" has unsaved changes. Save before closing?",
+                "Unsaved Changes");
+            if (choice == SaveDiscardCancelChoice.Cancel) return;
+
+            if (choice == SaveDiscardCancelChoice.Save)
+            {
+                if (tab != _tabManager.ActiveTab)
+                    await ActivateTabAsync(tab);
+
+                await _appCommands.SaveCurrentAnimationChainListAsync();
+                if (string.IsNullOrEmpty(_projectManager.FileName))
+                    return; // Save As was cancelled -- leave the tab open, nothing was written.
+
+                // A successful save renames the sentinel tab in place (the CurrentFileChanged
+                // handler's Rename), which replaces the TabEntry instance -- re-resolve through
+                // ActiveTab rather than closing the now-stale `tab` reference.
+                tab = _tabManager.ActiveTab ?? tab;
+            }
+        }
+
+        CloseTabCore(tab);
+    }
+
+    /// <summary>
+    /// True when <paramref name="tab"/>'s document has actual content worth prompting to save
+    /// (issue #928) -- reads the live model for the active tab, or the cached snapshot captured
+    /// when a background tab was last left (<see cref="TabController.CaptureLeavingTab"/>).
+    /// </summary>
+    private bool UntitledTabHasContent(TabEntry tab) =>
+        (tab == _tabManager.ActiveTab ? _projectManager.AnimationChainListSave : tab.CachedEditorModel)
+            is { AnimationChains.Count: > 0 };
+
+    private void CloseTabCore(TabEntry tab)
+    {
+        // Closing an untitled tab is an explicit discard of its unsaved content -- clear any
+        // crash-recovery file autosave-on-edit wrote for it (AppCommands.SaveCurrentAnimationChainList
+        // writes there whenever FileName is null), or it re-prompts to restore already-discarded
+        // content on the next launch (#927).
+        if (IsUntitledTab(tab))
+            _ioManager.DeleteRecoveryFile();
+
         _tabManager.Close(tab.Path);
         var next = _tabManager.ActiveTab;
         if (next != null)
@@ -1030,6 +1083,7 @@ public partial class MainWindow : Window
         _appCommands.ConfirmAsync = ShowConfirmDialogAsync;
         _appCommands.PromptStringAsync = ShowStringInputDialogAsync;
         ShowTwoButtonDialogAsync = ShowTwoButtonDialogAsyncCore;
+        ShowSaveDiscardCancelDialogAsync = ShowSaveDiscardCancelDialogAsyncCore;
 
         // File dialog service
         _appCommands.FileDialogService = new Services.AvaloniaFileDialogService(this);
@@ -1939,6 +1993,51 @@ public partial class MainWindow : Window
 
         _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(absolutePath);
     }
+
+    /// <summary>
+    /// Issue #919: right-click Delete on a Project-tree file row. Confirms first (the move isn't
+    /// undoable) then hands off to <see cref="DeleteToRecycleBin"/>. On success, also closes the
+    /// file's tab if it's open -- otherwise Save would silently resurrect it outside the recycle
+    /// bin. No explicit tree refresh -- the project folder watcher's
+    /// <see cref="HandleProjectFolderChangesAsync"/> already rescans on any create/delete under
+    /// the watched folder (its <c>structureChanged</c> path), the same as it would for an
+    /// external deletion (e.g. `git pull`, another editor). Internal
+    /// (not private), same reason as <see cref="OpenProjectFolderForTestAsync"/>: production only
+    /// ever reaches it via <see cref="Controls.ProjectPanelControl.FileDeleteRequested"/>, but
+    /// tests exercise the confirm-gate/recycle-bin wiring directly.
+    /// </summary>
+    internal async Task DeleteProjectFileAsync(string relativePath)
+    {
+        var absolutePath = ResolveProjectFolderAbsolutePath(relativePath);
+        if (absolutePath is null) return;
+
+        var fileName = new FilePath(absolutePath).NoPath;
+        bool confirmed = await _appCommands.ConfirmAsync(
+            $"Delete \"{fileName}\"? This cannot be undone.", "Delete File");
+        if (!confirmed) return;
+
+        var error = DeleteToRecycleBin(absolutePath);
+        if (error is not null)
+        {
+            ShowStatusMessage($"⚠ {error}", isError: true);
+            return;
+        }
+
+        // The file is gone -- leaving its tab open would let Save silently resurrect it outside
+        // the recycle bin, defeating the confirm dialog above. No "unsaved changes?" prompt here:
+        // the user already confirmed a destructive, non-undoable action.
+        if (_tabManager.Tabs.FirstOrDefault(t => t.Path == new FilePath(absolutePath)) is { } openTab)
+            CloseTabCore(openTab);
+    }
+
+    /// <summary>
+    /// Test seam for the actual OS recycle-bin move -- defaults to <see cref="RecycleBin.Delete"/>.
+    /// UI-layer-only (used by exactly one caller, <see cref="DeleteProjectFileAsync"/>), same
+    /// reasoning as <see cref="ShowTwoButtonDialogAsync"/> for not living on the shared
+    /// <c>IAppCommands</c> delegate surface: it doesn't need ~20 unrelated test stubs to know
+    /// about it.
+    /// </summary>
+    internal Func<string, string?> DeleteToRecycleBin { get; set; } = RecycleBin.Delete;
 
     private void OnTitleFileCopyPathClick(object? sender, RoutedEventArgs e)
     {
@@ -5086,7 +5185,7 @@ public partial class MainWindow : Window
     {
         if (IsUntitledTab(tab)) return;
         var filePath = tab.Path.FullPath;
-        CloseTab(tab);
+        CloseTabCore(tab);
         var window = App.CreateDetachedWindow();
         window.Show();
         _ = window.OpenFileAsTab(filePath);
@@ -5310,6 +5409,17 @@ public partial class MainWindow : Window
     private Task<bool> ShowTwoButtonDialogAsyncCore(
         string message, string title, string confirmLabel, string cancelLabel) =>
         EditorDialogs.ConfirmAsync(_dialogHost, message, title, confirmLabel, cancelLabel);
+
+    /// <summary>
+    /// Test seam for the Save / Don't Save / Cancel prompt shown by
+    /// <see cref="CloseTabAsync"/> when closing an untitled tab that has content. Same
+    /// reasoning as <see cref="ShowTwoButtonDialogAsync"/> for living here instead of on the
+    /// shared <c>IAppCommands</c> delegate surface.
+    /// </summary>
+    internal Func<string, string, Task<SaveDiscardCancelChoice>> ShowSaveDiscardCancelDialogAsync { get; set; } = null!;
+
+    private Task<SaveDiscardCancelChoice> ShowSaveDiscardCancelDialogAsyncCore(string message, string title) =>
+        EditorDialogs.ConfirmSaveDiscardCancelAsync(_dialogHost, message, title);
 
     /// <summary>
     /// Wires ENTER → <paramref name="onConfirm"/> and ESC → <paramref name="onCancel"/>

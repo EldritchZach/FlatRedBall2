@@ -19,11 +19,13 @@ public static class AnimationCloneHelper
             FrameLength      = source.FrameLength,
             FlipHorizontal   = source.FlipHorizontal,
             FlipVertical     = source.FlipVertical,
+            FlipDiagonal     = source.FlipDiagonal,
             RelativeX        = source.RelativeX,
             RelativeY        = source.RelativeY,
             Red              = source.Red,
             Green            = source.Green,
             Blue             = source.Blue,
+            Alpha            = source.Alpha,
             ColorOperation   = source.ColorOperation,
             ShapesSave       = new ShapesSave(),
         };

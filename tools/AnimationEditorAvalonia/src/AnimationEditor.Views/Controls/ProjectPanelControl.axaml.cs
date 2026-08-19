@@ -84,6 +84,14 @@ public partial class ProjectPanelControl : UserControl
     public event Action<string>? FileCopyPathRequested;
 
     /// <summary>
+    /// Raised when the user picks "Delete" for a file row (issue #919). Carries the file's
+    /// <see cref="AchxTreeNodeVm.RelativePath"/> for the host to resolve, same as
+    /// <see cref="FolderRevealRequested"/>. The host owns confirming and the actual
+    /// recycle-bin move -- this control only reports the request.
+    /// </summary>
+    public event Action<string>? FileDeleteRequested;
+
+    /// <summary>
     /// Raised when the user picks "New Animation" from the context menu shown on right-clicking
     /// blank space in the tree, i.e. no node under the cursor (issue #908). The host resolves what
     /// "new" means (desktop/browser both currently reuse their existing File → New flow).
@@ -361,6 +369,12 @@ public partial class ProjectPanelControl : UserControl
             var copyPathItem = new MenuItem { Header = "Copy Full Path" };
             copyPathItem.Click += (_, _) => FileCopyPathRequested?.Invoke(fileNode.RelativePath);
             ProjectTree.ContextMenu.Items.Add(copyPathItem);
+
+            ProjectTree.ContextMenu.Items.Add(new Separator());
+
+            var deleteItem = new MenuItem { Header = "Delete" };
+            deleteItem.Click += (_, _) => FileDeleteRequested?.Invoke(fileNode.RelativePath);
+            ProjectTree.ContextMenu.Items.Add(deleteItem);
         }
     }
 
