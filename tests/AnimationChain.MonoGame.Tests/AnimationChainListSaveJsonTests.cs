@@ -1,7 +1,8 @@
 using System.Linq;
 using System.Text;
 using FlatRedBall.AnimationChain;
-using FlatRedBall.AnimationChain.Content;
+using FlatRedBall2.Animation;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationChain.MonoGame.Tests;
@@ -28,7 +29,9 @@ public class AnimationChainListSaveJsonTests
             return JsonStream(json)(path);
         });
 
-        Assert.Equal(Path.GetFullPath(requestedPath), save.FileName);
+        // AnimationEditorCommon's FromJsonFile stores FileName verbatim (not resolved to an
+        // absolute path).
+        Assert.Equal(requestedPath, save.FileName);
         Assert.Equal("Walk", save.AnimationChains[0].Name);
     }
 
@@ -81,22 +84,22 @@ public class AnimationChainListSaveJsonTests
         Assert.Equal(15f, rect.ScaleX, precision: 5);
     }
 
-    // ─── FromDetectedStream (auto-detect XML vs JSON from content) ────────────────
+    // ─── FromStream (auto-detect XML vs JSON from content) ────────────────
 
     [Fact]
-    public void FromDetectedStream_JsonContent_ParsesAsJson()
+    public void FromStream_JsonContent_ParsesAsJson()
     {
         var save = new AnimationChainListSave();
         save.AnimationChains.Add(new AnimationChainSave { Name = "Walk" });
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(save.ToJsonString()));
 
-        var loaded = AnimationChainListSave.FromDetectedStream(stream);
+        var loaded = AnimationChainListSave.FromStream(stream);
 
         Assert.Equal("Walk", loaded.AnimationChains[0].Name);
     }
 
     [Fact]
-    public void FromDetectedStream_XmlContent_ParsesAsXml()
+    public void FromStream_XmlContent_ParsesAsXml()
     {
         const string xml = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -106,19 +109,19 @@ public class AnimationChainListSaveJsonTests
             """;
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
 
-        var loaded = AnimationChainListSave.FromDetectedStream(stream);
+        var loaded = AnimationChainListSave.FromStream(stream);
 
         Assert.Equal("Run", loaded.AnimationChains[0].Name);
     }
 
     [Fact]
-    public void FromDetectedStream_JsonContentWithLeadingWhitespace_StillDetectsJson()
+    public void FromStream_JsonContentWithLeadingWhitespace_StillDetectsJson()
     {
         var save = new AnimationChainListSave();
         save.AnimationChains.Add(new AnimationChainSave { Name = "Idle" });
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("   \n" + save.ToJsonString()));
 
-        var loaded = AnimationChainListSave.FromDetectedStream(stream);
+        var loaded = AnimationChainListSave.FromStream(stream);
 
         Assert.Equal("Idle", loaded.AnimationChains[0].Name);
     }

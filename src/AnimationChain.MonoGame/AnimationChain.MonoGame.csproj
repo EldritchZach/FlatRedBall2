@@ -30,6 +30,18 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    The generic, renderer-agnostic .achx data model and playback runtime (AnimationChainListSave,
+    AnimationChain&lt;TFrame&gt;, AnimationChainList&lt;TFrame&gt;, AnimationPlayer&lt;TFrame&gt;) — this
+    package closes it over Texture2D (see Runtime/AnimationFrame.cs). ProjectReference (not a
+    PackageReference) auto-generates a matching NuGet <dependency> at pack time, so the published
+    FlatRedBall.AnimationChain.MonoGame package must be published in lockstep with a matching
+    FlatRedBall2.AnimationEditorCommon version — see .github/workflows/publish-animationchain-packages.yml.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\AnimationEditorCommon\FlatRedBall2.AnimationEditorCommon.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>AnimationChain.MonoGame.Tests</_Parameter1>

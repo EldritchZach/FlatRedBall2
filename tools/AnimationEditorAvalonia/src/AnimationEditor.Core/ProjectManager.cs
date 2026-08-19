@@ -136,6 +136,7 @@ namespace AnimationEditor.Core
             if (acls == null) return;
 
             var achxDirectory = System.IO.Path.GetDirectoryName(targetPath) ?? string.Empty;
+            NormalizeFrameTextureNames(acls, achxDirectory);
             var diskFormat = OnDiskCoordinateType;
             void Write() { if (IsJsonPath(targetPath)) acls.SaveJson(targetPath); else acls.Save(targetPath); }
 
@@ -369,6 +370,25 @@ namespace AnimationEditor.Core
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Heals every frame's <see cref="AnimationFrameSave.TextureName"/> against
+        /// <paramref name="achxDirectory"/> before writing, so a texture path stored absolute (or
+        /// OS-native-slashed) before this project had a folder to relativize against -- e.g. a
+        /// texture assigned to an untitled, never-yet-saved project -- becomes a portable
+        /// forward-slash relative path once a folder is known. Runs on every save, not just the
+        /// first, so a file with pre-existing stale paths self-heals the next time it's saved (#936).
+        /// </summary>
+        private static void NormalizeFrameTextureNames(AnimationChainListSave acls, string achxDirectory)
+        {
+            foreach (var chain in acls.AnimationChains)
+            {
+                foreach (var frame in chain.Frames)
+                {
+                    frame.TextureName = TexturePathHelper.NormalizeStoredTextureName(frame.TextureName, achxDirectory);
+                }
             }
         }
 

@@ -1,4 +1,5 @@
 using FlatRedBall.AnimationChain;
+using FlatRedBall2.AnimationEditorCommon;
 using Xunit;
 
 namespace AnimationChain.MonoGame.Tests;
@@ -7,12 +8,12 @@ public class AnimationPlayerTests
 {
     // ─── Helpers ────────────────────────────────────────────────────────────────
 
-    private static AnimationChainList MakeList(params (string name, double[] frameLengths)[] chains)
+    private static AnimationChainList<AnimationFrame> MakeList(params (string name, double[] frameLengths)[] chains)
     {
-        var list = new AnimationChainList();
+        var list = new AnimationChainList<AnimationFrame>();
         foreach (var (name, frameLengths) in chains)
         {
-            var chain = new FlatRedBall.AnimationChain.AnimationChain { Name = name };
+            var chain = new AnimationChain<AnimationFrame> { Name = name };
             foreach (var len in frameLengths)
                 chain.Add(new AnimationFrame { FrameLength = TimeSpan.FromSeconds(len) });
             list.Add(chain);
@@ -28,7 +29,7 @@ public class AnimationPlayerTests
     public void Play_ByName_SetsFirstFrame()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         Assert.Equal(list["Run"]![0], player.CurrentFrame);
     }
@@ -37,7 +38,7 @@ public class AnimationPlayerTests
     public void Play_UnknownName_IsNoOp()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Play("DoesNotExist"); // must not throw
         Assert.Equal("Run", player.CurrentChain!.Name);
@@ -47,7 +48,7 @@ public class AnimationPlayerTests
     public void Play_SameChainTwice_DoesNotRestart()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15)); // advances past first frame
         var frameAfterAdvance = player.CurrentFrame;
@@ -60,7 +61,7 @@ public class AnimationPlayerTests
     public void Play_DifferentChain_Restarts()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }), ("Idle", new[] { 0.2 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15));
         player.Play("Idle");
@@ -72,7 +73,7 @@ public class AnimationPlayerTests
     public void Play_ByChainReference_SameInstance_DoesNotRestart()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         var chain = list["Run"]!;
         player.Play(chain);
         player.Update(Sec(0.15));
@@ -95,7 +96,7 @@ public class AnimationPlayerTests
     public void Pause_StopsAdvancement_UntilResume()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15)); // frame 1
 
@@ -113,7 +114,7 @@ public class AnimationPlayerTests
     public void Stop_RewindsToFirstFrame_AndDisablesAnimate()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15)); // frame 1
 
@@ -129,7 +130,7 @@ public class AnimationPlayerTests
     public void Reset_RewindsWithoutChangingAnimateState()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15)); // frame 1
         player.Pause();
@@ -146,7 +147,7 @@ public class AnimationPlayerTests
     public void CurrentFrameIndex_Setter_SeeksToRequestedFrame()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.2, 0.3 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
 
         player.CurrentFrameIndex = 2;
@@ -160,7 +161,7 @@ public class AnimationPlayerTests
     public void TimeIntoAnimation_Setter_LoopsWhenIsLooping()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 })); // total = 0.2
-        var player = new AnimationPlayer(list) { IsLooping = true };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = true };
         player.Play("Run");
 
         player.TimeIntoAnimation = Sec(0.25); // wraps to 0.05 => frame 0
@@ -174,7 +175,7 @@ public class AnimationPlayerTests
     public void TimeIntoAnimation_Setter_ClampsWhenNotLooping()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 })); // total = 0.2
-        var player = new AnimationPlayer(list) { IsLooping = false };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = false };
         player.Play("Run");
 
         player.TimeIntoAnimation = Sec(0.25);
@@ -190,7 +191,7 @@ public class AnimationPlayerTests
     public void Update_AdvancesToNextFrame()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1, 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Run");
         player.Update(Sec(0.15));
         Assert.Equal(list["Run"]![1], player.CurrentFrame);
@@ -200,7 +201,7 @@ public class AnimationPlayerTests
     public void Update_Looping_WrapsToFirstFrame()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 })); // total = 0.2s
-        var player = new AnimationPlayer(list) { IsLooping = true };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = true };
         player.Play("Run");
         player.Update(Sec(0.25)); // past end of loop
         // 0.25 mod 0.2 = 0.05 → still in first frame (0–0.1)
@@ -211,7 +212,7 @@ public class AnimationPlayerTests
     public void Update_NonLooping_StopsAtLastFrame()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }));
-        var player = new AnimationPlayer(list) { IsLooping = false };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = false };
         player.Play("Run");
         player.Update(Sec(0.5)); // well past end
         Assert.Equal(list["Run"]![1], player.CurrentFrame);
@@ -222,7 +223,7 @@ public class AnimationPlayerTests
     public void Update_NonLooping_RaisesAnimationFinished()
     {
         var list = MakeList(("Run", new[] { 0.1 }));
-        var player = new AnimationPlayer(list) { IsLooping = false };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = false };
         player.Play("Run");
 
         bool fired = false;
@@ -236,7 +237,7 @@ public class AnimationPlayerTests
     public void Update_AnimationFinished_RaisedOnce()
     {
         var list = MakeList(("Run", new[] { 0.1 }));
-        var player = new AnimationPlayer(list) { IsLooping = false };
+        var player = new AnimationPlayer<AnimationFrame>(list) { IsLooping = false };
         player.Play("Run");
 
         int count = 0;
@@ -250,7 +251,7 @@ public class AnimationPlayerTests
     public void Update_AnimateIsFalse_DoesNotAdvance()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }));
-        var player = new AnimationPlayer(list) { Animate = false };
+        var player = new AnimationPlayer<AnimationFrame>(list) { Animate = false };
         player.Play("Run");
         player.Animate = false;
         player.Update(Sec(0.2));
@@ -261,7 +262,7 @@ public class AnimationPlayerTests
     public void AnimationSpeed_HalfSpeed_TakesDoubleTime()
     {
         var list = MakeList(("Run", new[] { 0.1, 0.1 }));
-        var player = new AnimationPlayer(list) { AnimationSpeed = 0.5f };
+        var player = new AnimationPlayer<AnimationFrame>(list) { AnimationSpeed = 0.5f };
         player.Play("Run");
         player.Update(Sec(0.15)); // at half speed this is only 0.075s of animation time
         Assert.Equal(list["Run"]![0], player.CurrentFrame); // still on first frame
@@ -273,15 +274,15 @@ public class AnimationPlayerTests
     public void CurrentFrame_BeforePlay_IsNull()
     {
         var list = MakeList(("Run", new[] { 0.1 }));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         Assert.Null(player.CurrentFrame);
     }
 
     [Fact]
     public void Update_NoAnimation_DoesNotThrow()
     {
-        var list = new AnimationChainList();
-        var player = new AnimationPlayer(list);
+        var list = new AnimationChainList<AnimationFrame>();
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Update(Sec(0.1)); // nothing playing — must not throw
     }
 
@@ -289,7 +290,7 @@ public class AnimationPlayerTests
     public void Update_EmptyChain_DoesNotThrow()
     {
         var list = MakeList(("Empty", Array.Empty<double>()));
-        var player = new AnimationPlayer(list);
+        var player = new AnimationPlayer<AnimationFrame>(list);
         player.Play("Empty");
         player.Update(Sec(0.1));
     }
