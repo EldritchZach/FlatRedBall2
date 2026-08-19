@@ -51,12 +51,93 @@ public class TexturePathHelperTests
     }
 
     [Fact]
-    public void ComputeStorePath_EmptyAchxFolder_ReturnsAbsoluteUnchanged()
+    public void ComputeStorePath_EmptyAchxFolder_NormalizesToForwardSlashes()
     {
-        var absolute = TestPaths.Abs("Project", "Content", "Hero.png");
-        string storePath = TexturePathHelper.ComputeStorePath(absolute, string.Empty);
+        // #936: an unsaved (untitled) project has no achx folder yet, so the path can't be made
+        // relative -- but it must still come out forward-slash-normalized, not whatever raw
+        // separators the OS handed back, so it doesn't mix with forward-slash relative paths
+        // once other frames in the same file *do* have a folder to relativize against.
+        string storePath = TexturePathHelper.ComputeStorePath(
+            @"C:\TestRoot\Project\Content\Hero.png", string.Empty);
 
-        Assert.Equal(absolute, storePath);
+        Assert.Equal("C:/TestRoot/Project/Content/Hero.png", storePath);
+    }
+
+    [Fact]
+    public void ComputeStorePath_EmptyAchxFolder_PreservesCase()
+    {
+        // Lower-casing here would break on case-sensitive filesystems (Linux/web) once the
+        // project is later saved and the path is used to look up the actual file on disk.
+        string storePath = TexturePathHelper.ComputeStorePath(
+            @"C:\TestRoot\MyStuff\Hero.PNG", string.Empty);
+
+        Assert.Equal("C:/TestRoot/MyStuff/Hero.PNG", storePath);
+    }
+
+    // ── NormalizeStoredTextureName ────────────────────────────────────────────
+
+    [Fact]
+    public void NormalizeStoredTextureName_AbsolutePathInAchxFolder_ReturnsRelative()
+    {
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            TestPaths.Abs("Project", "Animations", "Hero.png"),
+            TestPaths.AbsDir("Project", "Animations"));
+
+        Assert.Equal("Hero.png", normalized);
+    }
+
+    [Fact]
+    public void NormalizeStoredTextureName_AlreadyRelativeWithBackslashes_ConvertsToForwardSlashes()
+    {
+        // #936: legacy/FRB1-authored entries can already be relative but use OS-native
+        // backslashes. These must not be treated as absolute (which would wrongly resolve them
+        // against the process's current directory) -- just slash-normalized in place.
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            @"Sprites\Hero.png", TestPaths.AbsDir("Project", "Animations"));
+
+        Assert.Equal("Sprites/Hero.png", normalized);
+    }
+
+    [Fact]
+    public void NormalizeStoredTextureName_AlreadyForwardSlashRelative_ReturnedUnchanged()
+    {
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            "Sprites/Hero.png", TestPaths.AbsDir("Project", "Animations"));
+
+        Assert.Equal("Sprites/Hero.png", normalized);
+    }
+
+    [Fact]
+    public void NormalizeStoredTextureName_AbsolutePathOnDifferentDrive_StaysAbsoluteButForwardSlashed()
+    {
+        // A genuinely unrelated root only exists as a concept on Windows (separate drive
+        // letters) -- Linux/macOS have a single filesystem root, so a fake "AltRoot" there is
+        // still expressible relative to "TestRoot" via a chain of "../". Use explicit
+        // drive-letter literals so this exercises the real can't-relativize case on every host
+        // OS (FilePath's drive-letter check in IsRelative/IsAbsolute is string-based, not an OS
+        // API call).
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            @"D:\AltRoot\External\Hero.png", @"C:\TestRoot\Project\Animations");
+
+        Assert.Equal("D:/AltRoot/External/Hero.png", normalized);
+    }
+
+    [Fact]
+    public void NormalizeStoredTextureName_EmptyTextureName_ReturnsEmpty()
+    {
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            string.Empty, TestPaths.AbsDir("Project", "Animations"));
+
+        Assert.Equal(string.Empty, normalized);
+    }
+
+    [Fact]
+    public void NormalizeStoredTextureName_NullTextureName_ReturnsEmpty()
+    {
+        string normalized = TexturePathHelper.NormalizeStoredTextureName(
+            null, TestPaths.AbsDir("Project", "Animations"));
+
+        Assert.Equal(string.Empty, normalized);
     }
 
     // ── ComputeDisplayPath ────────────────────────────────────────────────────

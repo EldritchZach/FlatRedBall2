@@ -23,10 +23,36 @@ public static class TexturePathHelper
     public static string ComputeStorePath(string absoluteTexturePath, string achxFolder)
     {
         if (string.IsNullOrEmpty(achxFolder))
-            return absoluteTexturePath;
+            // No folder to relativize against yet (e.g. an untitled project) -- still normalize
+            // to forward slashes so this doesn't mix with forward-slash relative paths written
+            // for other frames once the project does get saved (#936). FullPath preserves case.
+            return new FilePath(absoluteTexturePath).FullPath;
 
         // Route through FilePath so Windows drive prefixes are recognized as absolute on Linux too.
         return new FilePath(absoluteTexturePath).RelativeTo(new FilePath(achxFolder));
+    }
+
+    /// <summary>
+    /// Re-normalizes a frame's already-stored <see cref="FlatRedBall2.Animation.Content.AnimationFrameSave.TextureName"/>
+    /// against <paramref name="achxFolder"/>, so a texture path that was written absolute (or
+    /// with OS-native backslashes) before the project had a folder to relativize against gets
+    /// healed into a forward-slash, folder-relative path once one is known. Call this on every
+    /// save (see <see cref="ProjectManager.SaveAnimationChainList(string)"/>), not just the
+    /// first -- old files can carry either flavor of stale path.
+    /// </summary>
+    /// <param name="textureName">The stored path -- may already be relative (forward- or
+    /// back-slashed) or absolute.</param>
+    /// <param name="achxFolder">The directory the .achx/.achj is being saved into.</param>
+    public static string NormalizeStoredTextureName(string? textureName, string achxFolder)
+    {
+        if (string.IsNullOrEmpty(textureName)) return string.Empty;
+
+        // An already-relative path must not be routed through ComputeStorePath/FilePath: FilePath
+        // resolves a relative Original against Environment.CurrentDirectory, not achxFolder, which
+        // would silently corrupt it. Just fix the separators in place.
+        return IsAbsolute(textureName)
+            ? ComputeStorePath(textureName, achxFolder)
+            : textureName.Replace('\\', '/');
     }
 
     /// <summary>
