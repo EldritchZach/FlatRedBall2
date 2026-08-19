@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="../../src/FlatRedBall2.csproj" />
-  <Project Path="../../src/AnimationEditorCommon/FlatRedBall2.AnimationEditorCommon.csproj" />
+  <Project Path="../../src/AnimationChain.Common/AnimationChain.Common.csproj" />
   <Project Path="GumFormsPopupTest.csproj" />
 </Solution>

@@ -13,17 +13,17 @@
         AnimationChain&lt;TFrame&gt;, AnimationChainList&lt;TFrame&gt;, AnimationPlayer&lt;TFrame&gt;):
         playback logic (timing/seek, name lookup, reload-merge) generic over the frame's texture
         handle, so a renderer only has to close the generic over its own texture type (see
-        FlatRedBall2.AnimationChain.MonoGame's AnimationFrame : AnimationFrameBase&lt;Texture2D&gt;).
+        FlatRedBall.AnimationChain.MonoGame's AnimationFrame : AnimationFrameBase&lt;Texture2D&gt;).
 
     The runtime bridge that converts the .achx data model into MonoGame-backed engine types
     (AnimationChainList/AnimationFrame with real Texture2D instances) lives in the main engine
     project, in AnimationChainListSaveExtensions; that's the only part that actually needs
     MonoGame.
 
-    Published as its own NuGet package (FlatRedBall2.AnimationEditorCommon) in lockstep with
+    Published as its own NuGet package (FlatRedBall.AnimationChain.Common) in lockstep with
     FlatRedBall2.MonoGame/FlatRedBall2.Kni, see .github/workflows/publish.yml. This is required
     because src/FlatRedBall2.csproj's ProjectReference to this project causes `dotnet pack` to
-    auto-generate a dependency on FlatRedBall2.AnimationEditorCommon in the FlatRedBall2.* nuspec;
+    auto-generate a dependency on FlatRedBall.AnimationChain.Common in the FlatRedBall2.* nuspec;
     that dependency must resolve to a real, matching-version package on nuget.org, so this project
     is published in the same workflow run, sharing the same version, before FlatRedBall2 itself.
   -->
@@ -35,7 +35,7 @@
     <IsAotCompatible>true</IsAotCompatible>
 
     <!-- NuGet Metadata -->
-    <PackageId>FlatRedBall2.AnimationEditorCommon</PackageId>
+    <PackageId>FlatRedBall.AnimationChain.Common</PackageId>
     <Authors>Victor Chelaru</Authors>
     <Description>
       The .achx animation file-format data model (AnimationChainListSave, AnimationChainSave,
@@ -66,7 +66,7 @@
       <_Parameter1>FlatRedBall2.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>AnimationEditorCommon.Tests</_Parameter1>
+      <_Parameter1>AnimationChain.Common.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 </Project>

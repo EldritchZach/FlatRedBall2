@@ -1,4 +1,4 @@
-# FlatRedBall2.AnimationEditorCommon
+# FlatRedBall.AnimationChain.Common
 
 The `.achx` animation file-format data model (`AnimationChainListSave`, `AnimationChainSave`,
 `AnimationFrameSave`, `ColorOperation`, `ShapesSave`) plus a generic, renderer-agnostic playback
