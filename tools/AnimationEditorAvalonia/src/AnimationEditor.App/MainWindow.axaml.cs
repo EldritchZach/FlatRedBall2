@@ -5916,9 +5916,6 @@ public partial class MainWindow : Window
                 acls, selectedData, _objectFinder, _selectedState);
             if (targetChain is null) return;
 
-            foreach (var pasted in frames)
-                pasted.ShapesSave ??= new ShapesSave();
-
             if (completingCut)
                 _appCommands.PasteFramesCut(targetChain, frames, insertIndex, _pendingCutState.Frames);
             else

@@ -546,9 +546,6 @@ public partial class AnimationTreeControl : UserControl
                 PastePlacementLogic.ResolveFramePasteTarget(acls, nodeData, _objectFinder!, _selectedState);
             if (targetChain is null) return;
 
-            foreach (var pasted in frames)
-                pasted.ShapesSave ??= new ShapesSave();
-
             if (completingCut) _appCommands!.PasteFramesCut(targetChain, frames, insertIndex, pendingCut.Frames);
             else _appCommands!.PasteFrames(targetChain, frames, insertIndex);
         }

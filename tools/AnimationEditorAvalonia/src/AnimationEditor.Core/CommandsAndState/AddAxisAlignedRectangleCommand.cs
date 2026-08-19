@@ -27,7 +27,8 @@ namespace AnimationEditor.Core.CommandsAndState.Commands
 
         public bool Do()
         {
-            _frame.ShapesSave!.Shapes.Add(_rect);
+            _frame.ShapesSave ??= new ShapesSave();
+            _frame.ShapesSave.Shapes.Add(_rect);
             _commands.RefreshTreeNode(_frame);
             _commands.RefreshAnimationFrameDisplay();
             _events.RaiseAnimationChainsChanged();

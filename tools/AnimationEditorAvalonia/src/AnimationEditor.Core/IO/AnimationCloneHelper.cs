@@ -27,14 +27,14 @@ public static class AnimationCloneHelper
             Blue             = source.Blue,
             Alpha            = source.Alpha,
             ColorOperation   = source.ColorOperation,
-            ShapesSave       = new ShapesSave(),
         };
 
         if (source.ShapesSave is not null)
         {
+            copy.ShapesSave = new ShapesSave();
             foreach (var shape in source.ShapesSave.Shapes)
                 if (CloneShape(shape) is { } shapeCopy)
-                    copy.ShapesSave!.Shapes.Add(shapeCopy);
+                    copy.ShapesSave.Shapes.Add(shapeCopy);
         }
 
         return copy;

@@ -75,15 +75,17 @@ public class AppCommandsFrameTests
     }
 
     [Fact]
-    public void AddFrame_InitializesShapesSave()
+    public void AddFrame_LeavesShapesSaveNull()
     {
+        // #937: a freshly-created frame stays shapeless until a shape is actually added, so it
+        // saves without an empty shapesSave/ShapeCollectionSave block.
         var ctx = TestHelpers.SetupFreshAcls();
         var acls = ctx.Acls;
         var chain = TestHelpers.MakeChain(acls, "Attack");
 
         ctx.AppCommands.AddFrame(chain);
 
-        Assert.NotNull(chain.Frames[0].ShapesSave);
+        Assert.Null(chain.Frames[0].ShapesSave);
     }
 
     [Fact]

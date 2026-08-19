@@ -745,7 +745,6 @@ namespace AnimationEditor.Core.CommandsAndState
                 TopCoordinate    = source?.TopCoordinate    ?? 0f,
                 BottomCoordinate = source?.BottomCoordinate ?? 1f,
                 FrameLength      = 0.1f,
-                ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
             };
             _undoManager.Execute(new AddFrameCommand(frame, chain, this, _events, _selectedState));
         }
@@ -1590,7 +1589,6 @@ namespace AnimationEditor.Core.CommandsAndState
                 TopCoordinate       = minY / (float)bitmapHeight,
                 BottomCoordinate    = maxY / (float)bitmapHeight,
                 FrameLength         = 0.1f,
-                ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
             };
 
             _undoManager.Execute(new AddFrameCommand(frame, chain, this, _events, _selectedState));

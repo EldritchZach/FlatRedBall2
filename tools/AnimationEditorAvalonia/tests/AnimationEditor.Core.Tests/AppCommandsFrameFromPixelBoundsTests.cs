@@ -75,11 +75,13 @@ public class AppCommandsFrameFromPixelBoundsTests
     }
 
     [Fact]
-    public void Frame_ShapesSave_IsInitialised()
+    public void Frame_ShapesSave_StaysNull()
     {
+        // #937: a freshly-created frame stays shapeless until a shape is actually added, so it
+        // saves without an empty shapesSave/ShapeCollectionSave block.
         var chain = MakeChain();
         ctx.AppCommands.AddFrameFromPixelBounds(chain, "t.png", 0, 0, 64, 64, 128, 128);
-        Assert.NotNull(chain.Frames[0].ShapesSave);
+        Assert.Null(chain.Frames[0].ShapesSave);
     }
 
     // ── Selection ─────────────────────────────────────────────────────────

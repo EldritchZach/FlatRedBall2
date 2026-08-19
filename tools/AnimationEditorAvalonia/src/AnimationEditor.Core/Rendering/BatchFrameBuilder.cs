@@ -98,7 +98,6 @@ public static class BatchFrameBuilder
                 RightCoordinate  = currentRight,
                 TopCoordinate    = currentTop,
                 BottomCoordinate = currentBottom,
-                ShapesSave = new FlatRedBall2.AnimationEditorCommon.ShapesSave()
             };
 
             result.Add(frame);

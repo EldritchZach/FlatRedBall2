@@ -95,7 +95,6 @@ public static class TextureDropProcessor
                 RightCoordinate = 1f,
                 BottomCoordinate = 1f,
                 FrameLength = 0.1f,
-                ShapesSave = new ShapesSave()
             });
 
             return TextureDropResult.CreatedFrame;

@@ -49,4 +49,31 @@ public class AnimationCloneHelperTests
         Assert.Equal(source.Alpha, copy.Alpha);
         Assert.Equal(source.ColorOperation, copy.ColorOperation);
     }
+
+    // #937: cloning (duplicate frame/chain, copy-paste) must preserve ShapesSave presence like
+    // every other path now does -- a shapeless source frame must not gain an empty ShapesSave
+    // through the clone, or the copy bakes an empty shapesSave/ShapeCollectionSave block on save.
+    [Fact]
+    public void CloneFrame_SourceHasNullShapesSave_CopyAlsoNull()
+    {
+        var source = new AnimationFrameSave { TextureName = "walk.png", ShapesSave = null };
+
+        var copy = AnimationCloneHelper.CloneFrame(source);
+
+        Assert.Null(copy.ShapesSave);
+    }
+
+    [Fact]
+    public void CloneFrame_SourceHasShapes_CopyHasClonedShapes()
+    {
+        var source = new AnimationFrameSave { TextureName = "walk.png" };
+        source.ShapesSave = new ShapesSave();
+        source.ShapesSave.Shapes.Add(new AARectSave { Name = "HitBox" });
+
+        var copy = AnimationCloneHelper.CloneFrame(source);
+
+        Assert.NotNull(copy.ShapesSave);
+        Assert.Single(copy.ShapesSave!.Shapes);
+        Assert.NotSame(source.ShapesSave.Shapes[0], copy.ShapesSave.Shapes[0]);
+    }
 }

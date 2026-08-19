@@ -100,6 +100,55 @@ public class ProjectManagerSaveTests
         Assert.Equal(TextureCoordinateType.UV, written.CoordinateType);
     }
 
+    // #937: a frame that never had a <ShapeCollectionSave> element on disk (ShapesSave == null
+    // straight out of ParseXml/ParseJson) must round-trip through LoadAnimationChain and back out
+    // to Save/SaveJson still null, not a force-populated empty ShapesSave. AnimationChainListSave's
+    // own writer already omits the wrapper correctly for a null ShapesSave (see
+    // Save_FrameWithNullShapes_OmitsShapeCollectionElement in AchxSerializationTests) -- this test
+    // guards the AnimationEditor-side load path, which used to defeat that by unconditionally
+    // doing `frame.ShapesSave ??= new ShapesSave()` on every loaded frame.
+    [Fact]
+    public void SaveAnimationChainList_Stream_OmitsShapeCollection_ForFrameThatNeverHadShapes()
+    {
+        var pm = new ProjectManager();
+        var frame = new AnimationFrameSave { TextureName = "hero.png", ShapesSave = null };
+        var chain = new AnimationChainSave { Name = "Idle" };
+        chain.Frames.Add(frame);
+        var preParsed = new AnimationChainListSave { CoordinateType = TextureCoordinateType.UV };
+        preParsed.AnimationChains.Add(chain);
+
+        pm.LoadAnimationChain(new FilePath(TestPaths.Abs("browser", "noshapes.achx")), preParsed);
+
+        using var stream = new MemoryStream();
+        pm.SaveAnimationChainList(stream);
+
+        stream.Position = 0;
+        var xml = new StreamReader(stream).ReadToEnd();
+        Assert.DoesNotContain("ShapeCollectionSave", xml);
+    }
+
+    // #937 follow-up: AppCommands.AddFrame/AddFrameFromPixelBounds create *new* frames with an
+    // eagerly-allocated empty ShapesSave, a second source of the same bloat the load-path fix
+    // above addressed -- confirmed live by opening the app, slicing a sprite sheet into frames,
+    // and saving: every frame still got an empty shapesSave block, since these frames are never
+    // loaded from disk at all. AddFrameCommand.Do() calls SaveCurrentAnimationChainList()
+    // immediately, so the empty block is baked in on the very first save.
+    [Fact]
+    public void SaveAnimationChainList_Stream_OmitsShapeCollection_ForFrameCreatedViaAddFrame()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Coin");
+
+        ctx.AppCommands.AddFrame(chain, "items.png");
+
+        using var stream = new MemoryStream();
+        ctx.ProjectManager.SaveAnimationChainList(stream);
+
+        stream.Position = 0;
+        var xml = new StreamReader(stream).ReadToEnd();
+        Assert.DoesNotContain("ShapeCollectionSave", xml);
+    }
+
     // #647 Phase 9: the browser build's IStorageFile.OpenWriteAsync() stream backs the File
     // System Access API, which only supports async writes. Handing that stream to the
     // synchronous SaveAnimationChainList(Stream) crashed the whole WASM runtime from inside
