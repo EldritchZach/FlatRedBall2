@@ -1,5 +1,4 @@
 using AnimationEditor.Core.HotReload;
-using System;
 using System.IO;
 using Xunit;
 

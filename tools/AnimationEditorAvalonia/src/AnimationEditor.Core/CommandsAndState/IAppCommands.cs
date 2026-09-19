@@ -475,11 +475,23 @@ namespace AnimationEditor.Core.CommandsAndState
 
         /// <summary>
         /// Raised when syncing to one associated .tsx tileset fails after a save (missing file, an
-        /// unsupported <c>TsxWriter</c> feature, etc.). The first argument is the .tsx path; the
+        /// unsupported <c>TsxWriter</c> feature, etc.), or when the .tiledsync companion file
+        /// itself exists but fails to parse (see <see cref="IIoManager.TiledSyncParseFailed"/>).
+        /// The first argument is the .tsx (or .achx, for a .tiledsync parse failure) path; the
         /// second is the exception. A failure here never affects the .achx save itself, which has
         /// already completed by the time this fires -- the app layer should surface it as a
         /// non-blocking toast/log entry, not retry the .achx save.
         /// </summary>
         event Action<string, Exception>? TiledSyncFailed;
+
+        /// <summary>
+        /// Raised when syncing to one associated .tsx tileset actually writes a change (see
+        /// <see cref="Tiled.TilesetAnimationSyncResult.Changed"/>) -- not on every sync, since
+        /// autosave runs this on nearly every edit and most saves have nothing new to write; firing
+        /// on every one would be a meaningless constant flicker rather than useful confirmation.
+        /// The first argument is the .tsx path; the second is how many chains were applied. Pairs
+        /// with <see cref="TiledSyncFailed"/> for a UI status indicator that needs both outcomes.
+        /// </summary>
+        event Action<string, int>? TiledSyncSucceeded;
     }
 }

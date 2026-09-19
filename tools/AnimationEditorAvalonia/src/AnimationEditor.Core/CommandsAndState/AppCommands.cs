@@ -62,6 +62,11 @@ namespace AnimationEditor.Core.CommandsAndState
             // and was twice misdiagnosed while investigating issue #839. Living here instead
             // means AppCommandsSaveOnChangeTests exercises it with no Avalonia/UI involved.
             _events.AnimationChainsChanged += OnAnimationChainsChanged;
+
+            // A corrupt .tiledsync is a Tiled-sync problem same as a broken .tsx write -- route
+            // it through the one event the UI already listens on (issue #1139) rather than
+            // adding a second failure channel it would also need to wire up.
+            _ioManager.TiledSyncParseFailed += (achxFile, ex) => TiledSyncFailed?.Invoke(achxFile, ex);
         }
 
         private void OnAnimationChainsChanged()
@@ -304,7 +309,7 @@ namespace AnimationEditor.Core.CommandsAndState
             RefreshWireframeRequested?.Invoke();
             RefreshAnimationFrameDisplayRequested?.Invoke();
 
-            // Start watching the loaded file and its referenced PNGs
+            // Start watching the loaded file and its referenced PNGs.
             var achxDir = System.IO.Path.GetDirectoryName(fileName) ?? string.Empty;
             var pngPaths = GetReferencedAbsolutePngPaths(fileName, achxDir);
             HotReloadWatcher.StartWatching(fileName, pngPaths);
@@ -446,6 +451,9 @@ namespace AnimationEditor.Core.CommandsAndState
         /// <inheritdoc/>
         public event Action<string, Exception>? TiledSyncFailed;
 
+        /// <inheritdoc/>
+        public event Action<string, int>? TiledSyncSucceeded;
+
         public void AddAssociatedTiledTileset(string tsxAbsolutePath)
         {
             if (string.IsNullOrEmpty(_pm.FileName)) return;
@@ -504,8 +512,15 @@ namespace AnimationEditor.Core.CommandsAndState
             }
 
             foreach (var outcome in outcomes)
-                if (!outcome.Success)
+            {
+                if (outcome.Success)
+                {
+                    if (outcome.Changed)
+                        TiledSyncSucceeded?.Invoke(outcome.TsxPath, outcome.AppliedCount);
+                }
+                else
                     TiledSyncFailed?.Invoke(outcome.TsxPath, outcome.Error!);
+            }
         }
 
         /// <summary>

@@ -143,4 +143,75 @@ public class AppCommandsTiledSyncTests
         // The .achx save itself must still have succeeded despite the Tiled sync failure.
         Assert.True(File.Exists(achxPath));
     }
+
+    // ── TiledSyncSucceeded: must reflect an actual write, not just "sync ran" ──────────
+    // Autosave fires on nearly every edit, and most of those saves have nothing new to sync
+    // (TilesetAnimationSyncResult.Changed false) -- firing "succeeded" on every one of them would
+    // be a constant, meaningless flicker in the status bar. It should only fire when a write
+    // actually happened.
+
+    [Fact]
+    public void SaveCurrentAnimationChainList_AssociatedTsxNewAnimation_RaisesTiledSyncSucceeded()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var tsxPath = WriteFixtureTileset(dir.Path);
+        var achxPath = Path.Combine(dir.Path, "Hero.achx");
+        ctx.ProjectManager.FileName = achxPath;
+        ctx.AppCommands.AddAssociatedTiledTileset(tsxPath);
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        chain.Frames.Add(new AnimationFrameSave
+        {
+            TextureName = "Heroes.png", FrameLength = 0.1f,
+            LeftCoordinate = 0f, TopCoordinate = 0f, RightCoordinate = 0.25f, BottomCoordinate = 1f,
+        });
+
+        bool succeeded = false;
+        ctx.AppCommands.TiledSyncSucceeded += (_, __) => succeeded = true;
+        ctx.AppCommands.SaveCurrentAnimationChainList(achxPath);
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public void SaveCurrentAnimationChainList_AssociatedTsxAlreadyUpToDate_DoesNotRaiseTiledSyncSucceeded()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var tsxPath = WriteFixtureTileset(dir.Path);
+        var achxPath = Path.Combine(dir.Path, "Hero.achx");
+        ctx.ProjectManager.FileName = achxPath;
+        ctx.AppCommands.AddAssociatedTiledTileset(tsxPath);
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        chain.Frames.Add(new AnimationFrameSave
+        {
+            TextureName = "Heroes.png", FrameLength = 0.1f,
+            LeftCoordinate = 0f, TopCoordinate = 0f, RightCoordinate = 0.25f, BottomCoordinate = 1f,
+        });
+        ctx.AppCommands.SaveCurrentAnimationChainList(achxPath);
+
+        bool succeeded = false;
+        ctx.AppCommands.TiledSyncSucceeded += (_, __) => succeeded = true;
+        ctx.AppCommands.SaveCurrentAnimationChainList(achxPath);
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public void SaveCurrentAnimationChainList_CorruptTiledSyncFile_RaisesTiledSyncFailed()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var achxPath = Path.Combine(dir.Path, "Hero.achx");
+        File.WriteAllText(Path.Combine(dir.Path, "Hero.tiledsync"), "{ not valid json");
+        ctx.ProjectManager.FileName = achxPath;
+
+        string? failedPath = null;
+        ctx.AppCommands.TiledSyncFailed += (path, _) => failedPath = path;
+        ctx.AppCommands.SaveCurrentAnimationChainList(achxPath);
+
+        Assert.Equal(new FilePath(achxPath), new FilePath(failedPath!));
+        // The .achx save itself must still have succeeded despite the corrupt .tiledsync.
+        Assert.True(File.Exists(achxPath));
+    }
 }

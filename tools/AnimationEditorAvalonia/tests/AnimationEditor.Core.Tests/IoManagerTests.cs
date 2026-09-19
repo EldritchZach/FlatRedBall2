@@ -187,6 +187,21 @@ public class IoManagerTests
     }
 
     [Fact]
+    public void AddAssociatedTiledTilesetPath_NewPath_TiledSyncFileContainsJson_NotXml()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var achxPath = dir.Path + "/hero.achx";
+        var tsxPath = dir.Path + "/Heroes.tsx";
+
+        ctx.IoManager.AddAssociatedTiledTilesetPath(achxPath, tsxPath);
+
+        var contents = File.ReadAllText(dir.Path + "/hero.tiledsync").TrimStart();
+        Assert.StartsWith("{", contents);
+        Assert.DoesNotContain("<TiledTilesetPath>", contents);
+    }
+
+    [Fact]
     public void AddAssociatedTiledTilesetPath_NewPath_IsReturnedByGetAssociatedTiledTilesetPaths()
     {
         var ctx = TestHelpers.SetupFreshAcls();
@@ -232,6 +247,48 @@ public class IoManagerTests
         Assert.Equal(2, associated.Count);
         Assert.Contains(new FilePath(firstTsxPath), associated.Select(p => new FilePath(p)));
         Assert.Contains(new FilePath(secondTsxPath), associated.Select(p => new FilePath(p)));
+    }
+
+    [Fact]
+    public void GetAssociatedTiledTilesetPaths_CorruptTiledSyncFile_RaisesTiledSyncParseFailed()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var achxPath = dir.Path + "/hero.achx";
+        File.WriteAllText(dir.Path + "/hero.tiledsync", "{ not valid json");
+
+        (string achxFile, Exception ex)? captured = null;
+        ctx.IoManager.TiledSyncParseFailed += (achxFile, ex) => captured = (achxFile, ex);
+        ctx.IoManager.GetAssociatedTiledTilesetPaths(achxPath);
+
+        Assert.NotNull(captured);
+        Assert.Equal(new FilePath(achxPath), new FilePath(captured!.Value.achxFile));
+    }
+
+    [Fact]
+    public void GetAssociatedTiledTilesetPaths_CorruptTiledSyncFile_ReturnsEmpty()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+        var achxPath = dir.Path + "/hero.achx";
+        File.WriteAllText(dir.Path + "/hero.tiledsync", "{ not valid json");
+
+        var associated = ctx.IoManager.GetAssociatedTiledTilesetPaths(achxPath);
+
+        Assert.Empty(associated);
+    }
+
+    [Fact]
+    public void GetAssociatedTiledTilesetPaths_NoCompanionFile_DoesNotRaiseTiledSyncParseFailed()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        using var dir = new TestHelpers.TempDir();
+
+        var fired = false;
+        ctx.IoManager.TiledSyncParseFailed += (_, __) => fired = true;
+        ctx.IoManager.GetAssociatedTiledTilesetPaths(dir.Path + "/never-saved.achx");
+
+        Assert.False(fired);
     }
 
     [Fact]
