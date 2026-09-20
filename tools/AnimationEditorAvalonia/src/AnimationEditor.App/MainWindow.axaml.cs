@@ -963,7 +963,7 @@ public partial class MainWindow : Window
             if (active.Kind == TabKind.Png)
                 ShowPngPane(active);
             else
-                await _appCommands.OpenAchxWorkflowAsync(active.Path.FullPath);
+                await _appCommands.OpenProjectWorkflowAsync(active.Path.FullPath);
             RebuildTabStrip();
         }
     }
@@ -1208,6 +1208,7 @@ public partial class MainWindow : Window
                 UpdateTitle();
                 UpdateStatusBar();
                 RefreshFilesPanel();
+                SyncGridControlsToProject();
 
                 // If that tab was an Untitled sentinel, promote it to the real file path.
                 if (toPromote != null && IsUntitledTab(toPromote))
@@ -1331,6 +1332,13 @@ public partial class MainWindow : Window
 
     private void OnSnapToGridChanged(object? sender, RoutedEventArgs e)
     {
+        // A native tsx project's grid can't be turned off (issue #1140) -- revert the uncheck.
+        if (_projectManager.IsNativeTsxProject && SnapToGridCheck.IsChecked != true)
+        {
+            SnapToGridCheck.IsChecked = true;
+            return;
+        }
+
         WireframeCtrl.SetGrid(
             SnapToGridCheck.IsChecked == true,
             GetGridSizeFromInput());
@@ -1339,8 +1347,41 @@ public partial class MainWindow : Window
 
     private int GetGridSizeFromInput() => (int)(GridSizeInput.Value ?? 16m);
 
+    /// <summary>
+    /// A native tsx project's grid is fixed to the tsx's own tile size, not user-configurable
+    /// (issue #1140): sets the toolbar grid controls to match and turns snap-to-grid on. Any
+    /// further edit to the size is reverted by <see cref="ApplyGridSize"/>. Deliberately doesn't
+    /// touch <see cref="Avalonia.Controls.Control.IsEnabled"/> on either control -- GridSizeInput's
+    /// IsEnabled is XAML-bound to SnapToGridCheck.IsChecked, and setting it directly here would
+    /// permanently replace that binding with a local value (Avalonia clears an active binding when
+    /// its target property is set imperatively), breaking the enable/disable-by-checkbox behavior
+    /// for every achx/achj project opened afterward. <see
+    /// cref="AnimationEditor.Core.ProjectManager.TsxTileSize"/> only exposes one size because <see
+    /// cref="AnimationEditor.Views.Controls.WireframeControl.SetGrid"/> only takes one -- a
+    /// non-square tsx tile can't be represented by this grid today, same limitation as before this
+    /// feature.
+    /// </summary>
+    private void SyncGridControlsToProject()
+    {
+        if (_projectManager.IsNativeTsxProject && _projectManager.TsxTileSize is { } tileSize)
+        {
+            GridSizeInput.Value = tileSize.Width;
+            SnapToGridCheck.IsChecked = true;
+            WireframeCtrl.SetGrid(true, tileSize.Width);
+        }
+    }
+
     private void ApplyGridSize()
     {
+        // A native tsx project's grid size is fixed to the tsx's own tile size (issue #1140) --
+        // revert any edit rather than applying it.
+        if (_projectManager.IsNativeTsxProject && _projectManager.TsxTileSize is { } lockedSize
+            && GetGridSizeFromInput() != lockedSize.Width)
+        {
+            GridSizeInput.Value = lockedSize.Width;
+            return;
+        }
+
         if (SnapToGridCheck.IsChecked == true)
             WireframeCtrl.SetGrid(true, GetGridSizeFromInput());
         SaveCompanionFile();
@@ -2501,7 +2542,8 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Animation Chain") { Patterns = new[] { "*.achx", "*.achj" } }
+                new FilePickerFileType("Animation Chain") { Patterns = new[] { "*.achx", "*.achj" } },
+                new FilePickerFileType("Tiled Tileset") { Patterns = new[] { "*.tsx" } },
             }
         });
 
@@ -4089,6 +4131,7 @@ public partial class MainWindow : Window
                     node.PinnedVisible = visible.Contains(c);
 
             RefreshTreeThumbnails();
+            SyncTsxValidationIssuesIntoTree();
 
             // Re-select to keep visual state
             SyncTreeSelection();
@@ -4098,6 +4141,14 @@ public partial class MainWindow : Window
             _suppressTreeSelectionHandling = false;
         }
     }
+
+    /// <summary>
+    /// Refreshes the exclamation-icon decoration on every chain node from <see
+    /// cref="IProjectManager.GetChainNamesWithTsxIssues"/> (issue #1140). A no-op for an achx/achj
+    /// project, which always returns an empty set.
+    /// </summary>
+    private void SyncTsxValidationIssuesIntoTree() =>
+        TreeBuilder.ApplyValidationIssues(_treeRoots, _projectManager.GetChainNamesWithTsxIssues());
 
     /// <summary>
     /// Fully rebuilds the tree from scratch, expanding only the chains named in
@@ -4144,6 +4195,7 @@ public partial class MainWindow : Window
             RefreshFilesPanel();
 
             RefreshTreeThumbnails();
+            SyncTsxValidationIssuesIntoTree();
             SyncTreeSelection();
         }
         finally
@@ -5192,8 +5244,16 @@ public partial class MainWindow : Window
             if (selectedChain is not null)
                 LoopToggle.IsChecked = selectedChain.Loop;
             PropFramePanel.IsVisible  = frame is not null && !hasShapeSelection;
-            PropRectPanel.IsVisible   = rect  is not null;
-            PropCirclePanel.IsVisible = circ  is not null;
+            PropRectPanel.IsVisible   = rect  is not null && !_projectManager.IsNativeTsxProject;
+            PropCirclePanel.IsVisible = circ  is not null && !_projectManager.IsNativeTsxProject;
+
+            // A native tsx project can't express flip/relative-offset/color data (issue #1140) --
+            // hide the sections that would let a user set values that get silently dropped on save.
+            // These never actually contain data for a tsx-originated frame (the reverse mapper
+            // never populates them), so this is about not offering the controls at all, not about
+            // clearing anything.
+            PropTransformSection.IsVisible = !_projectManager.IsNativeTsxProject;
+            PropColorSection.IsVisible     = !_projectManager.IsNativeTsxProject;
 
             // Disable (not just visually leave typeable) whichever panel is showing when its
             // owning chain is locked -- AppCommands already no-ops the edit, so a still-enabled
@@ -5613,7 +5673,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            await _appCommands.OpenAchxWorkflowAsync(fileName);
+            await _appCommands.OpenProjectWorkflowAsync(fileName);
             // Restore this tab's prior history if it was previously open (snapshot normally
             // null on first open; non-null if the tab was closed and re-opened mid-session).
             if (arrivedTab?.UndoSnapshot != null)

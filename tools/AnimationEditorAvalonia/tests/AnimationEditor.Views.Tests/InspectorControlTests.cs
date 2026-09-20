@@ -30,6 +30,11 @@ public class InspectorControlTests
         public string? FileName { get; set; }
         public string? ProjectFolderPath { get; set; }
         public TextureCoordinateType OnDiskCoordinateType { get; set; }
+        public bool IsNativeTsxProject => false;
+        public (int Width, int Height)? TsxTileSize => null;
+        public void LoadTsxProject(FilePath fileName) { }
+        public void SaveTsxProject(string? targetPath = null) { }
+        public IReadOnlyList<string> GetChainNamesWithTsxIssues() => Array.Empty<string>();
 
         public void LoadAnimationChain(
             FilePath fileName,
