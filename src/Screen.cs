@@ -683,11 +683,13 @@ public class Screen : ILifecycleEvents
     /// output before invoking <paramref name="onChanged"/>, and invokes the callback on the game
     /// thread once writes settle.
     /// <para>
-    /// If <see cref="FlatRedBallService.SourceContentRoots"/> is empty (typically a shipping
-    /// build with no <c>.csproj</c> next to the executable), this method returns <c>null</c> and
-    /// no watcher is registered — hot-reload is a dev-only convenience. If multiple roots
-    /// contain <paramref name="sourcePath"/>, a watcher is registered for each; the first one
-    /// is returned. All registered watchers appear in <see cref="ContentWatchers"/>.
+    /// If no entry in <see cref="FlatRedBallService.SourceContentRoots"/> contains
+    /// <paramref name="sourcePath"/>, this method returns <c>null</c> and no watcher is registered —
+    /// hot-reload is a dev-only convenience. That covers both an empty root list (typical of a
+    /// shipping build) and a non-empty list that does not contain this file; see
+    /// <see cref="FlatRedBallService.DetectSourceContentRoots"/> for how roots are chosen. If
+    /// multiple roots contain <paramref name="sourcePath"/>, a watcher is registered for each; the
+    /// first one is returned. All registered watchers appear in <see cref="ContentWatchers"/>.
     /// </para>
     /// <para>
     /// <paramref name="destinationPath"/> defaults to <paramref name="sourcePath"/>. Override when
@@ -734,12 +736,11 @@ public class Screen : ILifecycleEvents
 
         if (!registered)
         {
-            // No root contained the file. Fall back to the first root so the watcher exists
-            // (and will pick the file up if it appears later) — matches the historical
-            // single-root behavior where srcAbs was used regardless of file existence.
-            var srcAbs = Path.Combine(Engine.SourceContentRoots[0], sourcePath);
-            watcher = WatchContent(new FileSystemFileWatcher(srcAbs), onChanged,
-                sourceAbsolutePath: srcAbs, destinationAbsolutePath: destAbs);
+            // No root contained the file. Do NOT fabricate a watcher for a path that does not
+            // exist: FileSystemFileWatcher tolerates such a path (it simply never fires), but the
+            // registration result would be a lie, and the directory overload below turns the same
+            // mistake into a hard crash. Report unavailable so hot reload stays off.
+            return ContentWatchRegistrationStatus.SourceContentRootUnavailable;
         }
         return ContentWatchRegistrationStatus.Registered;
     }
@@ -767,9 +768,13 @@ public class Screen : ILifecycleEvents
     /// <paramref name="sourceDirectory"/>. The engine copies each changed file to the matching
     /// path under the build output before invoking the callback.
     /// <para>
-    /// Returns <c>null</c> when <see cref="FlatRedBallService.SourceContentRoots"/> is empty
-    /// (shipping build). When multiple roots contain <paramref name="sourceDirectory"/>, a
-    /// watcher is registered for each; the first one is returned, all are tracked in
+    /// Returns <c>null</c> and registers nothing when no entry in
+    /// <see cref="FlatRedBallService.SourceContentRoots"/> contains
+    /// <paramref name="sourceDirectory"/> — both when the root list is empty (typical of a
+    /// shipping build) and when it is not but lacks this directory; see
+    /// <see cref="FlatRedBallService.DetectSourceContentRoots"/> for how roots are chosen. When
+    /// multiple roots contain <paramref name="sourceDirectory"/>, a watcher is registered for each;
+    /// the first one is returned, all are tracked in
     /// <see cref="ContentDirectoryWatchers"/>.
     /// </para>
     /// <para>
@@ -817,12 +822,9 @@ public class Screen : ILifecycleEvents
 
         if (!registered)
         {
-            // No root contained the directory. Fall back to the first root so a watcher exists
-            // (matches historical single-root behavior). The watcher will simply produce no
-            // events until the directory appears.
-            var srcAbs = Path.Combine(Engine.SourceContentRoots[0], sourceDirectory);
-            watcher = WatchContentDirectory(new FileSystemDirectoryWatcher(srcAbs), onChanged,
-                sourceAbsoluteRoot: srcAbs, destinationAbsoluteRoot: destAbs);
+            // No root contains the directory. Don't guess a path: the watcher throws on a missing
+            // directory, and the detected root may be an unrelated ancestor project.
+            return ContentWatchRegistrationStatus.SourceContentRootUnavailable;
         }
 
         return ContentWatchRegistrationStatus.Registered;
