@@ -30,6 +30,36 @@ public class TreeMenuPlanBuilderTests
     }
 
     [Fact]
+    public void Build_FrameNode_AddShapeItemsCarryMatchingIcons()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var frame = TestHelpers.MakeChain(ctx.Acls, "Run", frameCount: 1).Frames[0];
+
+        var items = TreeMenuPlanBuilder.Build(
+            frame, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
+
+        Assert.Equal(TreeMenuIcon.Rectangle, items.Single(i => i.Header == "Add AxisAlignedRectangle").Icon);
+        Assert.Equal(TreeMenuIcon.Circle, items.Single(i => i.Header == "Add Circle").Icon);
+        Assert.Equal(TreeMenuIcon.Polygon, items.Single(i => i.Header == "Add Polygon").Icon);
+    }
+
+    [Fact]
+    public void Build_ChainNode_CommonItemsCarryIcons()
+    {
+        var ctx = TestHelpers.SetupFreshAcls();
+        var chain = TestHelpers.MakeChain(ctx.Acls, "Walk");
+        TestHelpers.MakeChain(ctx.Acls, "Run");
+
+        var items = TreeMenuPlanBuilder.Build(
+            chain, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
+
+        Assert.Equal(TreeMenuIcon.MoveDown, items.Single(i => i.Header == "Move Down").Icon);
+        Assert.Equal(TreeMenuIcon.Frame, items.Single(i => i.Header == "Add Frame").Icon);
+        Assert.Equal(TreeMenuIcon.Copy, items.Single(i => i.Header == "Copy").Icon);
+        Assert.Equal(TreeMenuIcon.Delete, items.Single(i => i.Header == "Delete Animation").Icon);
+    }
+
+    [Fact]
     public void Build_ChainNode_DuplicateIsSubmenuWithThreeChildren()
     {
         var ctx = TestHelpers.SetupFreshAcls();
@@ -52,10 +82,10 @@ public class TreeMenuPlanBuilderTests
         var items = TreeMenuPlanBuilder.Build(
             chain, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
 
-        Assert.True(IndexOf(items, "v  Move Down") >= 0);
-        Assert.True(IndexOf(items, "vv Move To Bottom") >= 0);
-        Assert.Equal(-1, IndexOf(items, "^  Move Up"));
-        Assert.Equal(-1, IndexOf(items, "^^ Move To Top"));
+        Assert.True(IndexOf(items, "Move Down") >= 0);
+        Assert.True(IndexOf(items, "Move To Bottom") >= 0);
+        Assert.Equal(-1, IndexOf(items, "Move Up"));
+        Assert.Equal(-1, IndexOf(items, "Move To Top"));
     }
 
     [Fact]
@@ -67,7 +97,7 @@ public class TreeMenuPlanBuilderTests
         var items = TreeMenuPlanBuilder.Build(
             chain, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
 
-        Assert.Equal(-1, IndexOf(items, "^  Move Up")); // single chain: no reorder items
+        Assert.Equal(-1, IndexOf(items, "Move Up")); // single chain: no reorder items
         Assert.Equal(TreeMenuHostSlot.AdjustFrameTime, items[0].HostSlot);
         int copy = IndexOf(items, "Copy");
         Assert.True(copy >= 0);
@@ -145,8 +175,8 @@ public class TreeMenuPlanBuilderTests
         var items = TreeMenuPlanBuilder.Build(
             frame, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
 
-        Assert.Equal(-1, IndexOf(items, "^  Move Up"));
-        Assert.Equal(-1, IndexOf(items, "v  Move Down"));
+        Assert.Equal(-1, IndexOf(items, "Move Up"));
+        Assert.Equal(-1, IndexOf(items, "Move Down"));
     }
 
     [Fact]
@@ -164,10 +194,10 @@ public class TreeMenuPlanBuilderTests
         var items = TreeMenuPlanBuilder.Build(
             rect, ctx.AppCommands, ctx.SelectedState, ctx.ObjectFinder, ctx.ProjectManager, NoOpActions());
 
-        Assert.True(IndexOf(items, "v  Move Down") >= 0);
-        Assert.True(IndexOf(items, "vv Move To Bottom") >= 0);
-        Assert.Equal(-1, IndexOf(items, "^  Move Up"));
-        Assert.Equal(-1, IndexOf(items, "^^ Move To Top"));
+        Assert.True(IndexOf(items, "Move Down") >= 0);
+        Assert.True(IndexOf(items, "Move To Bottom") >= 0);
+        Assert.Equal(-1, IndexOf(items, "Move Up"));
+        Assert.Equal(-1, IndexOf(items, "Move To Top"));
     }
 
     [Fact]

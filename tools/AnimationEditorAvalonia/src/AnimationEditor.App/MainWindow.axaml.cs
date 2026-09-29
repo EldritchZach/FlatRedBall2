@@ -5062,26 +5062,9 @@ public partial class MainWindow : Window
             DuplicateChainFlip: duplicateChainFlip);
 
         var plan = TreeMenuPlanBuilder.Build(data, _appCommands, _selectedState, _objectFinder, _projectManager, actions);
-        RenderMenuPlan(plan, data);
-    }
-
-    // Thin walk over the shared plan built by TreeMenuPlanBuilder: adds each entry via the
-    // existing Avalonia-building helpers below, substituting the real dialog/filesystem menu
-    // item at each host-slot placeholder (see TreeMenuHostSlot — these four stay desktop-only
-    // until issue #756).
-    private void RenderMenuPlan(IReadOnlyList<TreeMenuItem> plan, object? nodeData)
-    {
-        foreach (var entry in plan)
-        {
-            if (entry.IsSeparator)
-                AddSeparator();
-            else if (entry.HostSlot is { } slot)
-                AddHostSlotItem(slot, nodeData);
-            else if (entry.Children is { } children)
-                AddSubMenu(entry.Header!, children.Select(c => (c.Header!, c.OnClick!)).ToArray());
-            else
-                AddMenuItem(entry.Header!, entry.OnClick!);
-        }
+        // Host slots get the real dialog/filesystem menu item (see TreeMenuHostSlot — these
+        // four stay desktop-only until issue #756).
+        TreeMenuRenderer.Render(plan, AnimTree.ContextMenu!.Items, slot => AddHostSlotItem(slot, data));
     }
 
     private void AddHostSlotItem(TreeMenuHostSlot slot, object? nodeData)
@@ -5089,41 +5072,22 @@ public partial class MainWindow : Window
         switch (slot)
         {
             case TreeMenuHostSlot.AdjustFrameTime when nodeData is AnimationChainSave chain:
-                AddMenuItem("Adjust Frame Time…", () => AskAdjustFrameTime(chain));
+                AddMenuItem("Adjust Frame Time…", TreeMenuIcon.FrameTime, () => AskAdjustFrameTime(chain));
                 break;
             case TreeMenuHostSlot.AddMultipleFrames when nodeData is AnimationChainSave chain:
-                AddMenuItem("Add Multiple Frames…", () => _ = AskAddMultipleFramesAsync(chain));
+                AddMenuItem("Add Multiple Frames…", TreeMenuIcon.Frame, () => _ = AskAddMultipleFramesAsync(chain));
                 break;
             case TreeMenuHostSlot.AdjustOffsets when nodeData is AnimationChainSave chain:
-                AddMenuItem("Adjust Offsets…", () => _ = AskAdjustOffsetsAsync(chain));
+                AddMenuItem("Adjust Offsets…", TreeMenuIcon.Offsets, () => _ = AskAdjustOffsetsAsync(chain));
                 break;
             case TreeMenuHostSlot.ViewTextureInExplorer when nodeData is AnimationFrameSave frame:
-                AddMenuItem("Reveal Texture in File Manager", () => ViewTextureInExplorer(frame));
+                AddMenuItem("Reveal Texture in File Manager", TreeMenuIcon.RevealFile, () => ViewTextureInExplorer(frame));
                 break;
         }
     }
 
-    private void AddMenuItem(string header, Action onClick)
-    {
-        var item = new MenuItem { Header = header };
-        item.Click += (_, _) => onClick();
-        AnimTree.ContextMenu!.Items.Add(item);
-    }
-
-    private void AddSeparator() =>
-        AnimTree.ContextMenu!.Items.Add(new Separator());
-
-    private void AddSubMenu(string header, params (string Header, Action OnClick)[] children)
-    {
-        var parent = new MenuItem { Header = header };
-        foreach (var (childHeader, onClick) in children)
-        {
-            var child = new MenuItem { Header = childHeader };
-            child.Click += (_, _) => onClick();
-            parent.Items.Add(child);
-        }
-        AnimTree.ContextMenu!.Items.Add(parent);
-    }
+    private void AddMenuItem(string header, TreeMenuIcon icon, Action onClick) =>
+        AnimTree.ContextMenu!.Items.Add(TreeMenuRenderer.CreateMenuItem(header, onClick, icon));
 
     private void AskAdjustFrameTime(AnimationChainSave chain)
     {

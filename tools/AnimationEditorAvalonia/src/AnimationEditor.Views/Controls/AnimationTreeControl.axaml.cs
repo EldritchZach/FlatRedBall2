@@ -434,25 +434,7 @@ public partial class AnimationTreeControl : UserControl
             DuplicateChainFlip: duplicateChainFlip);
 
         var plan = TreeMenuPlanBuilder.Build(data, _appCommands, _selectedState!, _objectFinder, _projectManager, actions);
-        RenderMenuPlan(plan, data);
-    }
-
-    // Thin walk over the shared plan built by TreeMenuPlanBuilder -- mirrors MainWindow's own
-    // RenderMenuPlan, substituting a real menu item at the one host-slot this control's plan can
-    // ever contain (see AddHostSlotItem).
-    private void RenderMenuPlan(IReadOnlyList<TreeMenuItem> plan, object? nodeData)
-    {
-        foreach (var entry in plan)
-        {
-            if (entry.IsSeparator)
-                AddSeparator();
-            else if (entry.HostSlot is { } slot)
-                AddHostSlotItem(slot, nodeData);
-            else if (entry.Children is { } children)
-                AddSubMenu(entry.Header!, children.Select(c => (c.Header!, c.OnClick!)).ToArray());
-            else
-                AddMenuItem(entry.Header!, entry.OnClick!);
-        }
+        TreeMenuRenderer.Render(plan, Tree.ContextMenu!.Items, slot => AddHostSlotItem(slot, data));
     }
 
     private void AddHostSlotItem(TreeMenuHostSlot slot, object? nodeData)
@@ -461,23 +443,23 @@ public partial class AnimationTreeControl : UserControl
         {
             case TreeMenuHostSlot.AdjustFrameTime when nodeData is AnimationChainSave chain
                 && _dialogHost is not null:
-                AddMenuItem("Adjust Frame Time…",
+                AddMenuItem("Adjust Frame Time…", TreeMenuIcon.FrameTime,
                     () => _ = EditorDialogs.ShowAdjustFrameTimeAsync(_dialogHost, _appCommands!, chain));
                 break;
             case TreeMenuHostSlot.AddMultipleFrames when nodeData is AnimationChainSave chain
                 && _dialogHost is not null:
-                AddMenuItem("Add Multiple Frames…",
+                AddMenuItem("Add Multiple Frames…", TreeMenuIcon.Frame,
                     () => _ = EditorDialogs.ShowAddMultipleFramesAsync(
                         _dialogHost, _appCommands!, chain, _showStatus));
                 break;
             case TreeMenuHostSlot.AdjustOffsets when nodeData is AnimationChainSave chain
                 && _dialogHost is not null && _getTextureHeight is not null:
-                AddMenuItem("Adjust Offsets…",
+                AddMenuItem("Adjust Offsets…", TreeMenuIcon.Offsets,
                     () => _ = EditorDialogs.ShowAdjustOffsetsAsync(
                         _dialogHost, _appCommands!, chain, _getTextureHeight));
                 break;
             case TreeMenuHostSlot.ViewTextureInExplorer when nodeData is AnimationFrameSave frame:
-                AddMenuItem("Copy Texture Path", () => _ = CopyTexturePathAsync(frame));
+                AddMenuItem("Copy Texture Path", TreeMenuIcon.Copy, () => _ = CopyTexturePathAsync(frame));
                 break;
         }
     }
@@ -490,26 +472,8 @@ public partial class AnimationTreeControl : UserControl
         await clipboard.SetTextAsync(frame.TextureName);
     }
 
-    private void AddMenuItem(string header, Action onClick)
-    {
-        var item = new MenuItem { Header = header };
-        item.Click += (_, _) => onClick();
-        Tree.ContextMenu!.Items.Add(item);
-    }
-
-    private void AddSeparator() => Tree.ContextMenu!.Items.Add(new Separator());
-
-    private void AddSubMenu(string header, params (string Header, Action OnClick)[] children)
-    {
-        var parent = new MenuItem { Header = header };
-        foreach (var (childHeader, onClick) in children)
-        {
-            var child = new MenuItem { Header = childHeader };
-            child.Click += (_, _) => onClick();
-            parent.Items.Add(child);
-        }
-        Tree.ContextMenu!.Items.Add(parent);
-    }
+    private void AddMenuItem(string header, TreeMenuIcon icon, Action onClick) =>
+        Tree.ContextMenu!.Items.Add(TreeMenuRenderer.CreateMenuItem(header, onClick, icon));
 
     // ── Copy / Cut / Paste / Duplicate / Delete ──────────────────────────────
     // Mirrors MainWindow's HandleCopyCoreAsync/HandleCutCoreAsync/HandlePasteCoreAsync/
