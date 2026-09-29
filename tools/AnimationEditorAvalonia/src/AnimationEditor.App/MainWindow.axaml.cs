@@ -5710,6 +5710,7 @@ public partial class MainWindow : Window
     {
         _polygonRowsFor = polygon;
         _polygonVertexRows.Clear();
+        PreviewCtrl.InspectorVertexIndex = -1;
         PropPolygonVertices.Children.Clear();
         for (int i = 0; i < count; i++)
         {
@@ -5737,6 +5738,17 @@ public partial class MainWindow : Window
 
             x.ValueChanged += (_, _) => ApplyPolygonVertex(index);
             y.ValueChanged += (_, _) => ApplyPolygonVertex(index);
+            foreach (var input in new[] { x, y })
+            {
+                input.GotFocus += (_, _) => PreviewCtrl.InspectorVertexIndex = index;
+                // Deferred so tabbing X -> Y in the same row keeps the index instead of
+                // clearing and resetting it, which would replay the reveal.
+                input.LostFocus += (_, _) => Dispatcher.UIThread.Post(() =>
+                {
+                    if (!x.IsKeyboardFocusWithin && !y.IsKeyboardFocusWithin && PreviewCtrl.InspectorVertexIndex == index)
+                        PreviewCtrl.InspectorVertexIndex = -1;
+                });
+            }
             SealOnCommit(x, y);
             _polygonVertexRows.Add((x, y));
             PropPolygonVertices.Children.Add(row);
