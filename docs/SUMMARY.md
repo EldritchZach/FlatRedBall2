@@ -6,9 +6,12 @@
 
 ## AnimationEditor
 
-* [Animation Editor](animationeditor/readme.md)
-* [Your First Animation](animationeditor/your-first-animation.md)
-* [API](animationeditor/api/README.md)
+* [AnimationEditor](animationeditor/readme.md)
+* [Quick Start](animationeditor/quick-start.md)
+* [How-To Guides](animationeditor/how-to/README.md)
+  * [Edit Animations](animationeditor/how-to/edit-animations.md)
+  * [Edit Frames](animationeditor/how-to/edit-frames.md)
+  * [Work with Project Folders](animationeditor/how-to/work-with-project-folders.md)
+* [Code](animationeditor/api/README.md)
   * [Animations in MonoGame](animationeditor/api/loading-and-drawing-achx-animations.md)
   * [Reading Raw Animation Data](animationeditor/api/reading-raw-animation-data.md)
-* [Page 1](animationeditor/page-1.md)
