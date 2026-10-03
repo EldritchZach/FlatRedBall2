@@ -340,7 +340,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         get
         {
             if (_groupPlayback.Count == 0) return Array.Empty<(AnimationChainSave, PlaybackController)>();
-            var chains = _selectedState!.SelectedChains;
+            var chains = _selectedState!.PreviewChains;
             var result = new List<(AnimationChainSave, PlaybackController)>(chains.Count);
             foreach (var chain in chains)
                 if (_groupPlayback.TryGetValue(chain, out var controller))
@@ -375,6 +375,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         foreach (var c in _groupPlayback.Values) c.Pause();
         if (_groupPlayback.TryGetValue(chain, out var controller))
             controller.SeekToFrame(frameIndex, fraction);
+        SelectGroupCurrentFrames();
         InvalidateVisual();
         GroupPlaybackTicked?.Invoke();
     }
@@ -386,7 +387,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     /// </summary>
     private void SyncGroupPlayback()
     {
-        var chains = _selectedState!.SelectedChains;
+        var chains = _selectedState!.PreviewChains;
         if (chains.Count < 2)
         {
             bool hadAny = _groupPlayback.Count > 0;
@@ -409,8 +410,110 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             _groupPlayback[chain] = controller;
         }
 
+        PinGroupTracksToSelectedFrames();
+
         if (toAdd.Count > 0 || toRemove.Count > 0)
             GroupTracksChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// The selected frame that pins <paramref name="chain"/>'s group track (the first selected
+    /// frame it owns), or null when the chain is selected whole and so keeps playing.
+    /// </summary>
+    private AnimationFrameSave? GroupPinnedFrame(AnimationChainSave chain)
+    {
+        foreach (var node in _selectedState!.SelectedNodes)
+            if (FrameOfBagNode(chain, node) is { } frame)
+                return frame;
+        return null;
+    }
+
+    /// <summary>
+    /// The frame of <paramref name="chain"/> a selected node pins: the frame itself, or the
+    /// frame owning a selected shape (a shape selected inside the group stands in for its frame).
+    /// </summary>
+    private static AnimationFrameSave? FrameOfBagNode(AnimationChainSave chain, object node) => node switch
+    {
+        AnimationFrameSave f => chain.Frames.Contains(f) ? f : null,
+        ShapeSave s => chain.Frames.FirstOrDefault(f => f.ShapesSave?.Shapes.Contains(s) == true),
+        _ => null,
+    };
+
+    /// <summary>
+    /// Selects <paramref name="shape"/> inside the active group without losing the other tracks'
+    /// frames: it replaces its parent frame (and any shape already selected in that frame) in
+    /// the selection, in place.
+    /// </summary>
+    private void SelectShapeInGroup(object shape)
+    {
+        var owner = FindOwningFrame(shape);
+        var bag = new List<object>();
+        bool placed = false;
+        foreach (var node in _selectedState!.SelectedNodes)
+        {
+            bool sameFrame = ReferenceEquals(node, owner)
+                || (node is ShapeSave s && owner?.ShapesSave?.Shapes.Contains(s) == true);
+            if (sameFrame)
+            {
+                if (!placed) { bag.Add(shape); placed = true; }
+                continue;
+            }
+            // One shape at a time: a shape selected in another frame falls back to its frame.
+            object replacement = node is ShapeSave other && FindOwningFrame(other) is { } otherFrame ? otherFrame : node;
+            if (!bag.Contains(replacement)) bag.Add(replacement);
+        }
+        if (!placed) bag.Add(shape);
+        _selectedState!.SelectedNodes = bag;
+        _selectedState!.SelectShape(shape);
+    }
+
+    /// <summary>Selects a clicked shape: in place within a group, otherwise as the sole selection.</summary>
+    private void SelectShapeFromClick(object shape)
+    {
+        if (IsGroupPreviewActive)
+        {
+            SelectShapeInGroup(shape);
+            return;
+        }
+        _selectedState!.SelectedNodes = new List<object>();
+        _selectedState!.SelectShape(shape);
+    }
+
+    /// <summary>
+    /// Parks each track whose frame is selected on that frame and pauses it. Skips the seek when
+    /// the track is already on the frame so a scrub's sub-frame position survives the selection
+    /// change it triggered.
+    /// </summary>
+    private void PinGroupTracksToSelectedFrames()
+    {
+        foreach (var (chain, controller) in _groupPlayback)
+        {
+            if (GroupPinnedFrame(chain) is not { } pinned) continue;
+            int idx = chain.Frames.IndexOf(pinned);
+            if (controller.CurrentFrameIndex != idx) controller.SeekToFrame(idx);
+            controller.Pause();
+        }
+    }
+
+    /// <summary>
+    /// Replaces the selection with the frame each group track is currently showing; the
+    /// <c>SelectedNodes</c> setter ignores an identical list, so this only changes anything on a
+    /// frame-boundary change.
+    /// </summary>
+    private void SelectGroupCurrentFrames()
+    {
+        var bagNow = _selectedState!.SelectedNodes;
+        var next = new List<object>();
+        foreach (var chain in _selectedState!.PreviewChains)
+        {
+            if (chain.Frames.Count == 0 || !_groupPlayback.TryGetValue(chain, out var controller)) continue;
+            var current = chain.Frames[Math.Clamp(controller.CurrentFrameIndex, 0, chain.Frames.Count - 1)];
+            if (ReferenceEquals(GroupPinnedFrame(chain), current))
+                next.AddRange(bagNow.Where(n => FrameOfBagNode(chain, n) is not null)); // keeps a selected shape
+            else
+                next.Add(current);
+        }
+        _selectedState!.SelectedNodes = next;
     }
 
     /// <summary>
@@ -420,15 +523,12 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     /// </summary>
     private PreviewLayer[] BuildGroupLayers()
     {
-        var chains = _selectedState!.SelectedChains;
+        var chains = _selectedState!.PreviewChains;
         var layers = new List<PreviewLayer>(chains.Count);
         foreach (var chain in chains)
         {
-            if (!_groupPlayback.TryGetValue(chain, out var controller)) continue;
-            if (chain.Frames.Count == 0) continue;
-
-            int idx = Math.Clamp(controller.CurrentFrameIndex, 0, chain.Frames.Count - 1);
-            var frame = chain.Frames[idx];
+            if (!_groupPlayback.ContainsKey(chain)) continue;
+            if (GetCurrentPlaybackFrame(chain) is not { } frame) continue;
             string? texPath = _thumbnailService!.ResolveTexturePath(frame);
             _thumbnailService.GetImage(texPath);
             layers.Add(new PreviewLayer(frame, texPath, frame.RelativeX, frame.RelativeY, ResolveColor(chain, frame)));
@@ -464,6 +564,10 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         // Skipped in group mode (#576): singular SelectedFrame must stay untouched by group code.
         if (!IsGroupPreviewActive && _selectedState!.SelectedFrame is not null)
             _selectedState!.SelectedFrame = null;
+        // A pinned group (frames selected) goes back to its whole chains; each frame's owner is
+        // already known, so nothing needs remembering.
+        if (IsGroupPreviewActive && _selectedState!.SelectedNodes.Any(n => n is not AnimationChainSave))
+            _selectedState!.SelectedNodes = _selectedState!.PreviewChains.Cast<object>().ToList();
         _playback.Play();
         foreach (var c in _groupPlayback.Values) c.Play();
         StartAutoTimer();
@@ -1531,15 +1635,31 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     /// </summary>
     private PreviewShapeInfo[] BuildShapeInfos()
     {
+        if (IsGroupPreviewActive)
+        {
+            // Group mode: every track's shapes follow that track's own playhead (the singular
+            // pinned frame/playback controller belongs to a different chain), unselected.
+            var all = new List<PreviewShapeInfo>();
+            foreach (var chain in _selectedState!.PreviewChains)
+                if (GetCurrentPlaybackFrame(chain) is { } groupFrame)
+                    all.AddRange(BuildShapeInfos(groupFrame, pinned: GroupPinnedFrame(chain) is not null));
+            return all.ToArray();
+        }
+
         var pinnedFrame = _selectedState!.SelectedFrame;
         var frame = pinnedFrame ?? GetCurrentPlaybackFrame();
-        if (frame?.ShapesSave is null) return Array.Empty<PreviewShapeInfo>();
+        return frame is null ? Array.Empty<PreviewShapeInfo>() : BuildShapeInfos(frame, pinnedFrame is not null);
+    }
 
-        var selectedRects    = new HashSet<AARectSave>();
+    private PreviewShapeInfo[] BuildShapeInfos(AnimationFrameSave frame, bool pinned)
+    {
+        if (frame.ShapesSave is null) return Array.Empty<PreviewShapeInfo>();
+
+        var selectedRects   = new HashSet<AARectSave>();
         var selectedCircles  = new HashSet<CircleSave>();
         var selectedPolygons = new HashSet<PolygonSave>();
 
-        if (pinnedFrame is not null)
+        if (pinned)
         {
             selectedRects = _selectedState!.SelectedRectangles.ToHashSet();
             if (_selectedState!.SelectedRectangle is { } sr) selectedRects.Add(sr);
@@ -1553,10 +1673,10 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         var pendingShapes = _pendingCutState?.WireframeShapes.ToHashSet() ?? [];
         foreach (var r in frame.ShapesSave!.AARectSaves)
             list.Add(new PreviewShapeInfo(PreviewShapeKind.Rect, r.X, r.Y, r.ScaleX, r.ScaleY,
-                selectedRects.Contains(r), pendingShapes.Contains(r), frameLocked));
+                selectedRects.Contains(r), pendingShapes.Contains(r), frameLocked, IsHovered: pinned && ReferenceEquals(r, _hoverShape)));
         foreach (var c in frame.ShapesSave!.CircleSaves)
             list.Add(new PreviewShapeInfo(PreviewShapeKind.Circle, c.X, c.Y, c.Radius, 0f,
-                selectedCircles.Contains(c), pendingShapes.Contains(c), frameLocked));
+                selectedCircles.Contains(c), pendingShapes.Contains(c), frameLocked, IsHovered: pinned && ReferenceEquals(c, _hoverShape)));
         foreach (var p in frame.ShapesSave!.PolygonSaves)
         {
             int n = PolygonVertices.Count(p);
@@ -1567,7 +1687,8 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
                 selectedPolygons.Contains(p), pendingShapes.Contains(p), frameLocked,
                 points, PolygonVertices.IsClosed(p), PolygonVertices.IsSelfIntersecting(p),
                 ReferenceEquals(p, _selectedState!.SelectedPolygon) ? HighlightedVertexIndex(n) : -1,
-                ReferenceEquals(p, _selectedState!.SelectedPolygon) ? VertexRevealInflation() : 0f));
+                ReferenceEquals(p, _selectedState!.SelectedPolygon) ? VertexRevealInflation() : 0f,
+                pinned && ReferenceEquals(p, _hoverShape)));
         }
         return list.ToArray();
     }
@@ -1612,9 +1733,9 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     private AnimationFrameSave? GetCurrentPlaybackFrame(AnimationChainSave chain)
     {
         if (chain.Frames.Count == 0) return null;
-        var controller = ReferenceEquals(chain, _selectedState!.SelectedChain)
-            ? _playback
-            : _groupPlayback.GetValueOrDefault(chain);
+        if (IsGroupPreviewActive && GroupPinnedFrame(chain) is { } pinned) return pinned;
+        var controller = _groupPlayback.GetValueOrDefault(chain)
+            ?? (ReferenceEquals(chain, _selectedState!.SelectedChain) ? _playback : null);
         if (controller is null) return null;
         int idx = Math.Clamp(controller.CurrentFrameIndex, 0, chain.Frames.Count - 1);
         return chain.Frames[idx];
@@ -1692,71 +1813,93 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     /// </summary>
     private object? HitTestShape(float px, float py)
     {
-        var frame = _selectedState!.SelectedFrame;
-        if (frame?.ShapesSave is null) return null;
-        if (px < RulerSize || py < RulerSize) return null;
+        // Selected shape has priority so the user can drag what they already selected.
+        var under = ShapesUnder(px, py);
+        var sel = _selectedState!.SelectedShape;
+        if (sel is not null && under.Any(s => ReferenceEquals(s, sel))) return sel;
+        return under.Count > 0 ? under[0] : null;
+    }
+
+    /// <summary>
+    /// Every collision shape of the pinned frame under the point, topmost first (polygons render
+    /// last, then circles, then rects; later list entries draw on top). Empty outside the ruler
+    /// strips or when no frame is pinned. Selection is ignored here — see <see cref="HitTestShape"/>.
+    /// </summary>
+    private List<object> ShapesUnder(float px, float py)
+    {
+        var result = new List<object>();
+        if (px < RulerSize || py < RulerSize) return result;
 
         float cx = GetCenterX();
         float cy = GetCenterY();
         float om = _appState!.OffsetMultiplier * _zoom;
         const float tolerance = 5f;
 
-        // Selected shape has priority so the user can drag what they already selected.
-        var sel = _selectedState!.SelectedShape;
-        if (sel is CircleSave selC)
+        foreach (var frame in EditableShapeFrames().AsEnumerable().Reverse())
         {
-            float sx = cx + selC.X * om;
-            float sy = cy - selC.Y * om;
-            if (PreviewShapeHitTester.HitsCircle(px, py, sx, sy, selC.Radius * om, tolerance))
-                return selC;
-        }
-        else if (sel is AARectSave selR)
-        {
-            float sx = cx + selR.X * om;
-            float sy = cy - selR.Y * om;
-            if (PreviewShapeHitTester.HitsRect(px, py, sx, sy, selR.ScaleX * om, selR.ScaleY * om, tolerance))
-                return selR;
-        }
-        else if (sel is PolygonSave selP)
-        {
-            if (PreviewShapeHitTester.HitsPolygon(px, py, PolygonScreenVertices(selP), tolerance))
-                return selP;
-        }
+            if (frame.ShapesSave is null) continue;
 
-        // Polygons are rendered last (on top), so they are checked first.
-        var polygons = frame.ShapesSave!.PolygonSaves.ToList();
-        for (int i = polygons.Count - 1; i >= 0; i--)
-        {
-            var p = polygons[i];
-            if (ReferenceEquals(p, sel)) continue;
-            if (PreviewShapeHitTester.HitsPolygon(px, py, PolygonScreenVertices(p), tolerance))
-                return p;
-        }
+            var polygons = frame.ShapesSave.PolygonSaves.ToList();
+            for (int i = polygons.Count - 1; i >= 0; i--)
+                if (PreviewShapeHitTester.HitsPolygon(px, py, PolygonScreenVertices(polygons[i]), tolerance))
+                    result.Add(polygons[i]);
 
-        var circles = frame.ShapesSave!.CircleSaves.ToList();
-        for (int i = circles.Count - 1; i >= 0; i--)
-        {
-            var c = circles[i];
-            if (ReferenceEquals(c, sel)) continue;
-            float sx = cx + c.X * om;
-            float sy = cy - c.Y * om;
-            if (PreviewShapeHitTester.HitsCircle(px, py, sx, sy, c.Radius * om, tolerance))
-                return c;
-        }
+            var circles = frame.ShapesSave.CircleSaves.ToList();
+            for (int i = circles.Count - 1; i >= 0; i--)
+            {
+                var c = circles[i];
+                if (PreviewShapeHitTester.HitsCircle(px, py, cx + c.X * om, cy - c.Y * om, c.Radius * om, tolerance))
+                    result.Add(c);
+            }
 
-        var rects = frame.ShapesSave!.AARectSaves.ToList();
-        for (int i = rects.Count - 1; i >= 0; i--)
-        {
-            var r = rects[i];
-            if (ReferenceEquals(r, sel)) continue;
-            float sx = cx + r.X * om;
-            float sy = cy - r.Y * om;
-            if (PreviewShapeHitTester.HitsRect(px, py, sx, sy, r.ScaleX * om, r.ScaleY * om, tolerance))
-                return r;
+            var rects = frame.ShapesSave.AARectSaves.ToList();
+            for (int i = rects.Count - 1; i >= 0; i--)
+            {
+                var r = rects[i];
+                if (PreviewShapeHitTester.HitsRect(px, py, cx + r.X * om, cy - r.Y * om, r.ScaleX * om, r.ScaleY * om, tolerance))
+                    result.Add(r);
+            }
         }
-
-        return null;
+        return result;
     }
+
+    /// <summary>
+    /// Frames whose shapes can be clicked and edited: the pinned frame, or in a group the frame
+    /// each pinned (frame/shape-selected) track is parked on. Playing tracks are not editable.
+    /// </summary>
+    private List<AnimationFrameSave> EditableShapeFrames()
+    {
+        var frames = new List<AnimationFrameSave>();
+        if (IsGroupPreviewActive)
+        {
+            foreach (var chain in _selectedState!.PreviewChains)
+                if (GroupPinnedFrame(chain) is { } f) frames.Add(f);
+        }
+        else if (_selectedState!.SelectedFrame is { } single)
+            frames.Add(single);
+        return frames;
+    }
+
+    /// <summary>The shape a plain click at the point would select (see <see cref="ShapeClickCycle"/>).</summary>
+    private object? ShapeClickTarget(float px, float py)
+        => ShapeClickCycle.NextTarget(ShapesUnder(px, py), _selectedState!.SelectedShape);
+
+    // The shape the hover preview outlines; set from pointer moves, cleared on exit/drag.
+    private object? _hoverShape;
+
+    private void UpdateHoverShape(Point pos)
+    {
+        // Only worth outlining when a click would actually change the selection.
+        var target = ShapeClickTarget((float)pos.X, (float)pos.Y);
+        if (ReferenceEquals(target, _selectedState!.SelectedShape)) target = null;
+        if (ReferenceEquals(target, _hoverShape)) return;
+        _hoverShape = target;
+        InvalidateVisual();
+    }
+
+    // Set on press of the already-selected shape while others overlap there: a release without
+    // moving it cycles to this shape instead.
+    private object? _pendingCycleShape;
 
     /// <summary>
     /// Finalises an in-progress shape drag: records an undo command (unless the delta is
@@ -1773,7 +1916,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         const float eps = 1e-4f;
         if (MathF.Abs(newX - _shapeDragStartX) > eps || MathF.Abs(newY - _shapeDragStartY) > eps)
         {
-            var frame = _selectedState!.SelectedFrame;
+            var frame = FindOwningFrame(_draggingShape);
             // Defense-in-depth: OnPointerPressed/Simulate* already refuse to start a drag on a
             // locked chain's shape, so this should never fire for one — kept in case a future
             // code path sets _draggingShape without going through those gates.
@@ -1934,7 +2077,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     private HandleKind HitTestShapeHandle(float px, float py)
     {
         var sel = _selectedState!.SelectedShape;
-        if (sel is null || _selectedState!.SelectedFrame is null) return HandleKind.None;
+        if (sel is null || (_selectedState!.SelectedFrame is null && !IsGroupPreviewActive)) return HandleKind.None;
         if (px < RulerSize || py < RulerSize) return HandleKind.None;
 
         float cx = GetCenterX();
@@ -2065,7 +2208,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
         if (changed)
         {
-            var frame = _selectedState!.SelectedFrame;
+            var frame = FindOwningFrame(_draggingShape);
             // Defense-in-depth: see the comment in CommitShapeDrag.
             if (frame is not null && !IsFrameLocked(frame))
                 _undoManager!.Record(new ResizeShapeCommand(
@@ -2410,10 +2553,24 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
             return;
         }
         var hitShape = HitTestShape(px, py);
+        _hoverShape = null;
+        _pendingCycleShape = null;
         if (hitShape is not null)
         {
-            _selectedState!.SelectedNodes = new System.Collections.Generic.List<object>();
-            _selectedState!.SelectShape(hitShape);
+            // Pressing the already-selected shape where others overlap: drag it as usual, but a
+            // release without moving cycles to the next shape beneath (a locked shape can't be
+            // dragged, so it cycles right away).
+            object? cycleTarget = ReferenceEquals(hitShape, _selectedState!.SelectedShape)
+                ? ShapeClickTarget(px, py) : null;
+            if (ReferenceEquals(cycleTarget, hitShape)) cycleTarget = null;
+            if (cycleTarget is not null && IsShapeLocked(hitShape))
+            {
+                SelectShapeFromClick(cycleTarget);
+                return;
+            }
+            _pendingCycleShape = cycleTarget;
+
+            SelectShapeFromClick(hitShape);
             if (!IsShapeLocked(hitShape))
             {
                 _draggingShape   = hitShape;
@@ -2560,6 +2717,7 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
         UpdateHoverCursor(pos);
         UpdateHoverVertex(pos);
+        UpdateHoverShape(pos);
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -2586,8 +2744,14 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
         if (_draggingShape is not null)
         {
+            var cycle = _pendingCycleShape;
+            _pendingCycleShape = null;
+            var pressed = (ShapeSave)_draggingShape;
+            bool moved = pressed.X != _shapeDragStartX || pressed.Y != _shapeDragStartY;
             CommitShapeDrag();
             e.Pointer.Capture(null);
+            if (cycle is not null && !moved)
+                SelectShapeFromClick(cycle);
             return;
         }
 
@@ -2638,9 +2802,10 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
     {
         base.OnPointerExited(e);
         Cursor = Cursor.Default;
-        if (_hoverVertexIndex >= 0)
+        if (_hoverVertexIndex >= 0 || _hoverShape is not null)
         {
             _hoverVertexIndex = -1;
+            _hoverShape = null;
             InvalidateVisual();
         }
     }
@@ -2671,7 +2836,9 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
         // Polygon vertex drawn enlarged: the one being dragged, else hovered, else focused in the inspector.
         int HighlightedVertex = -1,
         // Extra screen pixels per side on HighlightedVertex while its inspector-focus reveal plays.
-        float HighlightInflation = 0f);
+        float HighlightInflation = 0f,
+        // The shape a click would select (light-blue preview outline).
+        bool IsHovered = false);
 
     private record RenderSnapshot(
         AnimationFrameSave? Frame,
@@ -2859,10 +3026,10 @@ public class PreviewControl : Control, IZoomTarget, IPanScrollTarget
 
             foreach (var sh in s.Shapes)
             {
-                var paint = sh.IsSelected ? selectedPaint : shapePaint;
+                var paint = sh.IsSelected || sh.IsHovered ? selectedPaint : shapePaint;
                 paint.Color = sh.IsSelected
                     ? EditorColors.SelectedShape
-                    : EditorColors.Shape;
+                    : sh.IsHovered ? EditorColors.HoveredShape : EditorColors.Shape;
 
                 // Shape coords: X right, Y up (FRB convention); negate Y for screen
                 float sx = cx + sh.X * om;
