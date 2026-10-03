@@ -245,7 +245,8 @@ public partial class MainWindow : Window
         IApplicationUpdater? applicationUpdater = null,
         IEditorDialogHost? dialogHost = null,
         bool useMacOSChrome = false,
-        CommandModifier? commandModifier = null)
+        CommandModifier? commandModifier = null,
+        PlatformWheelInput? wheelInput = null)
     {
         _applicationDataRoot = applicationDataRoot;
         _useMacOSChrome = useMacOSChrome;
@@ -366,6 +367,17 @@ public partial class MainWindow : Window
         _projectFolderWatcher.Overflowed += () =>
             Dispatcher.UIThread.InvokeAsync(() =>
                 LastProjectFolderWatcherHandledTask = HandleProjectFolderChangesAsync(null));
+
+        // Touchpad scroll pans, pinch zooms, mouse wheel zooms (#1237, #1238); every canvas shares
+        // the one OS-specific detector.
+        if (wheelInput is not null)
+        {
+            foreach (IWheelInputTarget canvas in new IWheelInputTarget[] { WireframeCtrl, PreviewCtrl, PngPane })
+            {
+                canvas.WheelSourceDetector = wheelInput.Detector;
+            }
+            Activated += (_, _) => wheelInput.Attach(this);
+        }
 
         Opened += OnOpened;
         Closed += (_, _) =>
@@ -7069,7 +7081,8 @@ public partial class MainWindow : Window
 
             // Command-modifier hover (Ctrl, or ⌘ on macOS) over the wireframe shows the add-frame
             // cursor; refresh it immediately on press so it doesn't wait for the next pointer move (#882).
-            if (_commandModifier.IsModifierKey(e.Key))
+            // Windows presses Ctrl itself for a touchpad pinch, which isn't the user holding it.
+            if (_commandModifier.IsModifierKey(e.Key) && !WireframeCtrl.WheelSourceDetector.IsPinchInProgress)
                 WireframeCtrl.RefreshCursorForCommandModifierChange(isHeld: true);
 
             var match = HotkeyRegistry.FindMatch(_hotkeys, e.Key.ToString(), ToHotkeyModifiers(e.KeyModifiers));
