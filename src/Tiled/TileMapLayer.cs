@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FlatRedBall2.Rendering;
+using Microsoft.Xna.Framework;
 using MonoGame.Extended.Tilemaps;
 
 namespace FlatRedBall2.Tiled;
@@ -27,6 +28,7 @@ public class TileMapLayer
         Renderable = renderable;
         _tileLayer = tileLayer;
         _tilesets = tilesets;
+        AdoptLayerColor();
     }
 
     /// <summary>
@@ -40,6 +42,7 @@ public class TileMapLayer
         _tileLayer = tileLayer;
         _tilesets = tilesets;
         _isTestMode = true;
+        AdoptLayerColor();
     }
 
     /// <summary>
@@ -82,6 +85,65 @@ public class TileMapLayer
     {
         get => Renderable.IsVisible;
         set => Renderable.IsVisible = value;
+    }
+
+    private Color _color = Color.White;
+    private float _alpha = 1f;
+
+    /// <summary>
+    /// Color tint multiplied with the layer's tile pixels. Default <c>White</c> (no tint), or the
+    /// Tiled layer's <c>tintcolor</c> if the TMX sets one. The alpha channel is ignored; use
+    /// <see cref="Alpha"/> to fade. Same name and meaning as <see cref="Sprite.Color"/>.
+    /// </summary>
+    public Color Color
+    {
+        get => _color;
+        set
+        {
+            _color = new Color(value.R, value.G, value.B);
+            PushColorToLayer();
+        }
+    }
+
+    /// <summary>
+    /// Opacity from 0 (fully transparent) to 1 (fully opaque). Default <c>1</c>, or the Tiled
+    /// layer's <c>opacity</c> (times its <c>tintcolor</c> alpha) if the TMX sets one. Same name
+    /// and meaning as <see cref="Sprite.Alpha"/>. To fade a whole map, loop over
+    /// <see cref="TileMap.Layers"/>.
+    /// </summary>
+    public float Alpha
+    {
+        get => _alpha;
+        set
+        {
+            _alpha = value;
+            PushColorToLayer();
+        }
+    }
+
+    // MonoGame.Extended draws tiles with a non-premultiplied blend state but computes the layer color
+    // as TintColor * Opacity, which scales RGB as well as alpha. Opacity < 1 would therefore apply
+    // the fade twice (a half-faded layer renders at quarter strength). Carry the fade in the tint's
+    // alpha channel and keep Opacity at 1 so the blend applies it exactly once.
+    private void PushColorToLayer()
+    {
+        if (_tileLayer == null) return;
+        _tileLayer.Opacity = 1f;
+        _tileLayer.TintColor = new Color(_color.R, _color.G, _color.B,
+            (byte)System.Math.Clamp((int)System.MathF.Round(_alpha * 255f), 0, 255));
+    }
+
+    // Takes over what the TMX parser put on the layer (tintcolor, opacity) and rewrites it into the
+    // form PushColorToLayer uses. Untouched layers are left alone.
+    private void AdoptLayerColor()
+    {
+        var tint = _tileLayer!.TintColor;
+        if (tint == null && _tileLayer.Opacity == 1f) return;
+
+        var t = tint ?? Color.White;
+        _color = new Color(t.R, t.G, t.B);
+        _alpha = t.A / 255f * _tileLayer.Opacity;
+        PushColorToLayer();
     }
 
     /// <summary>
