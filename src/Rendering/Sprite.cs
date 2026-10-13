@@ -23,7 +23,8 @@ namespace FlatRedBall2.Rendering;
 /// <b>Sizing modes:</b> see <see cref="TextureScale"/> for how <see cref="Width"/> and
 /// <see cref="Height"/> are determined. <b>Animation:</b> assign <see cref="AnimationChains"/>
 /// then call <see cref="PlayAnimation(string)"/>; per-frame texture, source rectangle, flip
-/// flags, and relative offsets are applied automatically while <see cref="Animate"/> is true.
+/// flags, relative offsets and color are applied automatically while <see cref="Animate"/> is true;
+/// <see cref="FrameControlledProperties"/> hands flip, offset or color back to game code.
 /// </para>
 /// </summary>
 public class Sprite : IRenderable, IAttachable
@@ -51,11 +52,12 @@ public class Sprite : IRenderable, IAttachable
     /// <summary>
     /// X position. Relative to <see cref="Parent"/> when attached, world when unattached.
     /// <para>
-    /// <b>Animated sprites:</b> this value is overwritten with <see cref="AnimationFrame.RelativeX"/>
-    /// on every frame switch. Assigning <see cref="X"/> in game code on a sprite that is playing
-    /// an animation is clobbered on the next advance — bake the offset into the frames' <c>RelativeX</c>
-    /// in the <c>.achx</c> / source asset instead, or attach the sprite to a child entity whose own
-    /// <c>X</c> carries the offset.
+    /// <b>Animated sprites:</b> while <see cref="SpriteFrameProperties.Offset"/> is in
+    /// <see cref="FrameControlledProperties"/> (the default), this value is overwritten with
+    /// <see cref="AnimationFrame.RelativeX"/> on every frame switch, so assigning <see cref="X"/> in game
+    /// code is clobbered on the next advance. Clear that flag to own X/Y in game code, bake the offset into
+    /// the frames' <c>RelativeX</c> in the <c>.achx</c> / source asset, or attach the sprite to a child
+    /// entity whose own <c>X</c> carries the offset.
     /// </para>
     /// </summary>
     public float X { get; set; }
@@ -63,11 +65,12 @@ public class Sprite : IRenderable, IAttachable
     /// <summary>
     /// Y position (Y+ up in world space). Relative to <see cref="Parent"/> when attached, world when unattached.
     /// <para>
-    /// <b>Animated sprites:</b> this value is overwritten with <see cref="AnimationFrame.RelativeY"/>
-    /// on every frame switch. Assigning <see cref="Y"/> in game code on a sprite that is playing
-    /// an animation is clobbered on the next advance — bake the offset into the frames' <c>RelativeY</c>
-    /// in the <c>.achx</c> / source asset instead, or attach the sprite to a child entity whose own
-    /// <c>Y</c> carries the offset.
+    /// <b>Animated sprites:</b> while <see cref="SpriteFrameProperties.Offset"/> is in
+    /// <see cref="FrameControlledProperties"/> (the default), this value is overwritten with
+    /// <see cref="AnimationFrame.RelativeY"/> on every frame switch, so assigning <see cref="Y"/> in game
+    /// code is clobbered on the next advance. Clear that flag to own X/Y in game code, bake the offset into
+    /// the frames' <c>RelativeY</c> in the <c>.achx</c> / source asset, or attach the sprite to a child
+    /// entity whose own <c>Y</c> carries the offset.
     /// </para>
     /// </summary>
     public float Y { get; set; }
@@ -104,12 +107,11 @@ public class Sprite : IRenderable, IAttachable
     /// The batch this sprite renders through. Defaults to <see cref="WorldSpaceBatch.Instance"/>
     /// (camera-transformed, Y-flip). Reassign for screen-space rendering or custom blend states.
     /// <para>
-    /// <b>Add-color frames:</b> while <see cref="CurrentFrame"/>'s <see cref="Animation.ColorOperation"/>
-    /// is <see cref="Animation.ColorOperation.Add"/>, the getter transparently swaps
+    /// <b>Add color:</b> while <see cref="AddColor"/> is non-zero, the getter transparently swaps
     /// <see cref="WorldSpaceBatch.Instance"/>/<see cref="ScreenSpaceBatch.Instance"/> for their
     /// <see cref="WorldSpaceAddColorBatch"/>/<see cref="ScreenSpaceAddColorBatch"/> counterparts —
-    /// the value you assigned here is preserved and returned as-is once the frame changes. A
-    /// custom (non-default) batch is returned unchanged; Add frames render without the shader
+    /// the value you assigned here is preserved and returned as-is once <see cref="AddColor"/> returns
+    /// to zero. A custom (non-default) batch is returned unchanged; add color is not rendered
     /// in that case.
     /// </para>
     /// </summary>
@@ -117,7 +119,7 @@ public class Sprite : IRenderable, IAttachable
     {
         get
         {
-            if (CurrentFrame?.ColorOperation == Animation.ColorOperation.Add)
+            if (AddColor != Vector3.Zero)
             {
                 if (ReferenceEquals(_batch, WorldSpaceBatch.Instance)) return WorldSpaceAddColorBatch.Instance;
                 if (ReferenceEquals(_batch, ScreenSpaceBatch.Instance)) return ScreenSpaceAddColorBatch.Instance;
@@ -214,6 +216,23 @@ public class Sprite : IRenderable, IAttachable
     public Color Color { get; set; } = Color.White;
 
     /// <summary>
+    /// Per-channel offset added to the texture's RGB before <see cref="Color"/> and <see cref="Alpha"/>
+    /// multiply the result, so a sprite can be brightened past its texture color (white hit flash) or
+    /// darkened. Channels are in the range -1..1 (<c>X</c>=red, <c>Y</c>=green, <c>Z</c>=blue); the
+    /// shaded result is clamped to 0..1. Fully transparent texels are unaffected. Default
+    /// <see cref="Vector3.Zero"/> (no offset, normal batch).
+    /// <para>
+    /// Animation frames with <see cref="Animation.ColorOperation.Add"/> assign this property on every
+    /// frame change (non-Add frames reset it to zero) while <see cref="SpriteFrameProperties.Color"/> is in
+    /// <see cref="FrameControlledProperties"/>, which is the default. To drive it from game code on an
+    /// animated sprite, clear that flag first. A non-zero value moves the sprite onto the add-color
+    /// batch, see <see cref="Batch"/>; that shader path draws each add-color sprite immediately, so
+    /// keep it to the sprites that need it.
+    /// </para>
+    /// </summary>
+    public Vector3 AddColor { get; set; }
+
+    /// <summary>
     /// Opacity in the range 0 (fully transparent) to 1 (fully opaque). Default <c>1f</c>.
     /// Multiplied with <see cref="Color"/> at draw time, so values outside [0, 1] over- or
     /// under-saturate the result.
@@ -241,14 +260,14 @@ public class Sprite : IRenderable, IAttachable
         }
     }
 
-    /// <summary>Mirrors the texture left-to-right when <c>true</c>. Overwritten by the current animation frame while <see cref="Animate"/> is on.</summary>
+    /// <summary>Mirrors the texture left-to-right when <c>true</c>. Overwritten by each animation frame change unless <see cref="SpriteFrameProperties.Flip"/> is cleared from <see cref="FrameControlledProperties"/>.</summary>
     public bool FlipHorizontal { get; set; }
 
     /// <summary>
     /// Mirrors the texture top-to-bottom when <c>true</c>. Note that <see cref="Batches.WorldSpaceBatch"/>
     /// already applies a base Y-flip to compensate for the camera transform — this property toggles
-    /// <em>relative to upright</em>, not relative to texture pixels. Overwritten by the current animation
-    /// frame while <see cref="Animate"/> is on.
+    /// <em>relative to upright</em>, not relative to texture pixels. Overwritten by each animation
+    /// frame change unless <see cref="SpriteFrameProperties.Flip"/> is cleared from <see cref="FrameControlledProperties"/>.
     /// </summary>
     public bool FlipVertical { get; set; }
 
@@ -257,8 +276,8 @@ public class Sprite : IRenderable, IAttachable
     /// Combines with <see cref="FlipHorizontal"/>/<see cref="FlipVertical"/> in the same D→H→V
     /// order Tiled and the AnimationEditor use. MonoGame's <c>SpriteEffects</c> has no diagonal
     /// value, so this is implemented as a rotation offset rather than a texture-sampling flag —
-    /// see <see cref="ComputeDrawTransform"/>. Overwritten by the current animation frame while
-    /// <see cref="Animate"/> is on.
+    /// see <see cref="ComputeDrawTransform"/>. Overwritten by each animation frame change unless
+    /// <see cref="SpriteFrameProperties.Flip"/> is cleared from <see cref="FrameControlledProperties"/>.
     /// </summary>
     public bool FlipDiagonal { get; set; }
 
@@ -284,7 +303,34 @@ public class Sprite : IRenderable, IAttachable
             _animationChains = value;
             _currentChainIndex = -1;
             _playbackVersion++;
+            // The frame's add color goes with the frame; a game-owned AddColor (Color group off) stays.
+            if (CurrentFrame != null && _frameControlledProperties.HasFlag(SpriteFrameProperties.Color))
+                AddColor = Vector3.Zero;
             CurrentFrame = null;
+        }
+    }
+
+    private SpriteFrameProperties _frameControlledProperties = SpriteFrameProperties.All;
+
+    /// <summary>
+    /// Which property groups animation frames write onto this sprite. Default
+    /// <see cref="SpriteFrameProperties.All"/>. Clear a group to take it over in game code, for example
+    /// <c>FrameControlledProperties &amp;= ~SpriteFrameProperties.Flip</c> so an enemy can face the player
+    /// regardless of the art frames' flips. Texture and source rectangle always follow the frame.
+    /// <para>
+    /// Setting a group that was off applies the current frame's values for it immediately. Clearing a
+    /// group leaves the property at whatever the last frame wrote.
+    /// </para>
+    /// </summary>
+    public SpriteFrameProperties FrameControlledProperties
+    {
+        get => _frameControlledProperties;
+        set
+        {
+            var newlyEnabled = value & ~_frameControlledProperties;
+            _frameControlledProperties = value;
+            if (newlyEnabled != SpriteFrameProperties.None && CurrentFrame != null)
+                ApplyFrameProperties(CurrentFrame, newlyEnabled);
         }
     }
 
@@ -318,9 +364,10 @@ public class Sprite : IRenderable, IAttachable
 
     /// <summary>
     /// The <see cref="AnimationFrame"/> currently displayed, or <c>null</c> when no animation is playing.
-    /// <see cref="AnimationFrame.ColorOperation"/> (Multiply/Add) and <see cref="AnimationFrame.Alpha"/>
-    /// are applied automatically at draw time — see <see cref="SpriteFrameColor.Apply"/> and
-    /// <see cref="Draw"/>. <see cref="AnimationFrame.RelativeX"/>/<see cref="AnimationFrame.RelativeY"/>
+    /// <see cref="AnimationFrame.ColorOperation"/> Multiply and <see cref="AnimationFrame.Alpha"/>
+    /// are applied at draw time (see <see cref="SpriteFrameColor.Apply"/> and <see cref="Draw"/>), and
+    /// Add is assigned to <see cref="AddColor"/>, all while <see cref="SpriteFrameProperties.Color"/> is in
+    /// <see cref="FrameControlledProperties"/>. <see cref="AnimationFrame.RelativeX"/>/<see cref="AnimationFrame.RelativeY"/>
     /// are likewise applied automatically (see <see cref="X"/>/<see cref="Y"/>).
     /// </summary>
     public AnimationFrame? CurrentFrame { get; private set; }
@@ -557,14 +604,32 @@ public class Sprite : IRenderable, IAttachable
         CurrentFrame = frame;
         _texture = frame.Texture;
         _sourceRectangle = frame.SourceRectangle;
-        FlipHorizontal = frame.FlipHorizontal;
-        FlipVertical = frame.FlipVertical;
-        FlipDiagonal = frame.FlipDiagonal;
-        X = frame.RelativeX;
-        Y = frame.RelativeY;
+        ApplyFrameProperties(frame, _frameControlledProperties);
         RecalculateDimensions();
 
         ReconcileShapes(frame);
+    }
+
+    // Writes only the groups in `groups` from the frame onto the sprite.
+    private void ApplyFrameProperties(AnimationFrame frame, SpriteFrameProperties groups)
+    {
+        if (groups.HasFlag(SpriteFrameProperties.Flip))
+        {
+            FlipHorizontal = frame.FlipHorizontal;
+            FlipVertical = frame.FlipVertical;
+            FlipDiagonal = frame.FlipDiagonal;
+        }
+        if (groups.HasFlag(SpriteFrameProperties.Offset))
+        {
+            X = frame.RelativeX;
+            Y = frame.RelativeY;
+        }
+        if (groups.HasFlag(SpriteFrameProperties.Color))
+        {
+            AddColor = frame.ColorOperation == Animation.ColorOperation.Add
+                ? SpriteFrameColor.GetAddOffset(frame)
+                : Vector3.Zero;
+        }
     }
 
     private void ReconcileShapes(AnimationFrame frame)
@@ -775,6 +840,17 @@ public class Sprite : IRenderable, IAttachable
         }
     }
 
+    // The vertex color handed to SpriteBatch.Draw: Color, plus the frame's multiply color/alpha when
+    // the Color group is frame-controlled, times Alpha. Extracted so it is testable without a GraphicsDevice.
+    internal Color ComputeDrawColor()
+    {
+        var frame = CurrentFrame;
+        var baseColor = frame != null && _frameControlledProperties.HasFlag(SpriteFrameProperties.Color)
+            ? SpriteFrameColor.Apply(frame, Color)
+            : Color;
+        return baseColor * Alpha;
+    }
+
     /// <inheritdoc/>
     public void Draw(SpriteBatch spriteBatch, Camera camera)
     {
@@ -786,16 +862,17 @@ public class Sprite : IRenderable, IAttachable
         float srcW = SourceRectangle?.Width  ?? Texture.Width;
         float srcH = SourceRectangle?.Height ?? Texture.Height;
 
-        var frame    = CurrentFrame;
-        var color    = (frame != null ? SpriteFrameColor.Apply(frame, Color) : Color) * Alpha;
+        var color    = ComputeDrawColor();
         var origin   = new Vector2(srcW / 2f, srcH / 2f);
         var scale    = new Vector2(Width / srcW, Height / srcH);
         var position = new Vector2(AbsoluteX, AbsoluteY);
 
-        if (frame?.ColorOperation == Animation.ColorOperation.Add)
+        // Only the add-color batches run the shader; set the offset for every sprite drawn through
+        // one (even a zero AddColor) so a stale offset from the previous sprite can't leak.
+        if (Batch is WorldSpaceAddColorBatch or ScreenSpaceAddColorBatch)
         {
             AddColorEffect.Get(spriteBatch.GraphicsDevice)
-                .Parameters["ColorOffset"].SetValue(SpriteFrameColor.GetAddOffset(frame));
+                .Parameters["ColorOffset"].SetValue(AddColor);
         }
 
         spriteBatch.Draw(
