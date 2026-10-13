@@ -970,11 +970,11 @@ public class TileMap
             }
             else
             {
-                var entity = factory.Create();
-                entity.X = worldX;
-                entity.Y = worldY;
-                ApplyProperties(entity, mergedProps, gid, entityProps, source);
-                configure?.Invoke(entity);
+                var entity = factory.CreatePlaced(worldX, worldY, e =>
+                {
+                    ApplyProperties(e, mergedProps, gid, entityProps, source);
+                    configure?.Invoke(e);
+                });
                 created.Add(entity);
             }
 
@@ -1143,11 +1143,11 @@ public class TileMap
                 }
                 else
                 {
-                    var entity = factory.Create();
-                    entity.X = worldX;
-                    entity.Y = worldY;
-                    ApplyProperties(entity, mergedProps, gid, entityProps, source);
-                    configure?.Invoke(entity);
+                    var entity = factory.CreatePlaced(worldX, worldY, e =>
+                    {
+                        ApplyProperties(e, mergedProps, gid, entityProps, source);
+                        configure?.Invoke(e);
+                    });
                     created.Add(entity);
                 }
 
