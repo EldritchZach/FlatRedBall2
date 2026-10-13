@@ -51,6 +51,14 @@ public class AARect : IAttachable, IRenderable, ICollidable
     /// </remarks>
     public SolidSides SolidSides { get; set; } = SolidSides.All;
 
+    // FlatRedBall 1's RepositionHalfSize. When true, a push is skipped if the overlapping shape's
+    // center is on the inner side of this rect's center, which rejects corner clips (an actor
+    // grazing a rect corner is not shoved across the whole rect). Defaults to true here, whereas
+    // FRB1 defaults to false and sets it only on L-shaped corners and cloud tiles.
+    // TileShapes.AssignSurroundedTilesSolidOutward clears it on the tiles it routes pushes through,
+    // except L-shaped corners; recomputing a tile's SolidSides resets it to true.
+    internal bool RepositionHalfSize { get; set; } = true;
+
     // IAttachable
     /// <inheritdoc/>
     public Entity? Parent

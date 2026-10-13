@@ -145,6 +145,10 @@ internal static class CollisionDispatcher
         float bCenterX = (bLeft + bRight) / 2f;
         float bCenterY = (bBottom + bTop) / 2f;
 
+        // The center-side rules below reject corner clips. Tiles that AssignSurroundedTilesSolidOutward
+        // routes pushes through clear AARect.RepositionHalfSize to push the full distance.
+        bool skipCenterRule = !b.RepositionHalfSize;
+
         if (a is Circle circle)
         {
             float cx = circle.AbsoluteX, cy = circle.AbsoluteY, r = circle.Radius;
@@ -159,7 +163,7 @@ internal static class CollisionDispatcher
                 case SolidSides.Down:
                     // Only push down if the circle center is below the tile's center.
                     // This prevents corner-clips from above triggering a downward push.
-                    if (cy >= bCenterY) return Vector2.Zero;
+                    if (cy >= bCenterY && !skipCenterRule) return Vector2.Zero;
                     // Exit through the bottom face. Circle center lands at rect.bottom − √(r²−dx²).
                     // If dx ≥ r the circle can't reach the bottom face — no separation possible.
                     if (dx >= r) return Vector2.Zero;
@@ -168,14 +172,14 @@ internal static class CollisionDispatcher
                     return deltaDown < 0f ? new Vector2(0f, deltaDown) : Vector2.Zero;
 
                 case SolidSides.Up:
-                    if (cy <= bCenterY) return Vector2.Zero;
+                    if (cy <= bCenterY && !skipCenterRule) return Vector2.Zero;
                     if (dx >= r) return Vector2.Zero;
                     float targetUp  = bTop + MathF.Sqrt(r * r - dx * dx);
                     float deltaUp   = targetUp - cy;
                     return deltaUp > 0f ? new Vector2(0f, deltaUp) : Vector2.Zero;
 
                 case SolidSides.Left:
-                    if (cx >= bCenterX) return Vector2.Zero;
+                    if (cx >= bCenterX && !skipCenterRule) return Vector2.Zero;
                     // Exit through the left face. Circle center lands at rect.left − √(r²−dy²).
                     if (dy >= r) return Vector2.Zero;
                     float targetLeft  = bLeft - MathF.Sqrt(r * r - dy * dy);
@@ -183,7 +187,7 @@ internal static class CollisionDispatcher
                     return deltaLeft < 0f ? new Vector2(deltaLeft, 0f) : Vector2.Zero;
 
                 case SolidSides.Right:
-                    if (cx <= bCenterX) return Vector2.Zero;
+                    if (cx <= bCenterX && !skipCenterRule) return Vector2.Zero;
                     if (dy >= r) return Vector2.Zero;
                     float targetRight = bRight + MathF.Sqrt(r * r - dy * dy);
                     float deltaRight  = targetRight - cx;
@@ -203,19 +207,19 @@ internal static class CollisionDispatcher
             switch (dir)
             {
                 case SolidSides.Down:
-                    if (aCenterY >= bCenterY) return Vector2.Zero;
+                    if (aCenterY >= bCenterY && !skipCenterRule) return Vector2.Zero;
                     float sepD = bBottom - aMaxY;
                     return sepD < 0f ? new Vector2(0f, sepD) : Vector2.Zero;
                 case SolidSides.Up:
-                    if (aCenterY <= bCenterY) return Vector2.Zero;
+                    if (aCenterY <= bCenterY && !skipCenterRule) return Vector2.Zero;
                     float sepU = bTop - aMinY;
                     return sepU > 0f ? new Vector2(0f, sepU) : Vector2.Zero;
                 case SolidSides.Left:
-                    if (aCenterX >= bCenterX) return Vector2.Zero;
+                    if (aCenterX >= bCenterX && !skipCenterRule) return Vector2.Zero;
                     float sepL = bLeft - aMaxX;
                     return sepL < 0f ? new Vector2(sepL, 0f) : Vector2.Zero;
                 case SolidSides.Right:
-                    if (aCenterX <= bCenterX) return Vector2.Zero;
+                    if (aCenterX <= bCenterX && !skipCenterRule) return Vector2.Zero;
                     float sepR = bRight - aMinX;
                     return sepR > 0f ? new Vector2(sepR, 0f) : Vector2.Zero;
             }

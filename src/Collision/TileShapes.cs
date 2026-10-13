@@ -150,6 +150,132 @@ public class TileShapes : ICollidable
     }
 
     /// <summary>
+    /// Gives fully surrounded full-cell tiles (<see cref="SolidSides.None"/>) a way out, so an actor
+    /// that ends up deep inside a solid region is pushed back out instead of staying stuck.
+    /// Port of FlatRedBall 1's <c>AssignAllShapesToRepositionOutward</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Surrounded tiles normally get <see cref="SolidSides.None"/> so actors don't snag on interior
+    /// edges, which also means an actor more than about a tile deep gets no push at all. This pass
+    /// fills those tiles in round by round: a tile takes a direction when its neighbor on that side
+    /// already has it, so directions spread inward from the region's open faces. Where that finds
+    /// nothing, a tile takes the two directions of any empty diagonal cell. The change is to the
+    /// collection, so every actor colliding with it is pushed by the new directions.
+    /// </para>
+    /// <para>
+    /// Call it once, after the collection is fully built. Adding or removing a tile afterward
+    /// recomputes <see cref="SolidSides"/> on it and its neighbors and discards this pass for them;
+    /// run it again after any such edit. Nothing calls it automatically.
+    /// </para>
+    /// <para>
+    /// Only full-cell tiles are changed, and neighbor lookup uses <see cref="GridSize"/> cells.
+    /// Polygon and sub-cell tiles count as occupied cells but never donate directions.
+    /// </para>
+    /// <para>
+    /// Collision normally ignores a push when the actor's center is on the inner side of the tile's
+    /// center, so a corner graze doesn't shove it across the tile. Filled-in tiles and their
+    /// neighbors push the full distance instead, so a body smaller than a tile still gets out;
+    /// L-shaped inside corners keep the limit, as in FlatRedBall 1 (<c>RepositionHalfSize</c>).
+    /// </para>
+    /// <para>
+    /// The optional map edges are world coordinates. A direction is not granted when it would lead to
+    /// a cell whose center is beyond an edge, and a direction a tile has only because it points off
+    /// the map is not passed on to its neighbors, so the pass never creates an exit off the map.
+    /// Directions tiles already had (for example a map-edge tile facing out) are left alone.
+    /// </para>
+    /// </remarks>
+    /// <param name="mapLeft">World X of the map's left edge, or <c>null</c> for no limit.</param>
+    /// <param name="mapTop">World Y of the map's top edge, or <c>null</c> for no limit.</param>
+    /// <param name="mapRight">World X of the map's right edge, or <c>null</c> for no limit.</param>
+    /// <param name="mapBottom">World Y of the map's bottom edge, or <c>null</c> for no limit.</param>
+    public void AssignSurroundedTilesSolidOutward(float? mapLeft = null, float? mapTop = null, float? mapRight = null, float? mapBottom = null)
+    {
+        var pending = new List<(int col, int row)>();
+        foreach (var (cell, tile) in _tiles)
+            if (tile.SolidSides == SolidSides.None)
+                pending.Add(cell);
+        if (pending.Count == 0) return;
+        var surrounded = new List<(int col, int row)>(pending);
+
+        bool IsOffMap(int col, int row)
+        {
+            float cx = X + (col + 0.5f) * GridSize;
+            float cy = Y + (row + 0.5f) * GridSize;
+            return (mapRight.HasValue && cx > mapRight.Value)
+                || (mapLeft.HasValue && cx < mapLeft.Value)
+                || (mapTop.HasValue && cy > mapTop.Value)
+                || (mapBottom.HasValue && cy < mapBottom.Value);
+        }
+
+        bool IsOccupied(int col, int row) =>
+            _tiles.ContainsKey((col, row)) || _polyTiles.ContainsKey((col, row)) || _subCellRects.ContainsKey((col, row));
+
+        var processedThisRound = new HashSet<(int col, int row)>();
+
+        // What the full-cell tile at (col, row) offers its neighbor: `side` if it has that side.
+        // Tiles already handled this round offer nothing, so each round grows the solved area by
+        // one layer.
+        SolidSides Offered(int col, int row, SolidSides side)
+        {
+            if (processedThisRound.Contains((col, row))) return SolidSides.None;
+            if (!_tiles.TryGetValue((col, row), out var n)) return SolidSides.None;
+            if ((n.SolidSides & side) == 0) return SolidSides.None;
+            // An original exit that leads off the map is not a real way out.
+            int exitCol = col + (side == SolidSides.Right ? 1 : side == SolidSides.Left ? -1 : 0);
+            int exitRow = row + (side == SolidSides.Up ? 1 : side == SolidSides.Down ? -1 : 0);
+            if (!IsOccupied(exitCol, exitRow) && IsOffMap(exitCol, exitRow)) return SolidSides.None;
+            return side;
+        }
+
+        while (pending.Count > 0)
+        {
+            int startedCount = pending.Count;
+            processedThisRound.Clear();
+
+            for (int i = pending.Count - 1; i >= 0; i--)
+            {
+                var (col, row) = pending[i];
+                var tile = _tiles[(col, row)];
+                processedThisRound.Add((col, row));
+
+                tile.SolidSides =
+                    Offered(col - 1, row, SolidSides.Left) |
+                    Offered(col + 1, row, SolidSides.Right) |
+                    Offered(col, row + 1, SolidSides.Up) |
+                    Offered(col, row - 1, SolidSides.Down);
+
+                if (tile.SolidSides == SolidSides.None)
+                {
+                    // Neighbors offered nothing; an empty diagonal cell is still a way out.
+                    if (!IsOccupied(col + 1, row + 1) && !IsOffMap(col + 1, row + 1))
+                        tile.SolidSides |= SolidSides.Right | SolidSides.Up;
+                    if (!IsOccupied(col - 1, row + 1) && !IsOffMap(col - 1, row + 1))
+                        tile.SolidSides |= SolidSides.Left | SolidSides.Up;
+                    if (!IsOccupied(col + 1, row - 1) && !IsOffMap(col + 1, row - 1))
+                        tile.SolidSides |= SolidSides.Right | SolidSides.Down;
+                    if (!IsOccupied(col - 1, row - 1) && !IsOffMap(col - 1, row - 1))
+                        tile.SolidSides |= SolidSides.Left | SolidSides.Down;
+                }
+
+                if (tile.SolidSides != SolidSides.None)
+                    pending.RemoveAt(i);
+            }
+
+            // No tile made progress this round (e.g. a region whose every exit is off-map).
+            if (pending.Count == startedCount) break;
+        }
+
+        // Lift the corner-clip limit on the filled-in tiles and their neighbors, which a push-out
+        // chain runs through, except where the tile is an L-shaped corner (as in FlatRedBall 1).
+        foreach (var cell in surrounded)
+        {
+            foreach (var n in new[] { cell, (cell.col - 1, cell.row), (cell.col + 1, cell.row), (cell.col, cell.row - 1), (cell.col, cell.row + 1) })
+                if (_tiles.TryGetValue(n, out var t)) t.RepositionHalfSize = IsLShapedCorner(n.Item1, n.Item2);
+        }
+    }
+
+    /// <summary>
     /// Returns all tile shapes (rectangles and polygons) currently in this collection. Used by
     /// <c>Screen.Add(TileShapes)</c> to register tiles for rendering.
     /// </summary>
@@ -588,7 +714,28 @@ public class TileShapes : ICollidable
         if (hasUp)    dirs &= ~SolidSides.Up;
 
         tile.SolidSides = dirs;
+
+        // Back to the default corner-clip limit; AssignSurroundedTilesSolidOutward lifts it on
+        // tiles it fills in, and a tile edit near them discards that along with their sides.
+        tile.RepositionHalfSize = true;
     }
+
+    // FlatRedBall 1's L-shaped test: two adjacent neighbors present with the diagonal between
+    // them empty (an inside corner). Only these tiles keep the corner-clip limit after the pass.
+    private bool IsLShapedCorner(int col, int row)
+    {
+        bool left  = IsFullOrPolyCell(col - 1, row);
+        bool right = IsFullOrPolyCell(col + 1, row);
+        bool down  = IsFullOrPolyCell(col, row - 1);
+        bool up    = IsFullOrPolyCell(col, row + 1);
+        return (left && up && !IsFullOrPolyCell(col - 1, row + 1))
+            || (up && right && !IsFullOrPolyCell(col + 1, row + 1))
+            || (right && down && !IsFullOrPolyCell(col + 1, row - 1))
+            || (down && left && !IsFullOrPolyCell(col - 1, row - 1));
+    }
+
+    private bool IsFullOrPolyCell(int col, int row) =>
+        _tiles.ContainsKey((col, row)) || _polyTiles.ContainsKey((col, row));
 
     // Sets SolidSides on the polygon tile at (col, row) based on cardinal
     // neighbor occupancy. A neighbor on a side blocks push in that direction so SAT
