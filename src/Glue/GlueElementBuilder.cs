@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FlatRedBall2.Glue.Model;
 
 namespace FlatRedBall2.Glue;
@@ -14,6 +15,10 @@ internal static class GlueElementBuilder
     /// <c>addSingle</c> is how one object gets registered on its owner — a screen adds renderables,
     /// an entity attaches children. Lists have no owner to register with, so their members are built
     /// but not added.
+    /// <para>Every top-level list is created empty before anything is built, so a nested entity that
+    /// joins a factory-associated list finds it whatever order the element declares things in.
+    /// <c>onEntityList</c> is told about each entity list at that point, which is how a screen
+    /// registers its factory-associated ones.</para>
     /// </remarks>
     internal static void Build(
         List<NamedObjectSave> namedObjects,
@@ -24,9 +29,23 @@ internal static class GlueElementBuilder
         GlueContentSource? content,
         Action<object> register,
         GlueProject? project = null,
-        Screen? owningScreen = null)
+        Screen? owningScreen = null,
+        Action<NamedObjectSave, GlueEntityList>? onEntityList = null)
     {
         var builder = new GlueObjectBuilder(diagnostics, content, project, owningScreen);
+
+        foreach (var save in namedObjects)
+        {
+            if (!save.IsList || string.IsNullOrEmpty(save.InstanceName))
+                continue;
+
+            var list = NewList(save);
+            objects[save.InstanceName] = list;
+
+            if (list is GlueEntityList entityList)
+                onEntityList?.Invoke(save, entityList);
+        }
+
         BuildInto(namedObjects, builder, elementName, objects, diagnostics, addSingle);
 
         // Tile objects come last and in their own order: a map is loaded from a file, and a
@@ -39,8 +58,7 @@ internal static class GlueElementBuilder
 
         // Relationships reference other objects by name, so they come last. FRB1 codifies the same
         // ordering rather than relying on declaration order.
-        GlueCollisionBuilder.Build(
-            namedObjects, elementName, objects, diagnostics, project, owningScreen);
+        GlueCollisionBuilder.Build(namedObjects, elementName, objects, diagnostics, owningScreen);
     }
 
     /// <remarks>
@@ -67,7 +85,7 @@ internal static class GlueElementBuilder
             }
 
             object? built = save.IsList
-                ? BuildList(builder, save, elementName, diagnostics)
+                ? BuildList(builder, save, elementName, objects, diagnostics)
                 : addSingle(builder, save);
 
             if (built is not null)
@@ -93,6 +111,11 @@ internal static class GlueElementBuilder
                 foreach (var member in list)
                     yield return member;
             }
+            else if (item is GlueEntityList entities)
+            {
+                foreach (var member in entities)
+                    yield return member;
+            }
             else
             {
                 yield return item;
@@ -101,31 +124,87 @@ internal static class GlueElementBuilder
     }
 
     /// <summary>
-    /// Builds a list member's contents. The list itself is a plain <see cref="List{T}"/> of whatever
-    /// could be constructed — FRB2 has no equivalent of Glue's <c>PositionedObjectList&lt;T&gt;</c>,
-    /// and this phase does not need one.
+    /// Whether a list holds entities: its generic type names an element, or — when it names none —
+    /// every member it declares is one.
+    /// </summary>
+    private static bool IsEntityList(NamedObjectSave save)
+    {
+        if (!string.IsNullOrEmpty(save.SourceClassGenericType))
+            return GlueTypeName.Parse(save.SourceClassGenericType).IsElementReference;
+
+        return save.ContainedObjects.Count > 0 &&
+               save.ContainedObjects.All(c => GlueTypeName.Parse(c.SourceClassType).IsElementReference);
+    }
+
+    /// <summary>
+    /// An entity list is a live <see cref="GlueEntityList"/>: the owner's own collection, which
+    /// spawns can join and destroyed members leave. Any other list is a plain
+    /// snapshot of whatever could be constructed — FRB2 has no equivalent of Glue's
+    /// <c>PositionedObjectList&lt;T&gt;</c>.
+    /// </summary>
+    private static object NewList(NamedObjectSave save) =>
+        IsEntityList(save) ? new GlueEntityList() : new List<object>();
+
+    /// <summary>
+    /// Fills a list with its authored members. The list is the one the owner already holds in
+    /// <paramref name="objects"/> (created up front for a top-level list).
     /// </summary>
     /// <remarks>
-    /// Members are built but not registered anywhere here. A nested entity member is the exception —
-    /// it is registered on its owning screen as a side effect of being created (see
-    /// <see cref="GlueObjectBuilder.Create"/>), and is told which list it joined so a collision
-    /// relationship bound to this list's name (<see cref="GlueProject.InstancesOfList"/>) sees it.
+    /// A nested entity member is registered on its owning screen as a side effect of being created
+    /// (see <see cref="GlueObjectBuilder.Create"/>) and joins only this list: a declared member's
+    /// placement is unambiguous, so it never feeds the type's spawn destinations (<see cref="GlueProject.ListsToAddTo"/>).
     /// </remarks>
     private static object BuildList(
         GlueObjectBuilder builder,
         NamedObjectSave save,
         string? elementName,
+        Dictionary<string, object> objects,
         List<GlueLoadDiagnostic> diagnostics)
     {
-        var items = new List<object>();
+        if (!objects.TryGetValue(save.InstanceName!, out object? list))
+            list = NewList(save);
 
         foreach (var contained in save.ContainedObjects)
         {
-            object? item = builder.Create(contained, elementName, listName: save.InstanceName);
-            if (item is not null)
-                items.Add(item);
+            object? item = builder.Create(contained, elementName, isListMember: true);
+
+            if (item is null)
+                continue;
+
+            switch (list)
+            {
+                case GlueEntityList entities when item is GlueEntity entity:
+                    entities.Add(entity);
+                    break;
+                case GlueEntityList:
+                    diagnostics.Add(new GlueLoadDiagnostic(
+                        GlueDiagnosticSeverity.Warning,
+                        $"'{contained.InstanceName}' is not an entity but sits in the entity list " +
+                        $"'{save.InstanceName}'; it was skipped.",
+                        elementName));
+                    break;
+                case List<object> others:
+                    others.Add(item);
+                    break;
+            }
         }
 
-        return items;
+        return list;
+    }
+
+    /// <summary>The live entity list the owner declared under this name.</summary>
+    /// <exception cref="ArgumentException">The owner declares no entity list by that name.</exception>
+    internal static GlueEntityList FindEntityList(
+        IReadOnlyDictionary<string, object> objects, string listName, string? ownerName)
+    {
+        if (objects.TryGetValue(listName, out object? found) && found is GlueEntityList list)
+            return list;
+
+        string known = string.Join(
+            ", ", objects.Where(o => o.Value is GlueEntityList).Select(o => $"'{o.Key}'"));
+
+        throw new ArgumentException(
+            $"'{ownerName}' declares no entity list named '{listName}'. " +
+            (known.Length == 0 ? "It declares none." : $"Its entity lists are {known}."));
     }
 }

@@ -356,3 +356,5 @@ CLR-type registry entirely) rather than touching `Factory<T>`, `Screen.AddCollis
   from list A to list B on a state change") — no such instruction exists in the Glue format today.
 
 Implementation tracked on issue #1088.
+
+**Revised in #1457.** The backing list is no longer project-wide per list name: the screen or entity instance that declares a list owns it (`GlueScreen.GetList`, `GlueEntity.GetList`), so each instance of an entity has its own. `GlueProject` keeps the per-entity destination set a spawn joins (`ListsToAddTo`), mirroring FRB1's per-factory list set. At screen init each `AssociateWithFactory` list is added to its own entity's factory, and to every descendant's only when its entity is the most base one, skipping abstract entities and ones without `CreatedByOtherEntities`. This is FRB1's documented rule, implemented on purpose; FRB1's generator instead reaches every descendant of any list type (FRB1 issue filed). `AddList`/`RemoveList` touch exactly the entity named, with no cascade, and a screen change clears the set. Entity lists join only through `AddList`. `GlueProject.InstancesOfList` is gone.
