@@ -53,11 +53,31 @@ public partial class Index
             _perfProbe = PerfDiagnosticsProbe.TryCreateFromQuery(
                 new Uri(Navigation.Uri).Query, FlatRedBallService.Default, GetBrowserLabel,
                 Console.WriteLine, PublishToJs);
-            _game = GameFactory();
-            _game.Run();
+            try
+            {
+                _game = GameFactory();
+                _game.Run();
+            }
+            catch (Exception ex)
+            {
+                InvokeBootScreen("frbBootFailed", $"{ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
         }
-        _game.Tick();
+        _game!.Tick();
         _perfProbe?.OnTick();
+    }
+
+    // frbBootFailed is defined by boot-screen.js, which a project opts into with one <script> tag.
+    // Without it the first call throws once, and this reporting disables itself.
+
+    private bool _bootScreenUnavailable;
+
+    private void InvokeBootScreen(string function, params object?[] args)
+    {
+        if (_bootScreenUnavailable) return;
+        try { (JsRuntime as IJSInProcessRuntime)?.InvokeVoid(function, args); }
+        catch (JSException) { _bootScreenUnavailable = true; }
     }
 
     // frbDiagPlatform / frbDiagPublish live in frb-host.js. A project that vendored an older copy
